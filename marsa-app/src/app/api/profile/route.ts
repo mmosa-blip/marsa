@@ -54,7 +54,7 @@ export async function PATCH(request: NextRequest) {
       where: { id: session.user.id },
       data: {
         name: name.trim(),
-        phone: phone || null,
+        phone: phone || undefined,
         avatar: avatar || null,
       },
       select: {
