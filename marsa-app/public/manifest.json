@@ -1,0 +1,35 @@
+{
+  "name": "مرسى — خدمات رجال الأعمال",
+  "short_name": "مرسى",
+  "description": "منصة متكاملة لإدارة المشاريع والخدمات والعقود",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1C1B2E",
+  "theme_color": "#2A2542",
+  "dir": "rtl",
+  "lang": "ar",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/images/marsa-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/marsa-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/images/marsa-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
