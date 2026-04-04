@@ -104,8 +104,22 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as unknown as { role: string }).role;
         token.phone = (user as unknown as { phone: string }).phone;
       }
-      // Check impersonation cookie
-      if (typeof window === "undefined") {
+
+      // Re-read role from DB on every request to catch admin role changes
+      if (typeof window === "undefined" && token.id) {
+        try {
+          const { prisma } = await import("./prisma");
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { role: true, name: true },
+          });
+          if (dbUser) {
+            token.role = dbUser.role;
+            token.name = dbUser.name;
+          }
+        } catch {}
+
+        // Check impersonation cookie
         const { cookies } = await import("next/headers");
         try {
           const cookieStore = await cookies();

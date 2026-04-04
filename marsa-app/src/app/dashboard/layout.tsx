@@ -564,29 +564,54 @@ function DashboardLayoutInner({
           })}
         </nav>
 
-        {/* Footer — user info + settings link */}
+        {/* Footer — user info + profile + logout */}
         <div className="px-3 py-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ backgroundColor: "rgba(255,255,255,0.04)" }}>
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-              style={{ backgroundColor: "#5E5495", color: "#FFFFFF" }}
-            >
-              {userInitial}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-white truncate font-medium">{userName}</p>
-              <p className="text-[10px] truncate" style={{ color: "rgba(255,255,255,0.4)" }}>
-                {(t.roles as Record<string, string>)[userRole] || userRole}
-              </p>
-            </div>
-            {["ADMIN"].includes(userRole) && (
-              <Link href="/dashboard/settings" className="p-1.5 rounded-lg transition-colors" style={{ color: "rgba(255,255,255,0.4)" }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = "#C9A84C"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}
+          <div className="px-3 py-2.5 rounded-xl" style={{ backgroundColor: "rgba(255,255,255,0.04)" }}>
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                style={{ backgroundColor: "#5E5495", color: "#FFFFFF" }}
               >
-                <Settings size={16} />
+                {userInitial}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-white truncate font-medium">{userName}</p>
+                <p className="text-[10px] truncate" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  {(t.roles as Record<string, string>)[userRole] || userRole}
+                </p>
+              </div>
+              {["ADMIN"].includes(userRole) && (
+                <Link href="/dashboard/settings" className="p-1.5 rounded-lg transition-colors" style={{ color: "rgba(255,255,255,0.4)" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "#C9A84C"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}
+                >
+                  <Settings size={16} />
+                </Link>
+              )}
+            </div>
+            {/* Profile & Logout — always visible (especially needed on mobile) */}
+            <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+              <Link
+                href="/dashboard/profile"
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors`}
+                style={{ color: "rgba(255,255,255,0.5)", backgroundColor: "rgba(255,255,255,0.04)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; }}
+              >
+                <User size={14} />
+                {t.nav.profile}
               </Link>
-            )}
+              <button
+                onClick={() => signOut({ callbackUrl: "/auth/login" })}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors"
+                style={{ color: "#DC2626", backgroundColor: "rgba(220,38,38,0.08)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(220,38,38,0.15)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "rgba(220,38,38,0.08)"; }}
+              >
+                <LogOut size={14} />
+                {t.nav.logout}
+              </button>
+            </div>
           </div>
         </div>
       </aside>
