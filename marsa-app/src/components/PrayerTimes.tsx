@@ -209,14 +209,14 @@ export default function PrayerTimes() {
       <div className="relative">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all"
+          className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl transition-all min-h-[44px]"
           style={{
             backgroundColor: expanded ? "rgba(201,168,76,0.15)" : "rgba(201,168,76,0.08)",
             border: "1px solid rgba(201,168,76,0.15)",
           }}
         >
           {/* Mosque icon */}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
             <path d="M12 2C8 6 4 8 4 12v8h16v-8c0-4-4-6-8-10z" />
             <path d="M4 20h16" />
             <path d="M12 12v4" />
@@ -229,7 +229,7 @@ export default function PrayerTimes() {
                 <span className="text-[10px] font-medium block leading-tight" style={{ color: "#C9A84C" }}>
                   {nextPrayer.name}
                 </span>
-                <span className="text-[9px] block leading-tight" style={{ color: "rgba(201,168,76,0.7)" }}>
+                <span className="text-[8px] block leading-tight" style={{ color: "rgba(201,168,76,0.7)" }}>
                   {countdown}
                 </span>
               </>
@@ -246,7 +246,7 @@ export default function PrayerTimes() {
           <>
             <div className="fixed inset-0 z-40" onClick={() => setExpanded(false)} />
             <div
-              className="absolute top-full mt-2 left-0 w-64 rounded-2xl overflow-hidden z-50"
+              className="fixed top-14 left-4 right-4 lg:absolute lg:top-full lg:mt-2 lg:left-0 lg:right-auto w-auto lg:w-64 rounded-2xl overflow-hidden z-50"
               style={{
                 backgroundColor: "#2A2542",
                 border: "1px solid rgba(201,168,76,0.2)",

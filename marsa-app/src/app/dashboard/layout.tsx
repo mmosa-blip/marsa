@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Users,
   Users2,
+  Building2,
   Bell,
   Wallet,
   Monitor,
@@ -297,7 +298,7 @@ function DashboardLayoutInner({
   const { data: session } = useSession();
   const { t, isRTL } = useLang();
   const userRole = session?.user?.role || "";
-  const userName = session?.user?.name || "مستخدم";
+  const userName = decodeURIComponent(session?.user?.name || "مستخدم");
   const userEmail = session?.user?.email || "";
   const userInitial = userName.charAt(0);
 
@@ -446,19 +447,18 @@ function DashboardLayoutInner({
 
       {/* ═══ Mobile header bar ═══ */}
       <div
-        className={`fixed ${impersonating ? "top-10" : "top-0"} right-0 left-0 h-14 flex items-center justify-between px-4 z-30 lg:hidden`}
+        className={`fixed ${impersonating ? "top-10" : "top-0"} right-0 left-0 h-12 flex items-center justify-between px-3 z-30 lg:hidden`}
         style={{ backgroundColor: "#2A2542" }}
       >
-        <div className="flex items-center gap-2">
-          <MarsaLogo size={24} variant="light" />
-          <span className="text-lg font-bold" style={{ color: "#C9A84C" }}>{t.brand.name}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <MarsaLogo size={22} variant="light" />
+          <span className="text-base font-bold truncate" style={{ color: "#C9A84C" }}>{t.brand.name}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 shrink-0">
           <PrayerTimes />
-          <LanguageToggle />
           <NotificationBell />
-          <button onClick={() => setSidebarOpen(true)} className="p-2 text-white/70">
-            <Menu size={24} />
+          <button onClick={() => setSidebarOpen(true)} className="p-2 text-white/70 min-h-[44px] min-w-[44px] flex items-center justify-center">
+            <Menu size={22} />
           </button>
         </div>
       </div>
@@ -729,11 +729,11 @@ function DashboardLayoutInner({
       </div>
 
       {/* ═══ Main content ═══ */}
-      <main className={`flex-1 ${isRTL ? "mr-0 lg:mr-[270px]" : "ml-0 lg:ml-[270px]"} ${impersonating ? "pt-24 lg:pt-24" : "pt-14 lg:pt-14"}`}>
+      <main className={`flex-1 ${isRTL ? "mr-0 lg:mr-[270px]" : "ml-0 lg:ml-[270px]"} ${impersonating ? "pt-22 lg:pt-24" : "pt-12 lg:pt-14"} pb-20 lg:pb-0`}>
         {/* Welcome bar - desktop only */}
         <div className="hidden lg:block px-8 pt-6 pb-2">
           <h2 className="text-xl font-bold" style={{ color: "#1C1B2E" }}>
-            مرحباً {session?.user?.name || "مستخدم"}
+            مرحباً {decodeURIComponent(session?.user?.name || "مستخدم")}
           </h2>
           <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
             {new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura-nu-latn", { year: "numeric", month: "long", day: "numeric" })}
@@ -744,6 +744,61 @@ function DashboardLayoutInner({
         </div>
         {children}
       </main>
+
+      {/* ═══ Mobile bottom navigation ═══ */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-30 lg:hidden flex items-center justify-around"
+        style={{
+          backgroundColor: "#FFFFFF",
+          borderTop: "1px solid #E8E6F0",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          height: "64px",
+        }}
+      >
+        <Link
+          href="/dashboard"
+          className="flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] flex-1"
+          style={{ color: pathname === "/dashboard" ? "#5E5495" : "#9CA3AF" }}
+        >
+          <LayoutDashboard size={20} />
+          <span className="text-[10px] font-medium">الرئيسية</span>
+        </Link>
+        {userRole !== "CLIENT" ? (
+          <Link
+            href="/dashboard/my-tasks"
+            className="flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] flex-1"
+            style={{ color: pathname.startsWith("/dashboard/my-tasks") ? "#5E5495" : "#9CA3AF" }}
+          >
+            <ClipboardList size={20} />
+            <span className="text-[10px] font-medium">مهامي</span>
+          </Link>
+        ) : (
+          <Link
+            href="/dashboard/my-projects"
+            className="flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] flex-1"
+            style={{ color: pathname.startsWith("/dashboard/my-projects") ? "#5E5495" : "#9CA3AF" }}
+          >
+            <FolderOpen size={20} />
+            <span className="text-[10px] font-medium">مشاريعي</span>
+          </Link>
+        )}
+        <Link
+          href="/dashboard/notifications"
+          className="flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] flex-1"
+          style={{ color: pathname.startsWith("/dashboard/notifications") ? "#5E5495" : "#9CA3AF" }}
+        >
+          <Bell size={20} />
+          <span className="text-[10px] font-medium">الإشعارات</span>
+        </Link>
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] flex-1"
+          style={{ color: "#9CA3AF" }}
+        >
+          <Menu size={20} />
+          <span className="text-[10px] font-medium">القائمة</span>
+        </button>
+      </div>
     </div>
     </ToastProvider>
   );

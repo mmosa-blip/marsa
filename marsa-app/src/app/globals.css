@@ -302,3 +302,69 @@ input:focus, select:focus, textarea:focus {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
+
+/* ═══ Mobile Responsiveness ═══ */
+
+/* Prevent horizontal overflow */
+html, body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Touch-friendly minimum tap targets */
+@media (max-width: 1023px) {
+  button, a, [role="button"] {
+    min-height: 40px;
+  }
+
+  /* Reduce padding on mobile */
+  .p-8 {
+    padding: 1rem !important;
+  }
+
+  /* Stack grids on small screens */
+  .grid-cols-2,
+  .grid-cols-3,
+  .grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .md\:grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Fix table overflow */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Fix card overflow */
+  .rounded-2xl, .rounded-xl {
+    overflow: hidden;
+    word-break: break-word;
+  }
+}
+
+/* Small phones (375px) */
+@media (max-width: 430px) {
+  .p-8 {
+    padding: 0.75rem !important;
+  }
+
+  .text-2xl {
+    font-size: 1.25rem !important;
+  }
+
+  .gap-6 {
+    gap: 1rem !important;
+  }
+}
+
+/* Safe area inset for notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-20 {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important;
+  }
+}
