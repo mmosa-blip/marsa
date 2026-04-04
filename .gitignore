@@ -36,5 +36,8 @@ pnpm-debug.log*
 *.docx
 *.pdf
 
+# Database backups
+backups/
+
 # Claude local settings
 .claude/
