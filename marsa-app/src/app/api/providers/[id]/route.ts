@@ -46,8 +46,8 @@ export async function PATCH(
     } = body;
 
     if (email && email !== provider.email) {
-      const existingUser = await prisma.user.findUnique({
-        where: { email },
+      const existingUser = await prisma.user.findFirst({
+        where: { email, id: { not: id } },
       });
       if (existingUser) {
         return NextResponse.json(
