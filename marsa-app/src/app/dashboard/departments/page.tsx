@@ -29,6 +29,15 @@ interface Department {
 
 const defaultColors = ["#5E5495", "#C9A84C", "#059669", "#EA580C", "#DC2626", "#2563EB", "#7C3AED", "#0891B2"];
 
+const roleLabels: Record<string, string> = {
+  ADMIN: "مدير النظام",
+  MANAGER: "مشرف",
+  EXECUTOR: "منفذ",
+  EXTERNAL_PROVIDER: "مقدم خدمة",
+  FINANCE_MANAGER: "مدير مالي",
+  TREASURY_MANAGER: "أمين صندوق",
+};
+
 export default function DepartmentsPage() {
   const { data: session } = useSession();
   const { t, lang } = useLang();
@@ -41,6 +50,53 @@ export default function DepartmentsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // Employee management
+  const [empModal, setEmpModal] = useState<Department | null>(null);
+  const [deptEmployees, setDeptEmployees] = useState<{ id: string; name: string; email: string; role: string }[]>([]);
+  const [allStaff, setAllStaff] = useState<{ id: string; name: string; email: string; role: string }[]>([]);
+  const [empSearch, setEmpSearch] = useState("");
+  const [loadingEmp, setLoadingEmp] = useState(false);
+
+  const openEmployees = (dept: Department) => {
+    setEmpModal(dept);
+    setLoadingEmp(true);
+    Promise.all([
+      fetch(`/api/departments/${dept.id}/employees`).then((r) => r.json()),
+      allStaff.length === 0
+        ? fetch("/api/users/search?roles=ADMIN,MANAGER,EXECUTOR,EXTERNAL_PROVIDER,FINANCE_MANAGER,TREASURY_MANAGER").then((r) => r.json())
+        : Promise.resolve(allStaff),
+    ]).then(([emps, staff]) => {
+      if (Array.isArray(emps)) setDeptEmployees(emps);
+      if (Array.isArray(staff)) setAllStaff(staff);
+      setLoadingEmp(false);
+    }).catch(() => setLoadingEmp(false));
+  };
+
+  const addEmployee = async (userId: string) => {
+    if (!empModal) return;
+    await fetch(`/api/departments/${empModal.id}/employees`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    const res = await fetch(`/api/departments/${empModal.id}/employees`);
+    const data = await res.json();
+    if (Array.isArray(data)) setDeptEmployees(data);
+    setEmpSearch("");
+    fetchDepartments();
+  };
+
+  const removeEmployee = async (userId: string) => {
+    if (!empModal) return;
+    await fetch(`/api/departments/${empModal.id}/employees`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    setDeptEmployees((prev) => prev.filter((e) => e.id !== userId));
+    fetchDepartments();
+  };
 
   const [form, setForm] = useState({
     name: "",
@@ -231,6 +287,9 @@ export default function DepartmentsPage() {
               {/* Actions */}
               {session?.user?.role === "ADMIN" && (
                 <div className="flex items-center gap-2 pt-3" style={{ borderTop: "1px solid #F3F4F6" }}>
+                  <MarsaButton variant="ghost" size="xs" icon={<Users size={14} />} onClick={() => openEmployees(dept)}>
+                    {isAr ? "الموظفين" : "Staff"}
+                  </MarsaButton>
                   <MarsaButton variant="ghost" size="xs" icon={<Pencil size={14} />} onClick={() => openEdit(dept)}>
                     {isAr ? "تعديل" : "Edit"}
                   </MarsaButton>
@@ -362,6 +421,89 @@ export default function DepartmentsPage() {
               <MarsaButton variant="secondary" size="lg" onClick={() => setShowModal(false)}>
                 {isAr ? "إلغاء" : "Cancel"}
               </MarsaButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Employee Management Modal */}
+      {empModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div
+            className="bg-white rounded-2xl w-full max-w-lg p-6 max-h-[80vh] flex flex-col"
+            style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>
+                  {isAr ? "موظفو القسم" : "Department Staff"}
+                </h2>
+                <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>{empModal.name}</p>
+              </div>
+              <MarsaButton variant="ghost" size="sm" iconOnly icon={<X size={18} />} onClick={() => setEmpModal(null)} />
+            </div>
+
+            {/* Add employee */}
+            <div className="flex gap-2 mb-4">
+              <select
+                value={empSearch}
+                onChange={(e) => setEmpSearch(e.target.value)}
+                className="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ border: "1px solid #E2E0D8" }}
+              >
+                <option value="">{isAr ? "اختر موظف للإضافة..." : "Select staff to add..."}</option>
+                {allStaff
+                  .filter((s) => !deptEmployees.find((e) => e.id === s.id))
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {roleLabels[s.role] || s.role}
+                    </option>
+                  ))}
+              </select>
+              <MarsaButton
+                variant="gold"
+                size="sm"
+                onClick={() => { if (empSearch) addEmployee(empSearch); }}
+              >
+                {isAr ? "إضافة" : "Add"}
+              </MarsaButton>
+            </div>
+
+            {/* Employee list */}
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {loadingEmp ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 size={24} className="animate-spin" style={{ color: "#5E5495" }} />
+                </div>
+              ) : deptEmployees.length === 0 ? (
+                <p className="text-sm text-center py-8" style={{ color: "#9CA3AF" }}>
+                  {isAr ? "لا يوجد موظفين في هذا القسم" : "No staff in this department"}
+                </p>
+              ) : (
+                deptEmployees.map((emp) => (
+                  <div
+                    key={emp.id}
+                    className="flex items-center justify-between p-3 rounded-xl"
+                    style={{ backgroundColor: "#F8F7F4" }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}
+                      >
+                        {emp.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: "#1C1B2E" }}>{emp.name}</p>
+                        <p className="text-[10px]" style={{ color: "#9CA3AF" }}>{emp.email}</p>
+                      </div>
+                    </div>
+                    <MarsaButton variant="dangerSoft" size="xs" onClick={() => removeEmployee(emp.id)}>
+                      {isAr ? "إزالة" : "Remove"}
+                    </MarsaButton>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

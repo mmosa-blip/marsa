@@ -49,6 +49,7 @@ export const en = {
     myEmployees: "My Employees",
     myAuthorization: "Authorization",
     departments: "Departments",
+    recycleBin: "Recycle Bin",
   },
 
   groups: {

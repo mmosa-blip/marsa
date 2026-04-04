@@ -152,6 +152,7 @@ const adminGroups: NavGroup[] = [
     children: [
       { href: "/dashboard/settings", label: "الإعدادات", tKey: "settings" },
       { href: "/dashboard/permissions", label: "إدارة الصلاحيات", tKey: "permissions" },
+      { href: "/dashboard/recycle-bin", label: "سلة المحذوفات", tKey: "recycleBin" },
     ],
   },
 ];

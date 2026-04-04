@@ -49,6 +49,7 @@ export const ar = {
     myEmployees: "موظفيني",
     myAuthorization: "التفويض",
     departments: "الأقسام",
+    recycleBin: "سلة المحذوفات",
   },
 
   groups: {
