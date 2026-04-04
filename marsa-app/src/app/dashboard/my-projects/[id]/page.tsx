@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   ArrowRight, Calendar, DollarSign, User, CheckCircle,
   Clock, Layers, AlertCircle, ChevronDown, ChevronUp
@@ -81,6 +82,8 @@ const milestoneStatusConfig: Record<string, { label: string; bg: string; text: s
 export default function MyProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { data: session } = useSession();
+  const isClient = session?.user?.role === "CLIENT";
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
@@ -179,7 +182,7 @@ export default function MyProjectDetailPage() {
 
         {/* Meta */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {project.manager && (
+          {!isClient && project.manager && (
             <div className="flex items-center gap-2 text-xs" style={{ color: "#6B7280" }}>
               <User size={14} style={{ color: "#C9A84C" }} />
               <span>{project.manager.name}</span>
@@ -277,7 +280,7 @@ export default function MyProjectDetailPage() {
               {isExpanded && service.tasks.length > 0 && (
                 <div className="px-5 pb-5 space-y-2" style={{ borderTop: "1px solid #F0EDE6" }}>
                   <div className="pt-3 space-y-2">
-                    {service.tasks.sort((a, b) => a.order - b.order).map((task) => {
+                    {service.tasks.sort((a, b) => a.order - b.order).map((task, taskIdx) => {
                       const tSt = taskStatusConfig[task.status] || taskStatusConfig.TODO;
                       return (
                         <div key={task.id} className="flex items-center justify-between p-3 rounded-xl"
@@ -293,17 +296,23 @@ export default function MyProjectDetailPage() {
                               <p className="text-sm font-medium" style={{
                                 color: task.status === "DONE" ? "#94A3B8" : "#2D3748",
                                 textDecoration: task.status === "DONE" ? "line-through" : "none"
-                              }}>{task.title}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                {task.assignee && (
-                                  <span className="text-xs" style={{ color: "#94A3B8" }}>{task.assignee.name}</span>
-                                )}
-                                {task.dueDate && (
-                                  <span className="text-xs" style={{ color: "#94A3B8" }}>
-                                    {new Date(task.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })}
-                                  </span>
-                                )}
-                              </div>
+                              }}>
+                                {isClient
+                                  ? `مهمة ${taskIdx + 1} من ${svcTotal}`
+                                  : task.title}
+                              </p>
+                              {!isClient && (
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {task.assignee && (
+                                    <span className="text-xs" style={{ color: "#94A3B8" }}>{task.assignee.name}</span>
+                                  )}
+                                  {task.dueDate && (
+                                    <span className="text-xs" style={{ color: "#94A3B8" }}>
+                                      {new Date(task.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                           <span className="px-2 py-1 rounded-full text-xs font-medium"

@@ -18,22 +18,38 @@ export async function GET() {
     const projects = await prisma.project.findMany({
       where: { clientId: userId, deletedAt: null },
       include: {
-        manager: { select: { name: true } },
+        // Only task status for progress calculation — no titles, assignees, or notes
         tasks: { select: { status: true } },
+        // Service names are safe to show clients
         services: { select: { name: true, status: true } },
+        department: { select: { name: true, color: true } },
       },
       orderBy: { createdAt: "desc" },
     });
 
+    // Return only client-safe fields
     const result = projects.map((p) => {
       const totalTasks = p.tasks.length;
       const completedTasks = p.tasks.filter((t) => t.status === "DONE").length;
       const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      // Determine overall status label
+      const inProgress = p.tasks.filter((t) => t.status === "IN_PROGRESS").length;
+      const waiting = p.tasks.filter((t) => ["WAITING", "WAITING_EXTERNAL"].includes(t.status)).length;
+
       return {
-        ...p,
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        status: p.status,
+        priority: p.priority,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        createdAt: p.createdAt,
         progress,
-        totalTasks,
-        completedTasks,
+        services: p.services,
+        department: p.department,
+        taskSummary: { total: totalTasks, done: completedTasks, inProgress, waiting },
       };
     });
 

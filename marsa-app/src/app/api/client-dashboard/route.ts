@@ -25,12 +25,11 @@ export async function GET() {
       upcomingReminders,
       recentTasks,
     ] = await Promise.all([
-      // Projects with tasks
+      // Projects with task counts only (no internal details)
       prisma.project.findMany({
         where: { clientId: userId, deletedAt: null },
         include: {
           tasks: { select: { status: true } },
-          manager: { select: { name: true } },
         },
         orderBy: { updatedAt: "desc" },
       }),
@@ -81,16 +80,16 @@ export async function GET() {
         orderBy: { dueDate: "asc" },
         take: 5,
       }),
-      // Recent tasks from client's projects
+      // Recent task status updates (no titles or assignee details for client privacy)
       prisma.task.findMany({
         where: {
           project: { clientId: userId },
         },
         select: {
           id: true,
-          title: true,
           status: true,
           updatedAt: true,
+          service: { select: { name: true } },
           project: { select: { name: true } },
         },
         orderBy: { updatedAt: "desc" },
@@ -128,9 +127,6 @@ export async function GET() {
         status: p.status,
         priority: p.priority,
         progress,
-        totalTasks,
-        completedTasks,
-        manager: p.manager?.name || null,
       };
     });
 
@@ -147,12 +143,12 @@ export async function GET() {
         createdAt,
       }));
 
-    // Recent activities
+    // Recent activities (show service/project name instead of task title)
     const recentActivities = recentTasks.map((t) => ({
       id: t.id,
-      title: t.title,
       status: t.status,
       updatedAt: t.updatedAt,
+      serviceName: (t as unknown as { service?: { name: string } }).service?.name || null,
       projectName: t.project.name,
     }));
 

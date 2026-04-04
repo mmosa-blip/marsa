@@ -57,14 +57,13 @@ interface DashboardData {
   };
   recentProjects: {
     id: string; name: string; status: string; priority: string;
-    progress: number; totalTasks: number; completedTasks: number;
-    manager: string | null;
+    progress: number;
   }[];
   recentServices: {
     id: string; name: string; category: string; status: string; price: number; createdAt: string;
   }[];
   recentActivities: {
-    id: string; title: string; status: string; updatedAt: string; projectName: string;
+    id: string; serviceName: string; status: string; updatedAt: string; projectName: string;
   }[];
 }
 
@@ -228,8 +227,7 @@ export default function ClientDashboard({ userName }: Props) {
                       <span className="text-xs font-bold w-8 text-left" style={{ color: "#1C1B2E" }}>{p.progress}%</span>
                     </div>
                     <div className="flex items-center gap-3 text-[11px]" style={{ color: "#2D3748", opacity: 0.5 }}>
-                      <span>{p.completedTasks}/{p.totalTasks} مهام</span>
-                      {p.manager && <span>المسؤول: {p.manager}</span>}
+                      <span>التقدم: {p.progress}%</span>
                     </div>
                   </Link>
                 );
@@ -296,7 +294,7 @@ export default function ClientDashboard({ userName }: Props) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm" style={{ color: "#2D3748" }}>
-                    <span className="font-medium">{a.title}</span>
+                    <span className="font-medium">تحديث في {a.serviceName || a.projectName}</span>
                     {" — "}
                     <span style={{ opacity: 0.6 }}>{taskStatusLabels[a.status] || a.status}</span>
                   </p>
