@@ -98,20 +98,20 @@ export async function POST(request: Request) {
       bankIban,
     } = body;
 
-    if (!name || !email || !password) {
+    if (!name || !phone || !password) {
       return NextResponse.json(
-        { error: "الاسم والبريد الإلكتروني وكلمة المرور مطلوبة" },
+        { error: "الاسم ورقم الجوال وكلمة المرور مطلوبة" },
         { status: 400 }
       );
     }
 
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { phone },
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { error: "البريد الإلكتروني مستخدم بالفعل" },
+        { error: "رقم الجوال مسجل مسبقاً" },
         { status: 400 }
       );
     }
@@ -121,9 +121,9 @@ export async function POST(request: Request) {
     const provider = await prisma.user.create({
       data: {
         name,
-        email,
-        password: hashedPassword,
         phone,
+        email: email || null,
+        password: hashedPassword,
         specialization,
         supervisorId,
         costPerTask,
