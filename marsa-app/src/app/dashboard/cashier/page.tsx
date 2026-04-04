@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
 import {
   ArrowRight, ArrowLeft, Search, UserPlus, Package, ShoppingCart,
   Banknote, CreditCard, Building2, Clock, CheckCircle, Printer,
@@ -9,6 +8,7 @@ import {
 } from "lucide-react";
 import MarsaLogo from "@/components/MarsaLogo";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 // ===== Types =====
 interface ClientResult {
@@ -259,9 +259,9 @@ export default function CashierPage() {
               </div>
             ))}
           </div>
-          <Link href="/dashboard" className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition-all hover:bg-white/10" style={{ color: "rgba(255,255,255,0.5)" }}>
-            <ArrowRight size={16} /> رجوع
-          </Link>
+          <MarsaButton href="/dashboard" variant="ghost" size="sm" icon={<ArrowRight size={16} />} style={{ color: "rgba(255,255,255,0.5)" }}>
+            رجوع
+          </MarsaButton>
         </div>
       </div>
 
@@ -303,11 +303,11 @@ export default function CashierPage() {
               ))}
             </div>
 
-            <button onClick={() => setShowNewClient(true)}
-              className="w-full flex items-center justify-center gap-3 p-5 rounded-2xl text-lg font-semibold transition-all hover:scale-[1.01]"
-              style={{ border: "2px dashed rgba(201,168,76,0.4)", color: "#C9A84C" }}>
-              <UserPlus size={24} /> عميل جديد
-            </button>
+            <MarsaButton variant="outline" size="lg" icon={<UserPlus size={24} />} onClick={() => setShowNewClient(true)}
+              className="w-full p-5 text-lg"
+              style={{ border: "2px dashed rgba(201,168,76,0.4)", color: "#C9A84C", backgroundColor: "transparent" }}>
+              عميل جديد
+            </MarsaButton>
 
             {/* نافذة عميل جديد */}
             {showNewClient && (
@@ -322,10 +322,9 @@ export default function CashierPage() {
                     <input type="tel" value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} placeholder="رقم الجوال" className="w-full px-4 py-3.5 rounded-xl text-sm outline-none" style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.15)" }} />
                     <input type="email" value={newClient.email} onChange={(e) => setNewClient({ ...newClient, email: e.target.value })} placeholder="البريد الإلكتروني" className="w-full px-4 py-3.5 rounded-xl text-sm outline-none" style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.15)" }} />
                     <input type="text" value={newClient.companyName} onChange={(e) => setNewClient({ ...newClient, companyName: e.target.value })} placeholder="اسم الشركة (اختياري)" className="w-full px-4 py-3.5 rounded-xl text-sm outline-none" style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.15)" }} />
-                    <button onClick={handleCreateClient} disabled={!newClient.name || creatingClient}
-                      className="w-full py-4 rounded-xl text-white font-semibold disabled:opacity-50 transition-all" style={{ backgroundColor: "#C9A84C" }}>
+                    <MarsaButton variant="gold" size="lg" onClick={handleCreateClient} disabled={!newClient.name || creatingClient} loading={creatingClient} className="w-full py-4">
                       {creatingClient ? "جارٍ الإنشاء..." : "إضافة العميل"}
-                    </button>
+                    </MarsaButton>
                   </div>
                 </div>
               </div>
@@ -354,9 +353,9 @@ export default function CashierPage() {
                 <span className="text-xl font-bold" style={{ color: "white" }}>عدة خدمات</span>
               </button>
             </div>
-            <button onClick={() => { setStep(1); setSelectedClient(null); }} className="mt-6 mx-auto flex items-center gap-2 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
-              <ArrowRight size={16} /> تغيير العميل
-            </button>
+            <MarsaButton variant="ghost" size="sm" icon={<ArrowRight size={16} />} onClick={() => { setStep(1); setSelectedClient(null); }} className="mt-6 mx-auto" style={{ color: "rgba(255,255,255,0.4)" }}>
+              تغيير العميل
+            </MarsaButton>
           </div>
         )}
 
@@ -369,9 +368,9 @@ export default function CashierPage() {
                   <p className="text-sm" style={{ color: "#C9A84C" }}>{selectedClient?.name}</p>
                   <h2 className="text-xl font-bold" style={{ color: "white" }}>{mode === "single" ? "اختر الخدمة" : "أضف الخدمات"}</h2>
                 </div>
-                <button onClick={() => setMode(null)} className="text-sm px-3 py-1.5 rounded-lg" style={{ color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <MarsaButton variant="ghost" size="sm" onClick={() => setMode(null)} style={{ color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}>
                   تغيير النوع
-                </button>
+                </MarsaButton>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {services.map((svc) => {
@@ -436,11 +435,9 @@ export default function CashierPage() {
                         <div className="flex justify-between text-sm mb-2"><span style={{ color: "rgba(255,255,255,0.5)" }}>ضريبة 15%</span><span style={{ color: "white" }}>{taxAmount.toLocaleString("en-US")} <SarSymbol size={14} /></span></div>
                         <div className="flex justify-between text-lg font-bold"><span style={{ color: "#C9A84C" }}>الإجمالي</span><span style={{ color: "#C9A84C" }}>{grandTotal.toLocaleString("en-US")} <SarSymbol size={18} /></span></div>
                       </div>
-                      <button onClick={() => setStep(3)}
-                        className="w-full mt-4 py-4 rounded-xl text-lg font-bold transition-all hover:scale-[1.02]"
-                        style={{ backgroundColor: "#C9A84C", color: "#1C1B2E" }}>
+                      <MarsaButton variant="gold" size="lg" onClick={() => setStep(3)} className="w-full mt-4 py-4 text-lg" style={{ color: "#1C1B2E" }}>
                         متابعة للدفع
-                      </button>
+                      </MarsaButton>
                     </>
                   )}
                 </div>
@@ -452,9 +449,9 @@ export default function CashierPage() {
         {/* ===== الخطوة 3: التأكيد والدفع ===== */}
         {step === 3 && (
           <div className="max-w-2xl mx-auto pt-4">
-            <button onClick={() => setStep(2)} className="flex items-center gap-1 text-sm mb-6" style={{ color: "rgba(255,255,255,0.4)" }}>
-              <ArrowRight size={16} /> رجوع
-            </button>
+            <MarsaButton variant="ghost" size="sm" icon={<ArrowRight size={16} />} onClick={() => setStep(2)} className="mb-6" style={{ color: "rgba(255,255,255,0.4)" }}>
+              رجوع
+            </MarsaButton>
 
             <h2 className="text-2xl font-bold text-center mb-6" style={{ color: "white" }}>تأكيد ودفع</h2>
 
@@ -520,12 +517,13 @@ export default function CashierPage() {
             )}
 
             {/* زر التأكيد */}
-            <button onClick={confirmTransaction}
+            <MarsaButton variant="gold" size="lg" onClick={confirmTransaction}
               disabled={!selectedPayment || processing || (selectedPayment === "CASH" && (!amountReceived || parseFloat(amountReceived) < grandTotal))}
-              className="w-full py-5 rounded-2xl text-xl font-bold transition-all hover:scale-[1.01] disabled:opacity-40"
-              style={{ backgroundColor: "#C9A84C", color: "#1C1B2E" }}>
+              loading={processing}
+              className="w-full py-5 rounded-2xl text-xl"
+              style={{ color: "#1C1B2E" }}>
               {processing ? "جارٍ المعالجة..." : "تأكيد العملية"}
-            </button>
+            </MarsaButton>
           </div>
         )}
 
@@ -548,16 +546,16 @@ export default function CashierPage() {
             </div>
 
             <div className="flex gap-4">
-              <button onClick={printReceipt}
-                className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl text-lg font-semibold transition-all hover:scale-[1.02]"
+              <MarsaButton variant="ghost" size="lg" icon={<Printer size={22} />} onClick={printReceipt}
+                className="flex-1 py-4 text-lg"
                 style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.15)" }}>
-                <Printer size={22} /> طباعة إيصال
-              </button>
-              <button onClick={reset}
-                className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl text-lg font-bold transition-all hover:scale-[1.02]"
-                style={{ backgroundColor: "#C9A84C", color: "#1C1B2E" }}>
-                <RotateCcw size={22} /> عملية جديدة
-              </button>
+                طباعة إيصال
+              </MarsaButton>
+              <MarsaButton variant="gold" size="lg" icon={<RotateCcw size={22} />} onClick={reset}
+                className="flex-1 py-4 text-lg"
+                style={{ color: "#1C1B2E" }}>
+                عملية جديدة
+              </MarsaButton>
             </div>
           </div>
         )}

@@ -15,6 +15,7 @@ import {
   FileText,
   Activity,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
   DRAFT: { label: "مسودة", bg: "#F3F4F6", text: "#6B7280" },

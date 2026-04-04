@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import {
   ArrowRight,
   Edit3,
@@ -25,6 +24,7 @@ import {
   ShieldCheck,
   AlertTriangle,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import SarSymbol from "@/components/SarSymbol";
 
 /* ── role config (same as users list page) ── */
@@ -295,13 +295,9 @@ export default function UserDetailsPage() {
         <p className="text-lg font-semibold" style={{ color: "#1C1B2E" }}>
           {error || "المستخدم غير موجود"}
         </p>
-        <Link
-          href="/dashboard/users"
-          className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
-          style={{ backgroundColor: "#5E5495" }}
-        >
+        <MarsaButton href="/dashboard/users" variant="primary" size="md">
           العودة للقائمة
-        </Link>
+        </MarsaButton>
       </div>
     );
   }
@@ -341,14 +337,7 @@ export default function UserDetailsPage() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard/users"
-            className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:bg-white"
-            style={{ border: "1px solid #E2E0D8" }}
-            title="العودة"
-          >
-            <ArrowRight size={20} style={{ color: "#1C1B2E" }} />
-          </Link>
+          <MarsaButton href="/dashboard/users" variant="secondary" iconOnly icon={<ArrowRight size={20} />} title="العودة" />
           <div>
             <h1
               className="text-2xl font-bold"
@@ -364,17 +353,9 @@ export default function UserDetailsPage() {
             </p>
           </div>
         </div>
-        <Link
-          href={`/dashboard/users/${user.id}/edit`}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all"
-          style={{
-            backgroundColor: "#C9A84C",
-            boxShadow: "0 4px 12px rgba(201,168,76,0.25)",
-          }}
-        >
-          <Edit3 size={18} />
+        <MarsaButton href={`/dashboard/users/${user.id}/edit`} variant="gold" size="md" icon={<Edit3 size={18} />}>
           تعديل
-        </Link>
+        </MarsaButton>
       </div>
 
       {/* ── User info card ── */}
@@ -1173,12 +1154,13 @@ export default function UserDetailsPage() {
                   <option key={s.id} value={s.id}>{s.name}{s.category ? ` - ${s.category}` : ""}</option>
                 ))}
             </select>
-            <button
+            <MarsaButton
               onClick={() => { if (serviceSearch) { handleAddService(serviceSearch); setServiceSearch(""); } }}
-              className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
-              style={{ backgroundColor: "#C9A84C" }}>
+              variant="gold"
+              size="sm"
+            >
               إضافة
-            </button>
+            </MarsaButton>
           </div>
 
           {/* Current services */}
@@ -1193,11 +1175,9 @@ export default function UserDetailsPage() {
                     <p className="text-sm font-medium" style={{ color: "#1C1B2E" }}>{us.service.name}</p>
                     {us.service.category && <p className="text-xs" style={{ color: "#94A3B8" }}>{us.service.category}</p>}
                   </div>
-                  <button onClick={() => handleRemoveService(us.service.id)}
-                    className="text-xs px-3 py-1 rounded-lg"
-                    style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}>
+                  <MarsaButton onClick={() => handleRemoveService(us.service.id)} variant="dangerSoft" size="xs">
                     إلغاء الربط
-                  </button>
+                  </MarsaButton>
                 </div>
               ))
             )}

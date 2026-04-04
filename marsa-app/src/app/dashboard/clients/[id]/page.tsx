@@ -10,6 +10,7 @@ import {
   Trash2, Paperclip, Link2, Users, Lock, KeyRound,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 // ===== Types =====
 interface ClientData {
@@ -236,9 +237,7 @@ export default function ClientProfilePage({ params }: { params: Promise<{ id: st
     <div className="p-8" dir="rtl">
       {/* الرأس */}
       <div className="flex items-start gap-4 mb-8">
-        <Link href="/dashboard/clients" className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white transition-colors mt-1 shrink-0" style={{ border: "1px solid #E2E0D8" }}>
-          <ArrowRight size={20} style={{ color: "#1C1B2E" }} />
-        </Link>
+        <MarsaButton href="/dashboard/clients" variant="secondary" size="md" iconOnly icon={<ArrowRight size={20} />} className="mt-1 shrink-0" />
         <div className="flex items-start gap-4 flex-1">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold shrink-0" style={{ backgroundColor: "rgba(201,168,76,0.12)", color: "#C9A84C" }}>
             {client.name.charAt(0)}
@@ -268,7 +267,7 @@ export default function ClientProfilePage({ params }: { params: Promise<{ id: st
             {s.expiredDocs > 0 && <p className="text-sm font-medium" style={{ color: "#DC2626" }}>{s.expiredDocs} وثيقة منتهية الصلاحية</p>}
             {s.expiringDocs > 0 && <p className="text-sm font-medium" style={{ color: "#EA580C" }}>{s.expiringDocs} وثيقة تنتهي خلال 30 يوم</p>}
           </div>
-          <button onClick={() => setActiveTab("documents")} className="mr-auto text-xs font-medium hover:underline" style={{ color: "#C9A84C" }}>عرض الوثائق</button>
+          <MarsaButton variant="link" size="xs" className="mr-auto" onClick={() => setActiveTab("documents")}>عرض الوثائق</MarsaButton>
         </div>
       )}
 
@@ -448,20 +447,17 @@ function ServicesTab({ services, onDelete }: { services: ServiceItem[]; onDelete
             {confirmId === svc.id ? (
               <div className="absolute top-3 left-3 flex items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-lg z-10" style={{ border: "1px solid #FCA5A5" }}>
                 <span className="text-xs font-medium" style={{ color: "#DC2626" }}>تأكيد الحذف؟</span>
-                <button onClick={() => handleDelete(svc.id)} disabled={deletingId === svc.id}
-                  className="px-2 py-1 rounded-lg text-xs font-bold text-white" style={{ backgroundColor: "#DC2626" }}>
+                <MarsaButton variant="danger" size="xs" onClick={() => handleDelete(svc.id)} disabled={deletingId === svc.id}>
                   {deletingId === svc.id ? "..." : "نعم"}
-                </button>
-                <button onClick={() => setConfirmId(null)} className="px-2 py-1 rounded-lg text-xs font-bold" style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}>
+                </MarsaButton>
+                <MarsaButton variant="secondary" size="xs" onClick={() => setConfirmId(null)}>
                   لا
-                </button>
+                </MarsaButton>
               </div>
             ) : (
-              <button onClick={() => setConfirmId(svc.id)}
-                className="absolute top-3 left-3 w-8 h-8 rounded-lg items-center justify-center hidden group-hover:flex"
-                style={{ backgroundColor: "rgba(220,38,38,0.08)", color: "#DC2626" }}>
-                <Trash2 size={15} />
-              </button>
+              <MarsaButton variant="dangerSoft" size="sm" iconOnly icon={<Trash2 size={15} />}
+                className="absolute top-3 left-3 hidden group-hover:flex"
+                onClick={() => setConfirmId(svc.id)} />
             )}
           </div>
         );
@@ -482,8 +478,8 @@ function TasksTab({ tasks }: { tasks: TaskItem[] }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
-        <button onClick={() => setViewMode("kanban")} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={viewMode === "kanban" ? { backgroundColor: "#5E5495", color: "white" } : { color: "#94A3B8", border: "1px solid #E2E0D8" }}>Kanban</button>
-        <button onClick={() => setViewMode("table")} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={viewMode === "table" ? { backgroundColor: "#5E5495", color: "white" } : { color: "#94A3B8", border: "1px solid #E2E0D8" }}>جدول</button>
+        <MarsaButton variant={viewMode === "kanban" ? "primary" : "secondary"} size="sm" onClick={() => setViewMode("kanban")}>Kanban</MarsaButton>
+        <MarsaButton variant={viewMode === "table" ? "primary" : "secondary"} size="sm" onClick={() => setViewMode("table")}>جدول</MarsaButton>
       </div>
 
       {viewMode === "kanban" ? (
@@ -625,9 +621,9 @@ function DocumentsTab({ documents, clientId, companyId, onRefresh }: { documents
           <option value="EXPIRING_SOON">تنتهي قريباً</option>
           <option value="EXPIRED">منتهية</option>
         </select>
-        <button onClick={openAdd} className="mr-auto flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all" style={{ backgroundColor: "#5E5495" }}>
-          <FilePlus size={16} /> إضافة وثيقة
-        </button>
+        <MarsaButton variant="primary" icon={<FilePlus size={16} />} className="mr-auto" onClick={openAdd}>
+          إضافة وثيقة
+        </MarsaButton>
       </div>
 
       {/* بطاقات الوثائق */}
@@ -648,8 +644,8 @@ function DocumentsTab({ documents, clientId, companyId, onRefresh }: { documents
                     {doc.type !== "CUSTOM" && <p className="text-xs mt-0.5" style={{ color: "#94A3B8" }}>{doc.title}</p>}
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => openEdit(doc)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100"><Pencil size={13} style={{ color: "#94A3B8" }} /></button>
-                    <button onClick={() => handleDelete(doc.id)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50"><Trash2 size={13} style={{ color: "#DC2626" }} /></button>
+                    <MarsaButton variant="ghost" size="xs" iconOnly icon={<Pencil size={13} />} onClick={() => openEdit(doc)} />
+                    <MarsaButton variant="dangerSoft" size="xs" iconOnly icon={<Trash2 size={13} />} onClick={() => handleDelete(doc.id)} />
                   </div>
                 </div>
 
@@ -724,8 +720,8 @@ function DocumentsTab({ documents, clientId, companyId, onRefresh }: { documents
                 <span className="text-sm" style={{ color: "#2D3748" }}>ربط بالشركة لتنفيذ الخدمات</span>
               </label>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-3 rounded-xl text-sm font-medium" style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}>إلغاء</button>
-                <button type="submit" disabled={saving} className="flex-1 px-4 py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-50" style={{ backgroundColor: "#5E5495" }}>{saving ? "جارٍ الحفظ..." : editDoc ? "حفظ التعديلات" : "إضافة الوثيقة"}</button>
+                <MarsaButton type="button" variant="secondary" size="lg" className="flex-1" onClick={() => setShowModal(false)}>إلغاء</MarsaButton>
+                <MarsaButton type="submit" variant="primary" size="lg" className="flex-1" loading={saving}>{saving ? "جارٍ الحفظ..." : editDoc ? "حفظ التعديلات" : "إضافة الوثيقة"}</MarsaButton>
               </div>
             </form>
           </div>
@@ -783,9 +779,9 @@ function EmployeesTab({ employees, error, clientId, authType, onVerified }: {
         <p className="text-sm mb-6" style={{ color: "#94A3B8" }}>أدخل رمز التحقق OTP المرسل للعميل</p>
         <div className="flex items-center justify-center gap-3 max-w-xs mx-auto">
           <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="123456" maxLength={6} className="w-32 px-4 py-3 rounded-xl border text-center text-lg font-mono tracking-widest outline-none" style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }} />
-          <button onClick={handleVerify} disabled={verifying || otp.length < 6} className="px-6 py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-50" style={{ backgroundColor: "#C9A84C" }}>
+          <MarsaButton variant="gold" size="lg" onClick={handleVerify} disabled={verifying || otp.length < 6} loading={verifying}>
             {verifying ? "..." : "تحقق"}
-          </button>
+          </MarsaButton>
         </div>
         {otpError && <p className="text-sm mt-3" style={{ color: "#DC2626" }}>{otpError}</p>}
         <p className="text-xs mt-4" style={{ color: "#94A3B8" }}>رمز المحاكاة: 123456</p>
@@ -844,7 +840,7 @@ function InvoicesTab({ invoices }: { invoices: InvoiceItem[] }) {
       <div className="bg-white rounded-2xl overflow-hidden" style={{ border: "1px solid #E2E0D8" }}>
         <table className="w-full">
           <thead><tr style={{ backgroundColor: "rgba(27,42,74,0.03)", borderBottom: "1px solid #E2E0D8" }}>{["رقم الفاتورة", "العنوان", "المبلغ", "المدفوع", "الحالة", "الاستحقاق", ""].map((h, i) => (<th key={i} className="text-right px-4 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.6 }}>{h}</th>))}</tr></thead>
-          <tbody>{invoices.map((inv) => { const st = invoiceStatusConfig[inv.status] || invoiceStatusConfig.DRAFT; const paid = inv.payments.reduce((s, p) => s + p.amount, 0); return (<tr key={inv.id} className="hover:bg-gray-50/50" style={{ borderBottom: "1px solid #F0EDE6" }}><td className="px-4 py-3"><span className="text-sm font-mono font-bold" style={{ color: "#C9A84C" }}>{inv.invoiceNumber}</span></td><td className="px-4 py-3 text-sm" style={{ color: "#1C1B2E" }}>{inv.title}</td><td className="px-4 py-3 text-sm font-bold" style={{ color: "#1C1B2E" }}>{inv.totalAmount.toLocaleString("en-US")} <SarSymbol size={14} /></td><td className="px-4 py-3 text-sm" style={{ color: "#059669" }}>{paid.toLocaleString("en-US")} <SarSymbol size={14} /></td><td className="px-4 py-3"><span className="px-2.5 py-1 rounded-full text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td><td className="px-4 py-3 text-xs" style={{ color: "#94A3B8" }}>{fmt(inv.dueDate)}</td><td className="px-4 py-3"><Link href={`/dashboard/finance/invoices/${inv.id}`} className="text-xs font-medium hover:underline" style={{ color: "#C9A84C" }}>عرض</Link></td></tr>); })}</tbody>
+          <tbody>{invoices.map((inv) => { const st = invoiceStatusConfig[inv.status] || invoiceStatusConfig.DRAFT; const paid = inv.payments.reduce((s, p) => s + p.amount, 0); return (<tr key={inv.id} className="hover:bg-gray-50/50" style={{ borderBottom: "1px solid #F0EDE6" }}><td className="px-4 py-3"><span className="text-sm font-mono font-bold" style={{ color: "#C9A84C" }}>{inv.invoiceNumber}</span></td><td className="px-4 py-3 text-sm" style={{ color: "#1C1B2E" }}>{inv.title}</td><td className="px-4 py-3 text-sm font-bold" style={{ color: "#1C1B2E" }}>{inv.totalAmount.toLocaleString("en-US")} <SarSymbol size={14} /></td><td className="px-4 py-3 text-sm" style={{ color: "#059669" }}>{paid.toLocaleString("en-US")} <SarSymbol size={14} /></td><td className="px-4 py-3"><span className="px-2.5 py-1 rounded-full text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td><td className="px-4 py-3 text-xs" style={{ color: "#94A3B8" }}>{fmt(inv.dueDate)}</td><td className="px-4 py-3"><MarsaButton href={`/dashboard/finance/invoices/${inv.id}`} variant="link" size="xs">عرض</MarsaButton></td></tr>); })}</tbody>
         </table>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Save } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Company { id: string; name: string; }
 
@@ -64,9 +65,9 @@ export default function NewEmployeePage() {
 
   return (
     <div className="p-8 max-w-4xl">
-      <button onClick={() => router.back()} className="flex items-center gap-2 text-sm mb-6" style={{ color: "#2D3748", opacity: 0.5 }}>
-        <ArrowRight size={16} /> رجوع
-      </button>
+      <MarsaButton onClick={() => router.back()} variant="ghost" size="sm" icon={<ArrowRight size={16} />}>
+        رجوع
+      </MarsaButton>
 
       <h1 className="text-2xl font-bold mb-6" style={{ color: "#1C1B2E" }}>إضافة موظف جديد</h1>
 
@@ -134,13 +135,12 @@ export default function NewEmployeePage() {
         </div>
 
         <div className="flex gap-3">
-          <button type="submit" disabled={saving} className="flex items-center gap-2 px-8 py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-50" style={{ backgroundColor: "#5E5495" }}>
-            <Save size={18} />
+          <MarsaButton type="submit" disabled={saving} variant="primary" size="lg" loading={saving} icon={!saving ? <Save size={18} /> : undefined}>
             {saving ? "جارٍ الحفظ..." : "حفظ الموظف"}
-          </button>
-          <button type="button" onClick={() => router.back()} className="px-6 py-3 rounded-xl text-sm font-medium" style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}>
+          </MarsaButton>
+          <MarsaButton type="button" onClick={() => router.back()} variant="secondary" size="lg">
             إلغاء
-          </button>
+          </MarsaButton>
         </div>
       </form>
     </div>

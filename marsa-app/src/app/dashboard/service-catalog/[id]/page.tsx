@@ -26,6 +26,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 type TaskExecutionMode = "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
 
@@ -388,7 +389,7 @@ export default function ServiceTemplateDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <MarsaButton
               onClick={() => {
                 setEditForm({
                   name: template.name,
@@ -399,12 +400,10 @@ export default function ServiceTemplateDetailPage() {
                 });
                 setShowEditModal(true);
               }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-50 transition-colors"
-              style={{ color: "#1C1B2E" }}
+              variant="secondary" icon={<Edit3 size={16} />}
             >
-              <Edit3 size={16} />
               تعديل
-            </button>
+            </MarsaButton>
             <button
               onClick={handleToggleActive}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all"
@@ -465,18 +464,16 @@ export default function ServiceTemplateDetailPage() {
                 <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>المهام (القالب)</h2>
                 <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{template.taskTemplates.length}</span>
               </div>
-              <button
+              <MarsaButton
                 onClick={() => {
                   setEditingTask(null);
                   setTaskForm({ name: "", description: "", defaultDuration: 1, sortOrder: template.taskTemplates.length, executionMode: "SEQUENTIAL" as TaskExecutionMode, sameDay: false, isRequired: true });
                   setShowTaskModal(true);
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90"
-                style={{ backgroundColor: "#C9A84C" }}
+                variant="gold" size="sm" icon={<Plus size={16} />}
               >
-                <Plus size={16} />
                 إضافة مهمة
-              </button>
+              </MarsaButton>
             </div>
 
             <div className="p-5">
@@ -875,17 +872,12 @@ export default function ServiceTemplateDetailPage() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleSaveTask}
-                disabled={!taskForm.name}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C" }}
-              >
+              <MarsaButton onClick={handleSaveTask} disabled={!taskForm.name} variant="gold" className="flex-1">
                 {editingTask ? "حفظ التعديلات" : "إضافة المهمة"}
-              </button>
-              <button onClick={() => setShowTaskModal(false)} className="px-6 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50">
+              </MarsaButton>
+              <MarsaButton onClick={() => setShowTaskModal(false)} variant="secondary">
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>
@@ -921,13 +913,7 @@ export default function ServiceTemplateDetailPage() {
                     <p className="text-sm font-medium truncate" style={{ color: "#1C1B2E" }}>{user.name}</p>
                     <p className="text-xs text-gray-400">{roleLabels[user.role] || user.role} • {user.email}</p>
                   </div>
-                  <button
-                    onClick={() => handleAddEmployee(user.id)}
-                    className="p-1.5 rounded-lg text-white transition-all hover:opacity-90"
-                    style={{ backgroundColor: "#C9A84C" }}
-                  >
-                    <Plus size={16} />
-                  </button>
+                  <MarsaButton onClick={() => handleAddEmployee(user.id)} variant="gold" size="xs" iconOnly icon={<Plus size={16} />} />
                 </div>
               ))}
               {empSearch.length >= 2 && !empSearching && empResults.length === 0 && (
@@ -976,13 +962,7 @@ export default function ServiceTemplateDetailPage() {
                     <p className="text-sm font-medium truncate" style={{ color: "#1C1B2E" }}>{user.name}</p>
                     <p className="text-xs text-gray-400">{roleLabels[user.role] || user.role} • {user.email}</p>
                   </div>
-                  <button
-                    onClick={() => handleAddEscalation(user.id)}
-                    className="p-1.5 rounded-lg text-white transition-all hover:opacity-90"
-                    style={{ backgroundColor: "#EA580C" }}
-                  >
-                    <Plus size={16} />
-                  </button>
+                  <MarsaButton onClick={() => handleAddEscalation(user.id)} variant="gold" size="xs" iconOnly icon={<Plus size={16} />} style={{ backgroundColor: "#EA580C" }} />
                 </div>
               ))}
               {escSearch.length >= 2 && !escSearching && escResults.length === 0 && (
@@ -1073,17 +1053,12 @@ export default function ServiceTemplateDetailPage() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleEditTemplate}
-                disabled={!editForm.name}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C" }}
-              >
+              <MarsaButton onClick={handleEditTemplate} disabled={!editForm.name} variant="gold" className="flex-1">
                 حفظ التعديلات
-              </button>
-              <button onClick={() => setShowEditModal(false)} className="px-6 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50">
+              </MarsaButton>
+              <MarsaButton onClick={() => setShowEditModal(false)} variant="secondary">
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSidebarCounts } from "@/contexts/SidebarCountsContext";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import {
   Bell, Plus, Filter, Clock, CheckCircle2, AlertTriangle, XCircle,
   IdCard, Shield, FileCheck, FileSignature, Settings,
@@ -103,14 +104,9 @@ export default function RemindersPage() {
             تتبع المواعيد والاستحقاقات المهمة
           </p>
         </div>
-        <Link
-          href="/dashboard/reminders/new"
-          className="flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all"
-          style={{ backgroundColor: "#5E5495", boxShadow: "0 4px 12px rgba(27,42,74,0.25)" }}
-        >
-          <Plus size={18} />
+        <MarsaButton href="/dashboard/reminders/new" variant="primary" size="lg" icon={<Plus size={18} />}>
           تذكير جديد
-        </Link>
+        </MarsaButton>
       </div>
 
       {/* الإحصائيات */}
@@ -228,13 +224,9 @@ export default function RemindersPage() {
 
                   {/* زر إكمال */}
                   {r.status !== "COMPLETED" && (
-                    <button
-                      onClick={() => markComplete(r.id)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:shadow flex-shrink-0"
-                      style={{ backgroundColor: "#059669" }}
-                    >
+                    <MarsaButton onClick={() => markComplete(r.id)} variant="gold" size="sm" style={{ backgroundColor: "#059669" }} className="flex-shrink-0">
                       إكمال
-                    </button>
+                    </MarsaButton>
                   )}
                 </div>
               </div>

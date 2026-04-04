@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Users, Eye, X, Search, Shield, User, Briefcase, Wrench, Building2 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface UserItem {
   id: string;
@@ -178,12 +179,9 @@ export default function UserPreviewPage() {
                           إيقاف
                         </button>
                       ) : (
-                        <button onClick={() => handleImpersonate(user)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
-                          style={{ backgroundColor: "#5E5495", color: "white" }}>
-                          <Eye size={12} />
+                        <MarsaButton onClick={() => handleImpersonate(user)} variant="primary" size="sm" icon={<Eye size={12} />}>
                           استعراض
-                        </button>
+                        </MarsaButton>
                       )}
                     </div>
                   ))}

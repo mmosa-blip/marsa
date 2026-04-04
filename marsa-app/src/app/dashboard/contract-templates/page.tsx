@@ -13,6 +13,7 @@ import {
   Tag,
   Copy,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Template {
   id: string;
@@ -201,14 +202,9 @@ export default function ContractTemplatesPage() {
             إدارة قوالب العقود والوثائق
           </p>
         </div>
-        <button
-          onClick={openNew}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-          style={{ backgroundColor: "#5E5495" }}
-        >
-          <Plus size={18} />
+        <MarsaButton onClick={openNew} variant="primary" icon={<Plus size={18} />}>
           إضافة قالب
-        </button>
+        </MarsaButton>
       </div>
 
       {/* Templates list */}
@@ -295,30 +291,15 @@ export default function ContractTemplatesPage() {
                   className="flex items-center gap-2 pt-3"
                   style={{ borderTop: "1px solid #F0EDE6" }}
                 >
-                  <button
-                    onClick={() => openEdit(t)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
-                    style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }}
-                  >
-                    <Pencil size={13} />
+                  <MarsaButton onClick={() => openEdit(t)} variant="ghost" size="sm" icon={<Pencil size={13} />} style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }}>
                     تعديل
-                  </button>
-                  <button
-                    onClick={() => handleClone(t.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
-                    style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}
-                  >
-                    <Copy size={13} />
+                  </MarsaButton>
+                  <MarsaButton onClick={() => handleClone(t.id)} variant="ghost" size="sm" icon={<Copy size={13} />} style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}>
                     نسخ
-                  </button>
-                  <button
-                    onClick={() => handleDelete(t.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-80"
-                    style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}
-                  >
-                    <Trash2 size={13} />
+                  </MarsaButton>
+                  <MarsaButton onClick={() => handleDelete(t.id)} variant="dangerSoft" size="sm" icon={<Trash2 size={13} />}>
                     حذف
-                  </button>
+                  </MarsaButton>
                 </div>
               </div>
             );
@@ -486,22 +467,17 @@ export default function ContractTemplatesPage() {
               className="flex items-center justify-end gap-3 px-6 py-4"
               style={{ borderTop: "1px solid #F0EDE6" }}
             >
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-5 py-2.5 rounded-xl text-sm font-medium"
-                style={{ color: "#6B7280", border: "1px solid #E2E0D8" }}
-              >
+              <MarsaButton onClick={() => setShowModal(false)} variant="secondary">
                 إلغاء
-              </button>
-              <button
+              </MarsaButton>
+              <MarsaButton
                 onClick={handleSave}
                 disabled={saving || !title.trim() || !content.trim() || (cloneOriginalTitle !== null && title.trim() === cloneOriginalTitle)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: "#5E5495" }}
+                variant="primary"
+                loading={saving}
               >
-                {saving && <Loader2 size={16} className="animate-spin" />}
                 {editingId ? "حفظ التعديلات" : cloneOriginalTitle !== null ? "حفظ النسخة" : "إنشاء القالب"}
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

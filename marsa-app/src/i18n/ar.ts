@@ -47,6 +47,7 @@ export const ar = {
     myInvoices: "فواتيري",
     myReminders: "تذكيراتي",
     myEmployees: "موظفيني",
+    myAuthorization: "التفويض",
   },
 
   groups: {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Calendar, CheckCircle, XCircle, Clock } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Leave {
   id: string; type: string; startDate: string; endDate: string; status: string; reason: string | null;
@@ -101,8 +102,8 @@ export default function LeavesPage() {
                     </span>
                     {leave.status === "PENDING" && (
                       <div className="flex gap-2 mr-2">
-                        <button onClick={() => handleAction(leave.id, "APPROVED")} className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:shadow" style={{ backgroundColor: "#059669" }}>قبول</button>
-                        <button onClick={() => handleAction(leave.id, "REJECTED")} className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:shadow" style={{ backgroundColor: "#DC2626" }}>رفض</button>
+                        <MarsaButton onClick={() => handleAction(leave.id, "APPROVED")} variant="gold" size="sm" style={{ backgroundColor: "#059669" }}>قبول</MarsaButton>
+                        <MarsaButton onClick={() => handleAction(leave.id, "REJECTED")} variant="danger" size="sm">رفض</MarsaButton>
                       </div>
                     )}
                   </div>

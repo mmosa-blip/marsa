@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Zap, Loader2, FileText, Clock, ListChecks } from "lucide-react";
+import { Zap, FileText, Clock, ListChecks } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Client { id: string; name: string; email: string; }
 interface Category { id: string; name: string; }
@@ -147,15 +148,14 @@ export default function QuickServicePage() {
         {error && <p className="text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-xl">{error}</p>}
 
         {/* Submit */}
-        <button
+        <MarsaButton variant="primary" size="lg" className="w-full"
           onClick={handleSubmit}
           disabled={loading || !clientId || !serviceTemplateId}
-          className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-50"
-          style={{ backgroundColor: "#5E5495" }}
+          loading={loading}
+          icon={!loading ? <Zap size={18} /> : undefined}
         >
-          {loading ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
           {loading ? "جاري الإنشاء..." : "إنشاء طلب خدمة"}
-        </button>
+        </MarsaButton>
       </div>
     </div>
   );

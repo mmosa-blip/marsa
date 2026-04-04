@@ -21,6 +21,7 @@ import {
   Building2,
   Briefcase,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import MarsaLogo from "@/components/MarsaLogo";
 import SarSymbol from "@/components/SarSymbol";
 

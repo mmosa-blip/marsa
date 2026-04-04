@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Settings, Building2, Mail, Bell, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 const tabs = [
   { id: "general", label: "الإعدادات العامة", icon: Settings },
@@ -246,15 +247,12 @@ export default function SettingsPage() {
                   { value: "UTC", label: "UTC" },
                 ],
               })}
-              <button
+              <MarsaButton
                 onClick={() => handleSave(["app_name", "app_url", "default_currency", "timezone"])}
                 disabled={saving}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
-              >
-                {saving && <Loader2 size={16} className="animate-spin" />}
+                variant="gold" size="lg" loading={saving}>
                 حفظ
-              </button>
+              </MarsaButton>
             </div>
           )}
 
@@ -284,15 +282,12 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
-              <button
+              <MarsaButton
                 onClick={() => handleSave(["company_name", "company_address", "company_cr", "company_tax_number", "company_logo"])}
                 disabled={saving}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
-              >
-                {saving && <Loader2 size={16} className="animate-spin" />}
+                variant="gold" size="lg" loading={saving}>
                 حفظ
-              </button>
+              </MarsaButton>
             </div>
           )}
 
@@ -305,15 +300,12 @@ export default function SettingsPage() {
               {renderInput("smtp_pass", "SMTP Password", { type: "password" })}
               {renderInput("smtp_from_name", "اسم المرسل")}
               {renderInput("smtp_from_email", "بريد المرسل", { placeholder: "noreply@example.com" })}
-              <button
+              <MarsaButton
                 onClick={() => handleSave(["smtp_host", "smtp_port", "smtp_user", "smtp_pass", "smtp_from_name", "smtp_from_email"])}
                 disabled={saving}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
-              >
-                {saving && <Loader2 size={16} className="animate-spin" />}
+                variant="gold" size="lg" loading={saving}>
                 حفظ
-              </button>
+              </MarsaButton>
             </div>
           )}
 
@@ -354,24 +346,14 @@ export default function SettingsPage() {
                   </div>
                 ))}
 
-                <button
-                  onClick={addReminderInterval}
-                  className="text-sm font-semibold mt-1"
-                  style={{ color: "#5E5495" }}
-                >
+                <MarsaButton onClick={addReminderInterval} variant="link" size="sm" style={{ color: "#5E5495" }}>
                   + إضافة فترة
-                </button>
+                </MarsaButton>
               </div>
 
-              <button
-                onClick={saveReminderIntervals}
-                disabled={saving}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
-              >
-                {saving && <Loader2 size={16} className="animate-spin" />}
+              <MarsaButton onClick={saveReminderIntervals} disabled={saving} variant="gold" size="lg" loading={saving}>
                 حفظ إعدادات التذكير
-              </button>
+              </MarsaButton>
             </div>
           )}
         </div>

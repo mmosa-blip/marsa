@@ -23,6 +23,7 @@ import {
   DollarSign,
   Settings,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface AuditLog {
   id: string;

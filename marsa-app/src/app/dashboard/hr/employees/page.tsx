@@ -12,6 +12,7 @@ import {
   Filter,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Employee {
   id: string;
@@ -73,14 +74,9 @@ export default function EmployeesPage() {
             إدارة بيانات الموظفين ({employees.length} موظف)
           </p>
         </div>
-        <Link
-          href="/dashboard/hr/employees/new"
-          className="flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all"
-          style={{ backgroundColor: "#5E5495", boxShadow: "0 4px 12px rgba(27,42,74,0.25)" }}
-        >
-          <Plus size={18} />
+        <MarsaButton href="/dashboard/hr/employees/new" variant="primary" size="lg" icon={<Plus size={18} />}>
           إضافة موظف
-        </Link>
+        </MarsaButton>
       </div>
 
       {/* البحث والفلاتر */}
@@ -191,9 +187,9 @@ export default function EmployeesPage() {
                         <span className="px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
                       </td>
                       <td className="px-5 py-4">
-                        <Link href={`/dashboard/hr/employees/${emp.id}`} className="text-xs font-medium hover:underline" style={{ color: "#C9A84C" }}>
+                        <MarsaButton href={`/dashboard/hr/employees/${emp.id}`} variant="link" size="xs">
                           التفاصيل
-                        </Link>
+                        </MarsaButton>
                       </td>
                     </tr>
                   );

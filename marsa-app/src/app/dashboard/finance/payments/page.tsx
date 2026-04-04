@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { CreditCard, Wallet, TrendingUp, Receipt } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Payment {
   id: string;
@@ -105,7 +105,7 @@ export default function PaymentsPage() {
                   <tr key={p.id} className="hover:bg-gray-50/50 transition-colors" style={{ borderBottom: "1px solid #F0EDE6" }}>
                     <td className="px-4 py-4 text-sm" style={{ color: "#2D3748" }}>{fmt(p.paymentDate)}</td>
                     <td className="px-4 py-4">
-                      <Link href={`/dashboard/finance/invoices/${p.id}`} className="text-sm font-mono font-bold hover:underline" style={{ color: "#C9A84C" }}>{p.invoice.invoiceNumber}</Link>
+                      <MarsaButton href={`/dashboard/finance/invoices/${p.id}`} variant="link" size="xs" className="font-mono font-bold">{p.invoice.invoiceNumber}</MarsaButton>
                       <p className="text-xs mt-0.5" style={{ color: "#94A3B8" }}>{p.invoice.title}</p>
                     </td>
                     <td className="px-4 py-4 text-sm" style={{ color: "#2D3748" }}>{p.invoice.company.name}</td>

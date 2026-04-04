@@ -6,7 +6,7 @@ import { emailSchema, passwordSchema } from "@/lib/validations";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, name, phone, role, authorizationType } = body;
+    const { email, password, name, phone, role } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -47,7 +47,6 @@ export async function POST(request: Request) {
         name,
         phone: phone || null,
         role: role || "CLIENT",
-        authorizationType: authorizationType || "NONE",
       },
       select: {
         id: true,

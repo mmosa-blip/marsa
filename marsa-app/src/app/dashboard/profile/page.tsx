@@ -6,6 +6,7 @@ import {
   Mail, Shield, Phone, Image, Eye, EyeOff, PenTool, Stamp, Trash2,
 } from "lucide-react";
 import { UploadButton } from "@/lib/uploadthing";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import SignaturePad from "signature_pad";
 
 interface Profile {
@@ -381,20 +382,12 @@ export default function ProfilePage() {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={saveSignatureFromCanvas}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90"
-                      style={{ backgroundColor: "#059669" }}
-                    >
-                      <CheckCircle size={14} /> اعتماد التوقيع
-                    </button>
-                    <button
-                      onClick={clearCanvas}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-90"
-                      style={{ color: "#6B7280", border: "1px solid #E2E0D8" }}
-                    >
-                      <Trash2 size={14} /> مسح
-                    </button>
+                    <MarsaButton onClick={saveSignatureFromCanvas} variant="gold" size="sm" icon={<CheckCircle size={14} />} style={{ backgroundColor: "#059669" }}>
+                      اعتماد التوقيع
+                    </MarsaButton>
+                    <MarsaButton onClick={clearCanvas} variant="secondary" size="sm" icon={<Trash2 size={14} />}>
+                      مسح
+                    </MarsaButton>
                   </div>
                   <p className="text-xs" style={{ color: "#94A3B8" }}>ارسم توقيعك في المربع أعلاه ثم اضغط &quot;اعتماد التوقيع&quot;</p>
                 </div>
@@ -444,19 +437,9 @@ export default function ProfilePage() {
             </div>
 
             {/* Save Button */}
-            <button
-              onClick={handleSaveSignature}
-              disabled={savingSignature}
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-60"
-              style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
-            >
-              {savingSignature ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Save size={18} />
-              )}
+            <MarsaButton onClick={handleSaveSignature} disabled={savingSignature} variant="gold" size="lg" loading={savingSignature} icon={!savingSignature ? <Save size={18} /> : undefined} className="w-full">
               حفظ التوقيع والختم
-            </button>
+            </MarsaButton>
           </div>
         ) : activeTab === "info" ? (
           <div className="space-y-5">
@@ -576,19 +559,9 @@ export default function ProfilePage() {
             </div>
 
             {/* Save Button */}
-            <button
-              onClick={handleSaveInfo}
-              disabled={saving}
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-60"
-              style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
-            >
-              {saving ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Save size={18} />
-              )}
+            <MarsaButton onClick={handleSaveInfo} disabled={saving} variant="gold" size="lg" loading={saving} icon={!saving ? <Save size={18} /> : undefined} className="w-full">
               حفظ التغييرات
-            </button>
+            </MarsaButton>
           </div>
         ) : (
           <div className="space-y-5">
@@ -689,19 +662,9 @@ export default function ProfilePage() {
             </div>
 
             {/* Change Password Button */}
-            <button
-              onClick={handleChangePassword}
-              disabled={changingPassword}
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-60"
-              style={{ backgroundColor: "#5E5495", boxShadow: "0 4px 12px rgba(27,42,74,0.25)" }}
-            >
-              {changingPassword ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Lock size={18} />
-              )}
+            <MarsaButton onClick={handleChangePassword} disabled={changingPassword} variant="primary" size="lg" loading={changingPassword} icon={!changingPassword ? <Lock size={18} /> : undefined} className="w-full">
               تغيير كلمة المرور
-            </button>
+            </MarsaButton>
           </div>
         )}
       </div>

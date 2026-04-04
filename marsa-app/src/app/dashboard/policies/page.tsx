@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import {
   BookOpen,
   Shield,
@@ -153,13 +154,9 @@ export default function PoliciesPage() {
         {/* Admin: manage link */}
         {isAdmin && (
           <div className="p-3 border-t" style={{ borderColor: "#F0EDE6" }}>
-            <Link
-              href="/dashboard/policies/manage"
-              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold text-white"
-              style={{ backgroundColor: "#5E5495" }}
-            >
+            <MarsaButton href="/dashboard/policies/manage" variant="primary" className="w-full">
               إدارة اللوائح
-            </Link>
+            </MarsaButton>
           </div>
         )}
       </div>
@@ -190,13 +187,9 @@ export default function PoliciesPage() {
                 </div>
               </div>
               {isAdmin && (
-                <Link
-                  href={`/dashboard/policies/manage?id=${selected.id}`}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-                  style={{ backgroundColor: "#C9A84C" }}
-                >
+                <MarsaButton href={`/dashboard/policies/manage?id=${selected.id}`} variant="gold">
                   تعديل
-                </Link>
+                </MarsaButton>
               )}
             </div>
 

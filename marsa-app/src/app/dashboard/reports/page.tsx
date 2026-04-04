@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { exportToExcel } from "@/lib/export-utils";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 // ===== Types =====
 
@@ -219,13 +220,9 @@ export default function ReportsPage() {
             style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
           />
         </div>
-        <button
-          onClick={fetchData}
-          className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:shadow-lg"
-          style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
-        >
+        <MarsaButton onClick={fetchData} variant="gold">
           تطبيق
-        </button>
+        </MarsaButton>
       </div>
 
       {/* Tabs */}
@@ -308,10 +305,9 @@ function FinancialTab({ data }: { data: FinancialData }) {
     <div className="space-y-6">
       {/* Export Button */}
       <div className="flex justify-end">
-        <button onClick={handleExportFinancial} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90" style={{ backgroundColor: "#5E5495" }}>
-          <Download size={16} />
+        <MarsaButton onClick={handleExportFinancial} variant="primary" icon={<Download size={16} />}>
           تصدير Excel
-        </button>
+        </MarsaButton>
       </div>
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -556,10 +552,9 @@ function PerformanceTab({ data }: { data: PerformanceData }) {
     <div className="space-y-6">
       {/* Export Button */}
       <div className="flex justify-end">
-        <button onClick={handleExportPerformance} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90" style={{ backgroundColor: "#5E5495" }}>
-          <Download size={16} />
+        <MarsaButton onClick={handleExportPerformance} variant="primary" icon={<Download size={16} />}>
           تصدير Excel
-        </button>
+        </MarsaButton>
       </div>
       {/* Task Efficiency Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -738,10 +733,9 @@ function ProjectsTab({ data }: { data: ProjectsData }) {
     <div className="space-y-6">
       {/* Export Button */}
       <div className="flex justify-end">
-        <button onClick={handleExportProjects} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90" style={{ backgroundColor: "#5E5495" }}>
-          <Download size={16} />
+        <MarsaButton onClick={handleExportProjects} variant="primary" icon={<Download size={16} />}>
           تصدير Excel
-        </button>
+        </MarsaButton>
       </div>
       {/* Status Distribution Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">

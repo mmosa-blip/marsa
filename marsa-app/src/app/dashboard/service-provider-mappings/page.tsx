@@ -5,6 +5,7 @@ import {
   Link2, Filter, Plus, Layers, CheckCircle2, Users2, LayoutGrid,
   Trash2, Loader2, X,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Category {
   id: string;
@@ -219,7 +220,7 @@ export default function ServiceProviderMappingsPage() {
             إدارة ربط مقدمي الخدمات بقوالب الخدمات المتاحة
           </p>
         </div>
-        <button
+        <MarsaButton
           onClick={() => {
             setFormError("");
             setFormTemplateId("");
@@ -227,12 +228,10 @@ export default function ServiceProviderMappingsPage() {
             setFormPriority(0);
             setShowModal(true);
           }}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all"
-          style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
+          variant="gold" size="lg" icon={<Plus size={18} />}
         >
-          <Plus size={18} />
           إضافة ربط جديد
-        </button>
+        </MarsaButton>
       </div>
 
       {/* Stats */}

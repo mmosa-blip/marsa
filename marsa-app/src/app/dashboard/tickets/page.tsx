@@ -22,6 +22,7 @@ import {
 import { UploadButton } from "@/lib/uploadthing";
 import { useLang } from "@/contexts/LanguageContext";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -399,28 +400,9 @@ export default function TicketsPage() {
             إدارة تذاكر الدعم والاستفسارات
           </p>
         </div>
-        <button
-          onClick={() => setShowNewModal(true)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.625rem 1.25rem",
-            background: "#C9A84C",
-            color: "white",
-            border: "none",
-            borderRadius: "0.75rem",
-            fontWeight: 600,
-            fontSize: "0.875rem",
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "#B8972F")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "#C9A84C")}
-        >
-          <Plus size={18} />
+        <MarsaButton onClick={() => setShowNewModal(true)} variant="gold" icon={<Plus size={18} />}>
           {t.tickets.newTicket}
-        </button>
+        </MarsaButton>
       </div>
 
       {/* ══════════════ FILTERS ══════════════ */}

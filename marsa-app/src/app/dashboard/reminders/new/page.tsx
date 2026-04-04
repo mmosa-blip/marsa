@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Save, Bell } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Company { id: string; name: string }
 interface Employee { id: string; name: string }
@@ -56,9 +57,9 @@ export default function NewReminderPage() {
 
   return (
     <div className="p-8 max-w-3xl">
-      <button onClick={() => router.back()} className="flex items-center gap-2 text-sm mb-6" style={{ color: "#2D3748", opacity: 0.5 }}>
-        <ArrowRight size={16} /> رجوع
-      </button>
+      <MarsaButton onClick={() => router.back()} variant="ghost" size="sm" icon={<ArrowRight size={16} />} className="mb-6">
+        رجوع
+      </MarsaButton>
 
       <div className="flex items-center gap-3 mb-6">
         <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: "rgba(201,168,76,0.1)" }}>
@@ -156,10 +157,10 @@ export default function NewReminderPage() {
         </div>
 
         <div className="flex gap-3">
-          <button type="submit" disabled={saving} className="flex items-center gap-2 px-8 py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-50" style={{ backgroundColor: "#5E5495" }}>
-            <Save size={18} /> {saving ? "جارٍ الحفظ..." : "حفظ التذكير"}
-          </button>
-          <button type="button" onClick={() => router.back()} className="px-6 py-3 rounded-xl text-sm font-medium" style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}>إلغاء</button>
+          <MarsaButton type="submit" disabled={saving} variant="primary" size="lg" loading={saving} icon={!saving ? <Save size={18} /> : undefined}>
+            {saving ? "جارٍ الحفظ..." : "حفظ التذكير"}
+          </MarsaButton>
+          <MarsaButton type="button" onClick={() => router.back()} variant="secondary" size="lg">إلغاء</MarsaButton>
         </div>
       </form>
     </div>

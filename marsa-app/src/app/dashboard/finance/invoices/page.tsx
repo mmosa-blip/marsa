@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { Plus, FileText, Filter, Wallet, Receipt, AlertTriangle, CheckCircle2, Trash2 } from "lucide-react";
 import { useSidebarCounts } from "@/contexts/SidebarCountsContext";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Invoice {
   id: string; invoiceNumber: string; title: string; totalAmount: number;
@@ -79,9 +79,9 @@ export default function InvoicesPage() {
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>الفواتير</h1>
           <p className="text-sm mt-1" style={{ color: "#2D3748", opacity: 0.6 }}>إدارة الفواتير والمستحقات المالية</p>
         </div>
-        <Link href="/dashboard/finance/invoices/new" className="flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all" style={{ backgroundColor: "#5E5495", boxShadow: "0 4px 12px rgba(27,42,74,0.25)" }}>
-          <Plus size={18} /> فاتورة جديدة
-        </Link>
+        <MarsaButton href="/dashboard/finance/invoices/new" variant="primary" size="lg" icon={<Plus size={18} />}>
+          فاتورة جديدة
+        </MarsaButton>
       </div>
 
       {/* الإحصائيات */}
@@ -143,9 +143,9 @@ export default function InvoicesPage() {
                     <td className="px-4 py-4 text-xs" style={{ color: "#2D3748", opacity: 0.6 }}>{fmt(inv.dueDate)}</td>
                     <td className="px-4 py-4"><span className="px-2.5 py-1 rounded-full text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td>
                     <td className="px-4 py-4 flex items-center gap-3">
-                      <Link href={`/dashboard/finance/invoices/${inv.id}`} className="text-xs font-medium hover:underline" style={{ color: "#C9A84C" }}>التفاصيل</Link>
+                      <MarsaButton href={`/dashboard/finance/invoices/${inv.id}`} variant="link" size="xs">التفاصيل</MarsaButton>
                       {inv.status !== "PAID" && (
-                        <button onClick={() => setDeleteId(inv.id)} className="text-red-400 hover:text-red-600 transition-colors" title="حذف"><Trash2 size={15} /></button>
+                        <MarsaButton variant="dangerSoft" size="xs" iconOnly icon={<Trash2 size={15} />} onClick={() => setDeleteId(inv.id)} title="حذف" />
                       )}
                     </td>
                   </tr>
@@ -166,10 +166,10 @@ export default function InvoicesPage() {
             <h3 className="text-lg font-bold mb-2" style={{ color: "#1C1B2E" }}>حذف الفاتورة</h3>
             <p className="text-sm mb-6" style={{ color: "#6B7280" }}>هل أنت متأكد من حذف هذه الفاتورة؟ لا يمكن التراجع عن هذا الإجراء.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteId(null)} disabled={deleting} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium border" style={{ borderColor: "#E8E6F0", color: "#2D3748" }}>إلغاء</button>
-              <button onClick={handleDelete} disabled={deleting} className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white" style={{ backgroundColor: "#DC2626" }}>
+              <MarsaButton variant="secondary" size="md" onClick={() => setDeleteId(null)} disabled={deleting} className="flex-1">إلغاء</MarsaButton>
+              <MarsaButton variant="danger" size="md" onClick={handleDelete} disabled={deleting} loading={deleting} className="flex-1">
                 {deleting ? "جاري الحذف..." : "حذف"}
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

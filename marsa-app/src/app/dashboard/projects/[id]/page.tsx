@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface TaskType {
   id: string;
@@ -193,7 +194,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <p className="text-lg font-bold" style={{ color: "#1C1B2E" }}>المشروع غير موجود</p>
-          <button onClick={() => router.back()} className="mt-4 text-sm underline" style={{ color: "#C9A84C" }}>رجوع</button>
+          <MarsaButton variant="link" onClick={() => router.back()} className="mt-4">رجوع</MarsaButton>
         </div>
       </div>
     );
@@ -205,13 +206,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   return (
     <div className="p-8">
       {/* Breadcrumb */}
-      <button
-        onClick={() => router.push("/dashboard/projects")}
-        className="flex items-center gap-2 text-sm mb-6 text-gray-400 hover:text-amber-600 transition-colors"
-      >
-        <ArrowRight size={16} />
+      <MarsaButton variant="ghost" size="sm" icon={<ArrowRight size={16} />} onClick={() => router.push("/dashboard/projects")} className="mb-6">
         العودة للمشاريع
-      </button>
+      </MarsaButton>
 
       {/* Header */}
       <div className="bg-white rounded-2xl p-6 mb-6 border border-gray-200">
@@ -241,14 +238,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
           <div className="flex items-center gap-3">
             {isAdmin && (
-              <button
+              <MarsaButton variant="secondary" icon={<Save size={16} />}
                 onClick={() => { setTemplateName(project.name); setShowTemplateModal(true); }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 hover:bg-gray-50 transition-colors"
-                style={{ color: "#1C1B2E" }}
               >
-                <Save size={16} />
                 حفظ كقالب
-              </button>
+              </MarsaButton>
             )}
             <div className="flex items-center gap-4 min-w-[180px]">
               <div className="flex-1">
@@ -509,7 +503,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>حفظ كقالب مشروع</h3>
-              <button onClick={() => setShowTemplateModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+              <MarsaButton variant="ghost" size="sm" iconOnly icon={<X size={20} />} onClick={() => setShowTemplateModal(false)} />
             </div>
             <div className="space-y-4">
               <div>
@@ -524,17 +518,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleSaveAsTemplate}
-                disabled={!templateName || saving}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C" }}
-              >
+              <MarsaButton variant="gold" className="flex-1" onClick={handleSaveAsTemplate} disabled={!templateName || saving} loading={saving}>
                 {saving ? "جاري الحفظ..." : "حفظ القالب"}
-              </button>
-              <button onClick={() => setShowTemplateModal(false)} className="px-6 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50">
+              </MarsaButton>
+              <MarsaButton variant="secondary" onClick={() => setShowTemplateModal(false)}>
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

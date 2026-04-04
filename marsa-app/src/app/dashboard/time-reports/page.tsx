@@ -12,6 +12,7 @@ import {
   Printer,
   BarChart3,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import {
   BarChart,
   Bar,
@@ -244,14 +245,9 @@ export default function TimeReportsPage() {
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>{t.reports.timeReports}</h1>
           <BarChart3 size={24} style={{ color: "#C9A84C" }} />
         </div>
-        <button
-          onClick={handlePrint}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-          style={{ backgroundColor: "#5E5495" }}
-        >
-          <Printer size={16} />
+        <MarsaButton onClick={handlePrint} variant="primary" icon={<Printer size={16} />}>
           طباعة التقرير
-        </button>
+        </MarsaButton>
       </div>
 
       {/* Filters */}

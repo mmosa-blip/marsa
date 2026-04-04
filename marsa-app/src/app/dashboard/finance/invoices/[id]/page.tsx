@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
-import Link from "next/link";
 import { ArrowRight, FileText, CreditCard, CheckCircle2, Clock, Printer, Download } from "lucide-react";
 import { useSidebarCounts } from "@/contexts/SidebarCountsContext";
 import SarSymbol from "@/components/SarSymbol";
 import { exportInvoicePDF } from "@/lib/export-utils";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Invoice {
   id: string; invoiceNumber: string; title: string; description: string | null;
@@ -97,9 +97,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       {/* الرأس */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/finance/invoices" className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white transition-colors" style={{ border: "1px solid #E2E0D8" }}>
-            <ArrowRight size={20} style={{ color: "#1C1B2E" }} />
-          </Link>
+          <MarsaButton href="/dashboard/finance/invoices" variant="ghost" size="md" iconOnly icon={<ArrowRight size={20} style={{ color: "#1C1B2E" }} />} style={{ border: "1px solid #E2E0D8" }} />
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>{invoice.invoiceNumber}</h1>
@@ -110,16 +108,19 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         </div>
         <div className="flex items-center gap-2">
           {invoice.status === "DRAFT" && (
-            <button onClick={() => updateStatus("SENT")} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:shadow-md" style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }}>
-              <FileText size={16} /> إرسال الفاتورة
-            </button>
+            <MarsaButton variant="ghost" size="md" icon={<FileText size={16} />} onClick={() => updateStatus("SENT")} style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }}>
+              إرسال الفاتورة
+            </MarsaButton>
           )}
           {["DRAFT", "SENT", "OVERDUE"].includes(invoice.status) && (
-            <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all" style={{ backgroundColor: "#059669" }}>
-              <CreditCard size={16} /> تسجيل دفعة
-            </button>
+            <MarsaButton variant="gold" size="md" icon={<CreditCard size={16} />} onClick={() => setShowPayment(true)} style={{ backgroundColor: "#059669" }}>
+              تسجيل دفعة
+            </MarsaButton>
           )}
-          <button
+          <MarsaButton
+            variant="primary"
+            size="md"
+            icon={<Download size={16} />}
             onClick={() => {
               if (!invoice) return;
               exportInvoicePDF({
@@ -142,15 +143,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 status: invoice.status,
               });
             }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90"
-            style={{ backgroundColor: "#5E5495" }}
           >
-            <Download size={16} />
             تصدير PDF
-          </button>
-          <button onClick={() => window.print()} className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-gray-100 transition-colors" style={{ border: "1px solid #E2E0D8" }}>
-            <Printer size={18} style={{ color: "#2D3748" }} />
-          </button>
+          </MarsaButton>
+          <MarsaButton variant="ghost" size="md" iconOnly icon={<Printer size={18} style={{ color: "#2D3748" }} />} onClick={() => window.print()} style={{ border: "1px solid #E2E0D8" }} />
         </div>
       </div>
 
@@ -280,13 +276,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               <h3 className="text-base font-bold mb-4" style={{ color: "#1C1B2E" }}>إجراءات</h3>
               <div className="space-y-2">
                 {invoice.status !== "OVERDUE" && (
-                  <button onClick={() => updateStatus("OVERDUE")} className="w-full text-right px-4 py-3 rounded-xl text-sm font-medium transition-all hover:shadow-sm" style={{ backgroundColor: "rgba(220,38,38,0.06)", color: "#DC2626" }}>
+                  <MarsaButton variant="dangerSoft" size="md" onClick={() => updateStatus("OVERDUE")} className="w-full" style={{ justifyContent: "flex-start" }}>
                     تحديد كمتأخرة
-                  </button>
+                  </MarsaButton>
                 )}
-                <button onClick={() => updateStatus("CANCELLED")} className="w-full text-right px-4 py-3 rounded-xl text-sm font-medium transition-all hover:shadow-sm" style={{ backgroundColor: "rgba(156,163,175,0.1)", color: "#9CA3AF" }}>
+                <MarsaButton variant="ghost" size="md" onClick={() => updateStatus("CANCELLED")} className="w-full" style={{ justifyContent: "flex-start", color: "#9CA3AF", backgroundColor: "rgba(156,163,175,0.1)" }}>
                   إلغاء الفاتورة
-                </button>
+                </MarsaButton>
               </div>
             </div>
           )}
@@ -326,8 +322,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 <textarea value={paymentForm.notes} onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })} rows={2} className="w-full px-4 py-3 rounded-xl border text-sm outline-none resize-none" style={{ borderColor: "#E8E6F0" }} />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowPayment(false)} className="flex-1 px-4 py-3 rounded-xl text-sm font-medium" style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}>إلغاء</button>
-                <button type="submit" disabled={savingPayment} className="flex-1 px-4 py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-50" style={{ backgroundColor: "#059669" }}>{savingPayment ? "جارٍ الحفظ..." : "تسجيل الدفعة"}</button>
+                <MarsaButton type="button" variant="secondary" size="md" onClick={() => setShowPayment(false)} className="flex-1">إلغاء</MarsaButton>
+                <MarsaButton type="submit" variant="gold" size="md" disabled={savingPayment} loading={savingPayment} className="flex-1" style={{ backgroundColor: "#059669" }}>{savingPayment ? "جارٍ الحفظ..." : "تسجيل الدفعة"}</MarsaButton>
               </div>
             </form>
           </div>

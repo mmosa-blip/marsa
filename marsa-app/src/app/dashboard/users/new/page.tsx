@@ -2,15 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
-  ArrowRight, UserPlus, User, Mail, Phone, Lock, Save, Loader2,
+  ArrowRight, UserPlus, User, Mail, Phone, Lock, Save,
   Briefcase, Building2, CreditCard, DollarSign, Wrench, UserCog,
-  Shield, ShieldAlert, ShieldOff,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 type Role = "ADMIN" | "MANAGER" | "FINANCE_MANAGER" | "TREASURY_MANAGER" | "EXECUTOR" | "CLIENT" | "EXTERNAL_PROVIDER";
-type AuthType = "FULL" | "PER_SERVICE" | "NONE";
 
 const roleOptions: { value: Role; label: string }[] = [
   { value: "ADMIN", label: "مدير النظام" },
@@ -20,12 +18,6 @@ const roleOptions: { value: Role; label: string }[] = [
   { value: "EXECUTOR", label: "منفذ" },
   { value: "CLIENT", label: "عميل" },
   { value: "EXTERNAL_PROVIDER", label: "مقدم خدمة خارجي" },
-];
-
-const authTypeOptions: { value: AuthType; label: string; desc: string; icon: typeof Shield; color: string; bg: string }[] = [
-  { value: "FULL", label: "تفويض كامل", desc: "تفويض كامل لجميع الخدمات", icon: Shield, color: "#059669", bg: "rgba(5,150,105,0.08)" },
-  { value: "PER_SERVICE", label: "تفويض لكل خدمة", desc: "تفويض منفصل لكل خدمة", icon: ShieldAlert, color: "#C9A84C", bg: "rgba(201,168,76,0.1)" },
-  { value: "NONE", label: "بدون تفويض", desc: "لا يوجد تفويض حالياً", icon: ShieldOff, color: "#94A3B8", bg: "rgba(148,163,184,0.1)" },
 ];
 
 interface Supervisor {
@@ -49,7 +41,6 @@ export default function NewUserPage() {
     role: "" as Role | "",
     // CLIENT fields
     companyName: "",
-    authorizationType: "NONE" as AuthType,
     // EXTERNAL_PROVIDER fields
     specialty: "",
     supervisorId: "",
@@ -105,7 +96,6 @@ export default function NewUserPage() {
 
       if (form.role === "CLIENT") {
         body.companyName = form.companyName.trim() || undefined;
-        body.authorizationType = form.authorizationType;
       }
 
       if (form.role === "EXTERNAL_PROVIDER") {
@@ -154,13 +144,7 @@ export default function NewUserPage() {
     <div className="p-8 max-w-3xl" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <Link
-          href="/dashboard/users"
-          className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:shadow-md"
-          style={{ backgroundColor: "rgba(27,42,74,0.06)", color: "#1C1B2E" }}
-        >
-          <ArrowRight size={20} />
-        </Link>
+        <MarsaButton href="/dashboard/users" variant="ghost" iconOnly icon={<ArrowRight size={20} />} />
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>
             إضافة مستخدم جديد
@@ -328,46 +312,6 @@ export default function NewUserPage() {
                 />
               </div>
 
-              {/* Authorization Type */}
-              <div>
-                <label className="flex items-center gap-1.5 text-sm font-medium mb-3" style={{ color: "#2D3748" }}>
-                  <Shield size={14} style={{ color: "#C9A84C" }} />
-                  نوع التفويض
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {authTypeOptions.map((opt) => {
-                    const isSelected = form.authorizationType === opt.value;
-                    const Icon = opt.icon;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setForm({ ...form, authorizationType: opt.value })}
-                        className="p-4 rounded-xl text-right transition-all"
-                        style={{
-                          border: isSelected ? `2px solid ${opt.color}` : "2px solid #E2E0D8",
-                          backgroundColor: isSelected ? opt.bg : "transparent",
-                        }}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center"
-                            style={{ backgroundColor: isSelected ? `${opt.color}20` : "rgba(148,163,184,0.1)" }}
-                          >
-                            <Icon size={16} style={{ color: isSelected ? opt.color : "#94A3B8" }} />
-                          </div>
-                          <span className="text-sm font-bold" style={{ color: isSelected ? opt.color : "#2D3748" }}>
-                            {opt.label}
-                          </span>
-                        </div>
-                        <p className="text-xs" style={{ color: "#94A3B8" }}>
-                          {opt.desc}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
           </div>
         )}
@@ -486,31 +430,19 @@ export default function NewUserPage() {
 
         {/* Buttons */}
         <div className="flex items-center gap-3 pt-2">
-          <button
+          <MarsaButton
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 px-8 py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-50 transition-all hover:shadow-lg"
-            style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
+            loading={saving}
+            variant="gold"
+            size="md"
+            icon={!saving ? <Save size={18} /> : undefined}
           >
-            {saving ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                جارٍ الحفظ...
-              </>
-            ) : (
-              <>
-                <Save size={18} />
-                إنشاء المستخدم
-              </>
-            )}
-          </button>
-          <Link
-            href="/dashboard/users"
-            className="px-6 py-3 rounded-xl text-sm font-medium transition-all hover:bg-gray-50"
-            style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
-          >
+            {saving ? "جارٍ الحفظ..." : "إنشاء المستخدم"}
+          </MarsaButton>
+          <MarsaButton href="/dashboard/users" variant="secondary" size="md">
             إلغاء
-          </Link>
+          </MarsaButton>
         </div>
       </form>
     </div>

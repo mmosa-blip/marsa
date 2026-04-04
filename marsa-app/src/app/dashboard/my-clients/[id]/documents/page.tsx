@@ -6,6 +6,7 @@ import {
   ArrowRight, FileText, Loader2, Plus, X, Link2, Upload,
   ExternalLink, Calendar, AlertCircle,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import { UploadButton } from "@/lib/uploadthing";
 
 interface Document {
@@ -170,13 +171,9 @@ export default function ClientDocumentsPage({ params }: { params: Promise<{ id: 
             <p className="text-sm mt-1" style={{ color: "#6B7280" }}>{client.email}</p>
           )}
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-          style={{ backgroundColor: "#5E5495" }}
-        >
-          <Plus size={18} /> إضافة وثيقة
-        </button>
+        <MarsaButton onClick={() => setShowModal(true)} variant="primary" icon={<Plus size={18} />}>
+          إضافة وثيقة
+        </MarsaButton>
       </div>
 
       {/* Documents List */}
@@ -419,15 +416,9 @@ export default function ClientDocumentsPage({ params }: { params: Promise<{ id: 
               <button onClick={resetModal} className="px-4 py-2.5 rounded-xl text-sm font-medium" style={{ color: "#6B7280", border: "1px solid #E2E0D8" }}>
                 إلغاء
               </button>
-              <button
-                onClick={handleSubmit}
-                disabled={saving || !title.trim() || (docType === "PDF" && !fileUrl) || (docType === "LINK" && !url.trim())}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: "#5E5495" }}
-              >
-                {saving && <Loader2 size={16} className="animate-spin" />}
+              <MarsaButton onClick={handleSubmit} disabled={saving || !title.trim() || (docType === "PDF" && !fileUrl) || (docType === "LINK" && !url.trim())} variant="primary" loading={saving}>
                 إضافة الوثيقة
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

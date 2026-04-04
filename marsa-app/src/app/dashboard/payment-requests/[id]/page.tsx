@@ -4,7 +4,6 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSidebarCounts } from "@/contexts/SidebarCountsContext";
-import Link from "next/link";
 import {
   ArrowRight,
   Check,
@@ -17,6 +16,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface PaymentRequestDetail {
   id: string;
@@ -151,7 +151,7 @@ export default function PaymentRequestDetailPage({ params }: { params: Promise<{
     return (
       <div className="p-8 text-center">
         <p className="text-gray-500">طلب الصرف غير موجود</p>
-        <Link href="/dashboard/payment-requests" className="text-amber-600 text-sm mt-2 inline-block">العودة</Link>
+        <MarsaButton href="/dashboard/payment-requests" variant="link" size="sm" className="mt-2">العودة</MarsaButton>
       </div>
     );
   }
@@ -183,7 +183,7 @@ export default function PaymentRequestDetailPage({ params }: { params: Promise<{
     <div className="p-8 max-w-4xl mx-auto">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-400 mb-6">
-        <Link href="/dashboard/payment-requests" className="hover:text-amber-600 transition-colors">طلبات الصرف</Link>
+        <MarsaButton href="/dashboard/payment-requests" variant="link" size="xs" style={{ color: "inherit" }}>طلبات الصرف</MarsaButton>
         <ArrowRight size={14} />
         <span style={{ color: "#1C1B2E" }}>{request.requestNumber}</span>
       </div>
@@ -318,23 +318,28 @@ export default function PaymentRequestDetailPage({ params }: { params: Promise<{
             )}
 
             <div className="flex gap-3">
-              <button
+              <MarsaButton
+                variant="gold"
+                size="md"
+                icon={<Check size={16} />}
                 onClick={handleApprove}
                 disabled={processing}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                loading={processing}
+                className="flex-1"
                 style={{ backgroundColor: "#22C55E" }}
               >
-                <Check size={16} />
                 {session?.user.role === "TREASURY_MANAGER" ? "الموافقة والصرف" : "موافقة"}
-              </button>
-              <button
+              </MarsaButton>
+              <MarsaButton
+                variant="danger"
+                size="md"
+                icon={<X size={16} />}
                 onClick={() => setShowRejectModal(true)}
                 disabled={processing}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2 bg-red-500"
+                className="flex-1"
               >
-                <X size={16} />
                 رفض
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>
@@ -356,16 +361,19 @@ export default function PaymentRequestDetailPage({ params }: { params: Promise<{
               />
             </div>
             <div className="flex gap-3 mt-4">
-              <button
+              <MarsaButton
+                variant="danger"
+                size="md"
                 onClick={handleReject}
                 disabled={!actionNotes || processing}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 disabled:opacity-50"
+                loading={processing}
+                className="flex-1"
               >
                 تأكيد الرفض
-              </button>
-              <button onClick={() => setShowRejectModal(false)} className="px-6 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600">
+              </MarsaButton>
+              <MarsaButton variant="secondary" size="md" onClick={() => setShowRejectModal(false)}>
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

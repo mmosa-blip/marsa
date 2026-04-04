@@ -225,6 +225,7 @@ const clientGroups: NavGroup[] = [
       { href: "/dashboard/my-invoices", label: "فواتيري", tKey: "myInvoices" },
       { href: "/dashboard/my-reminders", label: "تذكيراتي", tKey: "myReminders" },
       { href: "/dashboard/my-employees", label: "موظفيني", tKey: "myEmployees" },
+      { href: "/dashboard/my-authorization", label: "التفويض", tKey: "myAuthorization" },
     ],
   },
   {

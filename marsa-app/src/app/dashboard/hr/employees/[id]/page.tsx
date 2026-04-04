@@ -7,6 +7,7 @@ import {
   Calendar, CreditCard, Shield, Clock, MapPin, FileText,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface EmployeeDetail {
   id: string; name: string; nationality: string | null; nationalId: string | null;
@@ -83,9 +84,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="p-8">
-      <button onClick={() => router.push("/dashboard/hr/employees")} className="flex items-center gap-2 text-sm mb-6" style={{ color: "#2D3748", opacity: 0.5 }}>
-        <ArrowRight size={16} /> العودة للموظفين
-      </button>
+      <MarsaButton onClick={() => router.push("/dashboard/hr/employees")} variant="ghost" size="sm" icon={<ArrowRight size={16} />}>
+        العودة للموظفين
+      </MarsaButton>
 
       {/* رأس الملف */}
       <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: "1px solid #E2E0D8" }}>

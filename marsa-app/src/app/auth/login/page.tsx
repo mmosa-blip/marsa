@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import MarsaLogo from "@/components/MarsaLogo";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import { useLang } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
 
@@ -170,14 +170,15 @@ export default function LoginPage() {
           </div>
 
           {/* Submit Button */}
-          <button
+          <MarsaButton
             type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl text-sm font-semibold btn-gold disabled:opacity-50 flex items-center justify-center gap-2 mt-6"
+            variant="gold"
+            size="lg"
+            loading={loading}
+            className="w-full mt-6"
           >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : null}
             {loading ? t.auth.loggingIn : t.auth.loginBtn}
-          </button>
+          </MarsaButton>
         </form>
 
         {/* Register Link */}
@@ -186,13 +187,9 @@ export default function LoginPage() {
           style={{ color: "rgba(255,255,255,0.4)" }}
         >
           {t.auth.noAccount}{" "}
-          <Link
-            href="/auth/register"
-            style={{ color: "#C9A84C" }}
-            className="font-medium hover:underline"
-          >
+          <MarsaButton href="/auth/register" variant="link">
             {t.auth.registerNow}
-          </Link>
+          </MarsaButton>
         </p>
 
         {/* Footer */}

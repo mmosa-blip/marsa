@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLang } from "@/contexts/LanguageContext";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   ArrowRight,
   ArrowLeft,
@@ -34,6 +33,7 @@ import {
   Edit3,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -719,13 +719,7 @@ export default function NewProjectPage() {
     <div className="p-8 min-h-screen" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-8">
-        <Link
-          href="/dashboard/projects"
-          className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white transition-colors"
-          style={{ border: "1px solid #E2E0D8" }}
-        >
-          <ArrowRight size={20} style={{ color: "#1C1B2E" }} />
-        </Link>
+        <MarsaButton href="/dashboard/projects" variant="ghost" size="lg" iconOnly icon={<ArrowRight size={20} />} style={{ backgroundColor: "rgba(27,42,74,0.06)" }} />
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>
             {t.projects.newProject}
@@ -881,10 +875,10 @@ export default function NewProjectPage() {
                     style={{ border: "1px solid #E2E0D8" }}
                   >
                     <p className="text-sm mb-2 text-gray-400">لا توجد نتائج</p>
-                    <button onClick={() => { setShowInlineAddClient(true); setShowClientDropdown(false); setInlineClient({ ...inlineClient, name: clientSearch }); }}
-                      className="flex items-center gap-1.5 mx-auto px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ backgroundColor: "#5E5495" }}>
-                      <Plus size={13} /> إضافة عميل جديد
-                    </button>
+                    <MarsaButton variant="primary" size="xs" icon={<Plus size={13} />} className="mx-auto"
+                      onClick={() => { setShowInlineAddClient(true); setShowClientDropdown(false); setInlineClient({ ...inlineClient, name: clientSearch }); }}>
+                      إضافة عميل جديد
+                    </MarsaButton>
                   </div>
                 )}
                 {showInlineAddClient && (
@@ -900,12 +894,12 @@ export default function NewProjectPage() {
                     <input placeholder="اسم الشركة (اختياري)" value={inlineClient.company} onChange={(e) => setInlineClient({ ...inlineClient, company: e.target.value })}
                       className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ border: "1px solid #E2E0D8" }} />
                     <div className="flex gap-2 pt-1">
-                      <button onClick={handleInlineAddClient} disabled={inlineClientSaving}
-                        className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#5E5495" }}>
+                      <MarsaButton variant="primary" size="sm" className="flex-1" onClick={handleInlineAddClient} loading={inlineClientSaving}>
                         {inlineClientSaving ? "جاري الحفظ..." : "حفظ"}
-                      </button>
-                      <button onClick={() => setShowInlineAddClient(false)}
-                        className="px-4 py-2 rounded-lg text-xs" style={{ border: "1px solid #E2E0D8", color: "#6B7280" }}>{t.common.cancel}</button>
+                      </MarsaButton>
+                      <MarsaButton variant="secondary" size="sm" onClick={() => setShowInlineAddClient(false)}>
+                        {t.common.cancel}
+                      </MarsaButton>
                     </div>
                   </div>
                 )}
@@ -1673,17 +1667,14 @@ export default function NewProjectPage() {
                 </h2>
               </div>
               {/* Edit services button - allows going to step 2 to customize */}
-              <button
+              <MarsaButton variant="secondary" icon={<Edit3 size={14} />}
                 onClick={() => {
                   setTemplateApplied(false);
                   setCurrentStep(2);
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-gray-50"
-                style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}
               >
-                <Edit3 size={14} />
                 تعديل الخدمات
-              </button>
+              </MarsaButton>
             </div>
 
             {loadingDetails ? (
@@ -1928,47 +1919,24 @@ export default function NewProjectPage() {
       <div className="max-w-4xl mx-auto mt-8 flex items-center justify-between">
         <div>
           {currentStep > 1 && (
-            <button
-              onClick={handlePrev}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-medium transition-all hover:bg-gray-50"
-              style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
-            >
-              <ArrowLeft size={16} />
+            <MarsaButton variant="secondary" size="lg" icon={<ArrowLeft size={16} />} onClick={handlePrev}>
               السابق
-            </button>
+            </MarsaButton>
           )}
         </div>
 
         <div>
           {currentStep < 3 ? (
-            <button
-              onClick={handleNext}
-              disabled={!canGoNext()}
-              className="flex items-center gap-2 px-8 py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: "#5E5495", boxShadow: "0 4px 12px rgba(27,42,74,0.25)" }}
-            >
+            <MarsaButton variant="primary" size="lg" onClick={handleNext} disabled={!canGoNext()}>
               التالي
               <ChevronLeft size={16} />
-            </button>
+            </MarsaButton>
           ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !step3Valid}
-              className="flex items-center gap-2 px-8 py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.35)" }}
+            <MarsaButton variant="gold" size="lg" onClick={handleSubmit} disabled={submitting || !step3Valid} loading={submitting}
+              icon={!submitting ? <FolderKanban size={16} /> : undefined}
             >
-              {submitting ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  {t.common.loading}
-                </>
-              ) : (
-                <>
-                  <FolderKanban size={16} />
-                  {t.common.create}
-                </>
-              )}
-            </button>
+              {submitting ? t.common.loading : t.common.create}
+            </MarsaButton>
           )}
         </div>
       </div>

@@ -27,6 +27,7 @@ import {
   Trash2,
   AlertTriangle,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface ContractTemplate {
   id: string;
@@ -547,9 +548,9 @@ export default function ContractsPage() {
           <p className="text-sm mt-1" style={{ color: "#6B7280" }}>{t.contracts.subtitle}</p>
         </div>
         {!isClientRole && (
-          <button onClick={openNew} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90" style={{ backgroundColor: "#5E5495" }}>
-            <Plus size={18} /> {t.contracts.newContract}
-          </button>
+          <MarsaButton onClick={openNew} variant="primary" icon={<Plus size={18} />}>
+            {t.contracts.newContract}
+          </MarsaButton>
         )}
       </div>
 
@@ -701,10 +702,10 @@ export default function ContractsPage() {
                         {showClientResults && clientSearchResults.length === 0 && clientSearchQuery.length >= 2 && !searchingClients && (
                           <div className="absolute z-30 w-full mt-1 bg-white rounded-xl shadow-xl p-3 text-center" style={{ border: "1px solid #E2E0D8" }}>
                             <p className="text-sm mb-2" style={{ color: "#94A3B8" }}>{t.common.noResults}</p>
-                            <button onClick={() => { setShowInlineAddClient(true); setShowClientResults(false); setInlineClient({ ...inlineClient, name: clientSearchQuery }); }}
-                              className="flex items-center gap-1.5 mx-auto px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ backgroundColor: "#5E5495" }}>
-                              <Plus size={13} /> {t.contracts.addClientNote}
-                            </button>
+                            <MarsaButton onClick={() => { setShowInlineAddClient(true); setShowClientResults(false); setInlineClient({ ...inlineClient, name: clientSearchQuery }); }}
+                              variant="primary" size="sm" icon={<Plus size={13} />} className="mx-auto">
+                              {t.contracts.addClientNote}
+                            </MarsaButton>
                           </div>
                         )}
                         {showInlineAddClient && (
@@ -720,12 +721,10 @@ export default function ContractsPage() {
                             <input placeholder={t.clients.company} value={inlineClient.company} onChange={(e) => setInlineClient({ ...inlineClient, company: e.target.value })}
                               className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ border: "1px solid #E2E0D8" }} />
                             <div className="flex gap-2 pt-1">
-                              <button onClick={handleInlineAddClient} disabled={inlineClientSaving}
-                                className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#5E5495" }}>
+                              <MarsaButton onClick={handleInlineAddClient} disabled={inlineClientSaving} variant="primary" size="sm" loading={inlineClientSaving} className="flex-1">
                                 {inlineClientSaving ? t.common.loading : t.common.save}
-                              </button>
-                              <button onClick={() => setShowInlineAddClient(false)}
-                                className="px-4 py-2 rounded-lg text-xs" style={{ border: "1px solid #E2E0D8", color: "#6B7280" }}>{t.common.cancel}</button>
+                              </MarsaButton>
+                              <MarsaButton onClick={() => setShowInlineAddClient(false)} variant="secondary" size="sm">{t.common.cancel}</MarsaButton>
                             </div>
                           </div>
                         )}
@@ -754,11 +753,9 @@ export default function ContractsPage() {
                       <p className="text-sm font-semibold" style={{ color: "#1C1B2E" }}>{t.contracts.installments}</p>
                       <p className="text-xs mt-0.5" style={{ color: "#94A3B8" }}>{t.contracts.installmentScheduleDesc}</p>
                     </div>
-                    <button onClick={addInstallment}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-white transition-all hover:opacity-90"
-                      style={{ backgroundColor: "#C9A84C" }}>
-                      <Plus size={14} /> {t.contracts.addInstallment}
-                    </button>
+                    <MarsaButton onClick={addInstallment} variant="gold" size="sm" icon={<Plus size={14} />}>
+                      {t.contracts.addInstallment}
+                    </MarsaButton>
                   </div>
 
                   {contractTotal > 0 && (
@@ -864,15 +861,13 @@ export default function ContractsPage() {
               )}
             </div>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: "1px solid #F0EDE6" }}>
-              <div>{step > 1 && (<button onClick={() => setStep((s) => s - 1)} className="flex items-center gap-1 px-4 py-2.5 rounded-xl text-sm font-medium" style={{ color: "#6B7280", border: "1px solid #E2E0D8" }}><ChevronRight size={16} /> {t.common.previous}</button>)}</div>
+              <div>{step > 1 && (<MarsaButton onClick={() => setStep((s) => s - 1)} variant="secondary" icon={<ChevronRight size={16} />}>{t.common.previous}</MarsaButton>)}</div>
               <div className="flex items-center gap-3">
-                <button onClick={() => setShowModal(false)} className="px-4 py-2.5 rounded-xl text-sm font-medium" style={{ color: "#6B7280" }}>{t.common.cancel}</button>
+                <MarsaButton onClick={() => setShowModal(false)} variant="ghost">{t.common.cancel}</MarsaButton>
                 {step < 4 ? (
-                  <button onClick={() => setStep((s) => s + 1)} disabled={step === 1 && (!selectedTemplateId || !selectedClientId)}
-                    className="flex items-center gap-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: "#5E5495" }}>{t.common.next} <ChevronLeft size={16} /></button>
+                  <MarsaButton onClick={() => setStep((s) => s + 1)} disabled={step === 1 && (!selectedTemplateId || !selectedClientId)} variant="primary" icon={<ChevronLeft size={16} />}>{t.common.next}</MarsaButton>
                 ) : (
-                  <button onClick={handleSubmit} disabled={saving} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: "#059669" }}>
-                    {saving && <Loader2 size={16} className="animate-spin" />} {t.contracts.issue}</button>
+                  <MarsaButton onClick={handleSubmit} disabled={saving} variant="primary" loading={saving} style={{ backgroundColor: "#059669" }}>{t.contracts.issue}</MarsaButton>
                 )}
               </div>
             </div>
@@ -991,19 +986,14 @@ export default function ContractsPage() {
                 style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }} />
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid #F0EDE6" }}>
-              <button onClick={() => setEditTarget(null)} className="px-4 py-2 rounded-xl text-sm font-medium" style={{ color: "#6B7280", border: "1px solid #E2E0D8" }}>{t.common.cancel}</button>
-              <button onClick={() => handleEditSave(false)} disabled={editSaving}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }}>
-                {editSaving && <Loader2 size={14} className="animate-spin" />} {t.common.save}
-              </button>
+              <MarsaButton onClick={() => setEditTarget(null)} variant="secondary">{t.common.cancel}</MarsaButton>
+              <MarsaButton onClick={() => handleEditSave(false)} disabled={editSaving} variant="ghost" loading={editSaving} style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }}>
+                {t.common.save}
+              </MarsaButton>
               {(editTarget.status === "DRAFT" || editTarget.status === "CONTRACT_REVISION") && (
-                <button onClick={() => handleEditSave(true)} disabled={editSaving}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
-                  style={{ backgroundColor: "#CA8A04" }}>
-                  {editSaving && <Loader2 size={14} className="animate-spin" />}
+                <MarsaButton onClick={() => handleEditSave(true)} disabled={editSaving} variant="gold" loading={editSaving} style={{ backgroundColor: "#CA8A04" }}>
                   {editTarget.status === "CONTRACT_REVISION" ? t.contracts.saveAndSubmit : t.contracts.saveAndSubmit}
-                </button>
+                </MarsaButton>
               )}
             </div>
           </div>
@@ -1024,10 +1014,9 @@ export default function ContractsPage() {
                 className="w-full px-4 py-2.5 rounded-xl text-sm outline-none resize-none" style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }} />
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid #F0EDE6" }}>
-              <button onClick={() => setRejectTarget(null)} className="px-4 py-2 rounded-xl text-sm font-medium" style={{ color: "#6B7280", border: "1px solid #E2E0D8" }}>{t.common.cancel}</button>
-              <button onClick={() => handleAction(rejectTarget.id, "reject", { managerNote: rejectNote })} disabled={actionLoading === rejectTarget.id}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: "#DC2626" }}>
-                {actionLoading === rejectTarget.id && <Loader2 size={14} className="animate-spin" />} {t.contracts.confirmReject}</button>
+              <MarsaButton onClick={() => setRejectTarget(null)} variant="secondary">{t.common.cancel}</MarsaButton>
+              <MarsaButton onClick={() => handleAction(rejectTarget.id, "reject", { managerNote: rejectNote })} disabled={actionLoading === rejectTarget.id} variant="danger" loading={actionLoading === rejectTarget.id}>
+                {t.contracts.confirmReject}</MarsaButton>
             </div>
           </div>
         </div>
@@ -1047,10 +1036,9 @@ export default function ContractsPage() {
                 className="w-full px-4 py-2.5 rounded-xl text-sm outline-none resize-none" style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }} />
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid #F0EDE6" }}>
-              <button onClick={() => setRevisionTarget(null)} className="px-4 py-2 rounded-xl text-sm font-medium" style={{ color: "#6B7280", border: "1px solid #E2E0D8" }}>{t.common.cancel}</button>
-              <button onClick={() => handleAction(revisionTarget.id, "request_revision", { clientNote: revisionNote })} disabled={actionLoading === revisionTarget.id}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: "#EA580C" }}>
-                {actionLoading === revisionTarget.id && <Loader2 size={14} className="animate-spin" />} {t.contracts.sendRevision}</button>
+              <MarsaButton onClick={() => setRevisionTarget(null)} variant="secondary">{t.common.cancel}</MarsaButton>
+              <MarsaButton onClick={() => handleAction(revisionTarget.id, "request_revision", { clientNote: revisionNote })} disabled={actionLoading === revisionTarget.id} variant="gold" loading={actionLoading === revisionTarget.id} style={{ backgroundColor: "#EA580C" }}>
+                {t.contracts.sendRevision}</MarsaButton>
             </div>
           </div>
         </div>

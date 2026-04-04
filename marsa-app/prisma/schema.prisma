@@ -282,6 +282,7 @@ model User {
   avatar                 String?           @db.Text
   authorizationType      AuthorizationType @default(NONE)
   authorizationGrantedAt DateTime?
+  authorizationSignature String?           @db.Text
   isExternal             Boolean           @default(false)
   specialization         String?
   costPerTask            Float?

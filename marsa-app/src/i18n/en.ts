@@ -47,6 +47,7 @@ export const en = {
     myInvoices: "My Invoices",
     myReminders: "My Reminders",
     myEmployees: "My Employees",
+    myAuthorization: "Authorization",
   },
 
   groups: {

@@ -13,6 +13,7 @@ import {
   Calendar,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Employee {
   id: string;
@@ -209,12 +210,9 @@ export default function MyEmployeesPage() {
             {companies.length === 0 ? "إضافة شركة" : "شركاتي"}
           </button>
           {companies.length > 0 && (
-            <button onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              style={{ backgroundColor: "#C9A84C" }}>
-              <Plus size={18} />
+            <MarsaButton onClick={() => setShowModal(true)} variant="gold" icon={<Plus size={18} />}>
               إضافة موظف
-            </button>
+            </MarsaButton>
           )}
         </div>
       </div>
@@ -238,14 +236,9 @@ export default function MyEmployeesPage() {
             أضف موظفيك لمتابعة بياناتهم وتواريخ وثائقهم
           </p>
           {companies.length === 0 && (
-            <button
-              onClick={() => setShowCompanyModal(true)}
-              className="mt-4 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white mx-auto"
-              style={{ backgroundColor: "#5E5495" }}
-            >
-              <Plus size={18} />
+            <MarsaButton onClick={() => setShowCompanyModal(true)} variant="primary" icon={<Plus size={18} />} className="mt-4 mx-auto">
               إضافة شركة أولاً
-            </button>
+            </MarsaButton>
           )}
         </div>
       ) : (
@@ -616,25 +609,12 @@ export default function MyEmployeesPage() {
 
             {/* Actions */}
             <div className="flex items-center gap-3 mt-6">
-              <button
-                onClick={handleSubmit}
-                disabled={!form.name || !form.companyId || submitting}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C" }}
-              >
-                {submitting ? (
-                  <Loader2 className="animate-spin mx-auto" size={18} />
-                ) : (
-                  "إضافة"
-                )}
-              </button>
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
-                style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}
-              >
+              <MarsaButton onClick={handleSubmit} disabled={!form.name || !form.companyId || submitting} variant="gold" loading={submitting} className="flex-1">
+                إضافة
+              </MarsaButton>
+              <MarsaButton onClick={() => setShowModal(false)} variant="secondary" className="flex-1">
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>
@@ -668,16 +648,12 @@ export default function MyEmployeesPage() {
               </div>
             </div>
             <div className="flex items-center gap-3 mt-6">
-              <button onClick={handleAddCompany} disabled={!companyForm.name || submittingCompany}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: "#5E5495" }}>
+              <MarsaButton onClick={handleAddCompany} disabled={!companyForm.name || submittingCompany} variant="primary" loading={submittingCompany} className="flex-1">
                 {submittingCompany ? "جاري الإضافة..." : "إضافة"}
-              </button>
-              <button onClick={() => setShowCompanyModal(false)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
-                style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}>
+              </MarsaButton>
+              <MarsaButton onClick={() => setShowCompanyModal(false)} variant="secondary" className="flex-1">
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

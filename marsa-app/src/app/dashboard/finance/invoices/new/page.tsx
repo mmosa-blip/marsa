@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { ArrowRight, Plus, Trash2, Calculator, FileText } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Company {
   id: string;
@@ -84,9 +84,7 @@ export default function NewInvoicePage() {
   return (
     <div className="p-8" dir="rtl">
       <div className="flex items-center gap-3 mb-8">
-        <Link href="/dashboard/finance/invoices" className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white transition-colors" style={{ border: "1px solid #E2E0D8" }}>
-          <ArrowRight size={20} style={{ color: "#1C1B2E" }} />
-        </Link>
+        <MarsaButton href="/dashboard/finance/invoices" variant="ghost" size="md" iconOnly icon={<ArrowRight size={20} style={{ color: "#1C1B2E" }} />} style={{ border: "1px solid #E2E0D8" }} />
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>فاتورة جديدة</h1>
           <p className="text-sm mt-1" style={{ color: "#2D3748", opacity: 0.6 }}>إنشاء فاتورة مالية جديدة</p>
@@ -137,9 +135,9 @@ export default function NewInvoicePage() {
               <Calculator size={20} style={{ color: "#C9A84C" }} />
               <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>بنود الفاتورة</h2>
             </div>
-            <button type="button" onClick={addItem} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:shadow-md" style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}>
-              <Plus size={16} /> إضافة بند
-            </button>
+            <MarsaButton type="button" variant="outline" size="sm" icon={<Plus size={16} />} onClick={addItem} style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C", border: "1px solid transparent" }}>
+              إضافة بند
+            </MarsaButton>
           </div>
 
           {/* رأس الجدول */}
@@ -189,12 +187,12 @@ export default function NewInvoicePage() {
 
         {/* أزرار */}
         <div className="flex items-center gap-3 justify-end">
-          <Link href="/dashboard/finance/invoices" className="px-6 py-3 rounded-xl text-sm font-medium transition-colors hover:bg-gray-100" style={{ color: "#2D3748", border: "1px solid #E2E0D8" }}>
+          <MarsaButton href="/dashboard/finance/invoices" variant="secondary" size="lg">
             إلغاء
-          </Link>
-          <button type="submit" disabled={saving} className="flex items-center gap-2 px-8 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-50" style={{ backgroundColor: "#5E5495", boxShadow: "0 4px 12px rgba(27,42,74,0.25)" }}>
+          </MarsaButton>
+          <MarsaButton type="submit" variant="primary" size="lg" disabled={saving} loading={saving}>
             {saving ? "جارٍ الحفظ..." : "إنشاء الفاتورة"}
-          </button>
+          </MarsaButton>
         </div>
       </form>
     </div>

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Users2, Loader2, FolderKanban, Briefcase, Search, Mail, Phone, Building2, FileText, Plus, X } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Client {
   id: string;
@@ -92,14 +93,9 @@ export default function MyClientsPage() {
           <h1 className="text-2xl font-bold mb-1" style={{ color: "#1C1B2E" }}>{t.clients.title}</h1>
           <p className="text-sm" style={{ color: "#6B7280" }}>{t.clients.subtitle} ({clients.length})</p>
         </div>
-        <button
-          onClick={() => { setShowAddClient(true); setAddError(""); }}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors"
-          style={{ backgroundColor: "#5E5495" }}
-        >
-          <Plus size={16} />
+        <MarsaButton onClick={() => { setShowAddClient(true); setAddError(""); }} variant="primary" icon={<Plus size={16} />}>
           {t.clients.new}
-        </button>
+        </MarsaButton>
       </div>
 
       {/* Add Client Modal */}
@@ -122,15 +118,12 @@ export default function MyClientsPage() {
                 className="w-full px-4 py-2.5 rounded-xl text-sm outline-none" style={{ border: "1px solid #E2E0D8" }} />
             </div>
             <div className="flex gap-3 mt-5">
-              <button onClick={handleAddClient} disabled={addingClient}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: "#5E5495" }}>
+              <MarsaButton onClick={handleAddClient} disabled={addingClient} variant="primary" loading={addingClient} className="flex-1">
                 {addingClient ? t.clients.adding : t.common.add}
-              </button>
-              <button onClick={() => setShowAddClient(false)}
-                className="px-5 py-2.5 rounded-xl text-sm font-medium" style={{ border: "1px solid #E2E0D8", color: "#6B7280" }}>
+              </MarsaButton>
+              <MarsaButton onClick={() => setShowAddClient(false)} variant="secondary">
                 {t.common.cancel}
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

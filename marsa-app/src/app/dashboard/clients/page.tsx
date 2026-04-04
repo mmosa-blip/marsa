@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { exportToExcel } from "@/lib/export-utils";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Client {
   id: string; name: string; email: string; phone: string | null;
@@ -77,9 +78,9 @@ export default function ClientsPage() {
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>العملاء</h1>
           <p className="text-sm mt-1" style={{ color: "#2D3748", opacity: 0.6 }}>إدارة العملاء ومتابعة مشاريعهم وخدماتهم</p>
         </div>
-        <Link href="/dashboard/clients/new" className="flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all" style={{ backgroundColor: "#5E5495", boxShadow: "0 4px 12px rgba(27,42,74,0.25)" }}>
-          <UserPlus size={18} /> عميل جديد
-        </Link>
+        <MarsaButton href="/dashboard/clients/new" variant="primary" size="lg" icon={<UserPlus size={18} />}>
+          عميل جديد
+        </MarsaButton>
       </div>
 
       {/* الإحصائيات */}
@@ -102,7 +103,9 @@ export default function ClientsPage() {
 
       {/* البحث والفلاتر */}
       <div className="bg-white rounded-2xl p-4 mb-6 flex items-center gap-3 flex-wrap" style={{ border: "1px solid #E2E0D8" }}>
-        <button
+        <MarsaButton
+          variant="primary"
+          icon={<Download size={16} />}
           onClick={() => {
             const headers = [
               { key: "name", label: "الاسم" },
@@ -118,12 +121,9 @@ export default function ClientsPage() {
             }));
             exportToExcel(rows, headers, "clients");
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90"
-          style={{ backgroundColor: "#5E5495" }}
         >
-          <Download size={16} />
           تصدير Excel
-        </button>
+        </MarsaButton>
         <div className="flex items-center gap-2 flex-1 min-w-[200px]">
           <Search size={16} style={{ color: "#94A3B8" }} />
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث بالاسم أو البريد..." className="flex-1 py-2 text-sm outline-none" style={{ color: "#2D3748" }} />
@@ -212,20 +212,17 @@ export default function ClientsPage() {
               {confirmId === client.id ? (
                 <div className="absolute top-3 left-3 flex items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-lg z-10" style={{ border: "1px solid #FCA5A5" }}>
                   <span className="text-xs font-medium" style={{ color: "#DC2626" }}>تأكيد الحذف؟</span>
-                  <button onClick={() => handleDelete(client.id)} disabled={deletingId === client.id}
-                    className="px-2 py-1 rounded-lg text-xs font-bold text-white" style={{ backgroundColor: "#DC2626" }}>
+                  <MarsaButton variant="danger" size="xs" onClick={() => handleDelete(client.id)} disabled={deletingId === client.id}>
                     {deletingId === client.id ? "..." : "نعم"}
-                  </button>
-                  <button onClick={() => setConfirmId(null)} className="px-2 py-1 rounded-lg text-xs font-bold" style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}>
+                  </MarsaButton>
+                  <MarsaButton variant="secondary" size="xs" onClick={() => setConfirmId(null)}>
                     لا
-                  </button>
+                  </MarsaButton>
                 </div>
               ) : (
-                <button onClick={(e) => { e.preventDefault(); setConfirmId(client.id); }}
-                  className="absolute top-3 left-3 w-8 h-8 rounded-lg items-center justify-center hidden group-hover:flex transition-all"
-                  style={{ backgroundColor: "rgba(220,38,38,0.08)", color: "#DC2626" }}>
-                  <Trash2 size={15} />
-                </button>
+                <MarsaButton variant="dangerSoft" size="sm" iconOnly icon={<Trash2 size={15} />}
+                  className="absolute top-3 left-3 hidden group-hover:flex"
+                  onClick={(e) => { e.preventDefault(); setConfirmId(client.id); }} />
               )}
               </div>
             );

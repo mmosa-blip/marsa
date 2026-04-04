@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import {
   CreditCard,
   Clock,
@@ -15,6 +14,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface PaymentRequest {
   id: string;
@@ -443,14 +443,15 @@ export default function PaymentRequestsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <Link
+                      <MarsaButton
                         href={`/dashboard/payment-requests/${req.id}`}
-                        className="inline-flex items-center gap-1 text-sm font-medium transition-colors hover:opacity-80"
+                        variant="link"
+                        size="xs"
+                        icon={<ChevronLeft size={16} />}
                         style={{ color: "#1C1B2E" }}
                       >
-                        <span>التفاصيل</span>
-                        <ChevronLeft size={16} />
-                      </Link>
+                        التفاصيل
+                      </MarsaButton>
                     </td>
                   </tr>
                 );

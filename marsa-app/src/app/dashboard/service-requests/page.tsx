@@ -10,6 +10,7 @@ import {
   FolderKanban
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface RequestItem {
   id: string;
@@ -454,16 +455,12 @@ export default function ServiceRequestsPage() {
                   تحويل إلى مشروع
                 </button>
               )}
-              <button onClick={handleSave} disabled={saving}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: "#5E5495" }}>
-                {saving ? "جاري الحفظ..." : <><Check size={16} /> حفظ التغييرات</>}
-              </button>
-              <button onClick={() => setSelected(null)}
-                className="px-6 py-2.5 rounded-xl text-sm font-semibold"
-                style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}>
+              <MarsaButton onClick={handleSave} disabled={saving} variant="primary" loading={saving} icon={!saving ? <Check size={16} /> : undefined} className="flex-1">
+                {saving ? "جاري الحفظ..." : "حفظ التغييرات"}
+              </MarsaButton>
+              <MarsaButton onClick={() => setSelected(null)} variant="secondary">
                 إغلاق
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>
@@ -528,17 +525,12 @@ export default function ServiceRequestsPage() {
               </div>
             </div>
             <div className="p-6 flex gap-3" style={{ borderTop: "1px solid #E2E0D8" }}>
-              <button onClick={handleConvertToProject} disabled={converting}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: "#7C3AED" }}>
-                <FolderKanban size={16} />
+              <MarsaButton onClick={handleConvertToProject} disabled={converting} variant="primary" loading={converting} icon={!converting ? <FolderKanban size={16} /> : undefined} className="flex-1" style={{ backgroundColor: "#7C3AED" }}>
                 {converting ? "جاري الإنشاء..." : "إنشاء المشروع"}
-              </button>
-              <button onClick={() => setShowConvertModal(false)}
-                className="px-6 py-2.5 rounded-xl text-sm font-semibold"
-                style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}>
+              </MarsaButton>
+              <MarsaButton onClick={() => setShowConvertModal(false)} variant="secondary">
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

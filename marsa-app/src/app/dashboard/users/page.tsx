@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   Users2, Search, Filter, UserPlus, ShieldCheck, UserCog,
   Briefcase, Handshake, Edit3, Ban, CheckCircle, Trash2, Loader2, Download,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import { exportToExcel } from "@/lib/export-utils";
 
 interface User {
@@ -181,14 +181,9 @@ export default function UsersPage() {
             عرض وإدارة جميع مستخدمي النظام
           </p>
         </div>
-        <Link
-          href="/dashboard/users/new"
-          className="flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all"
-          style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
-        >
-          <UserPlus size={18} />
+        <MarsaButton href="/dashboard/users/new" variant="gold" size="md" icon={<UserPlus size={18} />}>
           إضافة مستخدم
-        </Link>
+        </MarsaButton>
       </div>
 
       {/* Stats */}
@@ -222,7 +217,10 @@ export default function UsersPage() {
         className="bg-white rounded-2xl p-4 mb-6 flex items-center gap-3 flex-wrap"
         style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
       >
-        <button
+        <MarsaButton
+          variant="primary"
+          size="sm"
+          icon={<Download size={16} />}
           onClick={() => {
             const headers = [
               { key: "name", label: "الاسم" },
@@ -240,12 +238,9 @@ export default function UsersPage() {
             }));
             exportToExcel(rows, headers, "users");
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90"
-          style={{ backgroundColor: "#5E5495" }}
         >
-          <Download size={16} />
           تصدير Excel
-        </button>
+        </MarsaButton>
         <div className="flex items-center gap-2 flex-1 min-w-[200px]">
           <Search size={16} style={{ color: "#94A3B8" }} />
           <input
@@ -494,15 +489,12 @@ export default function UsersPage() {
               </div>
             </div>
             <div className="flex gap-3 mt-5">
-              <button onClick={handleSaveEdit} disabled={editSaving}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50"
-                style={{ backgroundColor: "#5E5495" }}>
+              <MarsaButton onClick={handleSaveEdit} disabled={editSaving} loading={editSaving} variant="primary" size="md" className="flex-1">
                 {editSaving ? "جاري الحفظ..." : "حفظ التعديلات"}
-              </button>
-              <button onClick={() => setEditingUser(null)}
-                className="px-5 py-2.5 rounded-xl text-sm font-medium" style={{ border: "1px solid #E2E0D8", color: "#6B7280" }}>
+              </MarsaButton>
+              <MarsaButton onClick={() => setEditingUser(null)} variant="secondary" size="md">
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

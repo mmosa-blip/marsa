@@ -11,6 +11,7 @@ import {
   XCircle,
   RefreshCw,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import { UploadButton } from "@/lib/uploadthing";
 
 const documentStatusConfig: Record<string, { bg: string; text: string; label: string }> = {
@@ -208,14 +209,9 @@ export default function MyDocumentsPage() {
             إدارة ومتابعة جميع الوثائق والمستندات
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ backgroundColor: "#C9A84C" }}
-        >
-          <Plus size={18} />
+        <MarsaButton onClick={() => setShowModal(true)} variant="gold" icon={<Plus size={18} />}>
           إضافة وثيقة
-        </button>
+        </MarsaButton>
       </div>
 
       {/* Summary Cards */}
@@ -534,25 +530,12 @@ export default function MyDocumentsPage() {
 
             {/* Actions */}
             <div className="flex items-center gap-3 mt-6">
-              <button
-                onClick={handleSubmit}
-                disabled={!form.title || submitting}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C" }}
-              >
-                {submitting ? (
-                  <Loader2 className="animate-spin mx-auto" size={18} />
-                ) : (
-                  "إضافة"
-                )}
-              </button>
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
-                style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}
-              >
+              <MarsaButton onClick={handleSubmit} disabled={!form.title || submitting} variant="gold" loading={submitting} className="flex-1">
+                إضافة
+              </MarsaButton>
+              <MarsaButton onClick={() => setShowModal(false)} variant="secondary" className="flex-1">
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

@@ -13,6 +13,7 @@ import {
   Square,
   Zap,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface UserItem {
   id: string;
@@ -310,34 +311,31 @@ export default function PermissionsPage() {
                     </span>
                   )}
                 </div>
-                <button
+                <MarsaButton
                   onClick={handleSave}
                   disabled={saving || !hasChanges}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-40"
+                  variant="gold"
+                  loading={saving}
+                  icon={!saving ? <Save size={16} /> : undefined}
                   style={{ backgroundColor: "#059669" }}
                 >
-                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                   {t.permissions.savePermissions}
-                </button>
+                </MarsaButton>
               </div>
 
               {/* Toolbar */}
               <div className="flex items-center gap-2 flex-wrap px-5 py-3" style={{ borderBottom: "1px solid #F0EDE6" }}>
-                <button onClick={selectAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-gray-50"
-                  style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}>
-                  <CheckSquare size={13} /> {t.permissions.selectAll}
-                </button>
-                <button onClick={clearAll} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-gray-50"
-                  style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}>
-                  <Square size={13} /> {t.permissions.clearAll}
-                </button>
+                <MarsaButton onClick={selectAll} variant="secondary" size="sm" icon={<CheckSquare size={13} />}>
+                  {t.permissions.selectAll}
+                </MarsaButton>
+                <MarsaButton onClick={clearAll} variant="secondary" size="sm" icon={<Square size={13} />}>
+                  {t.permissions.clearAll}
+                </MarsaButton>
                 <div className="w-px h-5" style={{ backgroundColor: "#E2E0D8" }} />
                 {presets.map((preset) => (
-                  <button key={preset.label} onClick={() => applyPreset(preset.keys)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:opacity-90"
-                    style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495" }}>
-                    <Zap size={12} /> {t.permissions.presets[preset.label as keyof typeof t.permissions.presets]}
-                  </button>
+                  <MarsaButton key={preset.label} onClick={() => applyPreset(preset.keys)} variant="ghost" size="sm" icon={<Zap size={12} />} style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495" }}>
+                    {t.permissions.presets[preset.label as keyof typeof t.permissions.presets]}
+                  </MarsaButton>
                 ))}
               </div>
 

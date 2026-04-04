@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import {
   BookTemplate,
   Layers,
@@ -13,7 +13,6 @@ import {
   ExternalLink,
   Calendar,
   Copy,
-  Loader2,
 } from "lucide-react";
 
 interface ProjectTemplate {
@@ -144,17 +143,9 @@ export default function ProjectTemplatesPage() {
             إنشاء وإدارة قوالب المشاريع الجاهزة
           </p>
         </div>
-        <Link
-          href="/dashboard/projects/new?mode=template"
-          className="flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg"
-          style={{
-            backgroundColor: "#C9A84C",
-            boxShadow: "0 4px 12px rgba(201,168,76,0.3)",
-          }}
-        >
-          <Plus size={18} />
+        <MarsaButton href="/dashboard/projects/new?mode=template" variant="gold" size="lg" icon={<Plus size={18} />}>
           إنشاء قالب جديد
-        </Link>
+        </MarsaButton>
       </div>
 
       {/* المحتوى */}
@@ -193,14 +184,9 @@ export default function ProjectTemplatesPage() {
           >
             أنشئ قالبك الأول لتسريع إنشاء المشاريع
           </p>
-          <Link
-            href="/dashboard/projects/new?mode=template"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-medium"
-            style={{ backgroundColor: "#5E5495" }}
-          >
-            <Plus size={18} />
+          <MarsaButton href="/dashboard/projects/new?mode=template" variant="primary" size="lg" icon={<Plus size={18} />}>
             إنشاء قالب جديد
-          </Link>
+          </MarsaButton>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -306,48 +292,19 @@ export default function ProjectTemplatesPage() {
 
               {/* أزرار الإجراءات */}
               <div className="flex items-center gap-2">
-                <Link
-                  href={`/dashboard/projects/new?templateId=${template.id}`}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-md"
-                  style={{
-                    backgroundColor: "#5E5495",
-                    boxShadow: "0 2px 8px rgba(27,42,74,0.2)",
-                  }}
-                >
-                  <ExternalLink size={15} />
+                <MarsaButton href={`/dashboard/projects/new?templateId=${template.id}`} variant="primary" className="flex-1" icon={<ExternalLink size={15} />}>
                   استخدام
-                </Link>
-                <button
-                  onClick={() => handleClone(template.id)}
-                  className="flex items-center justify-center w-10 h-10 rounded-xl transition-all hover:bg-purple-50"
-                  style={{ border: "1px solid #E2E0D8" }}
-                  title="نسخ"
-                >
-                  <Copy size={16} style={{ color: "#5E5495" }} />
-                </button>
-                <Link
-                  href={`/dashboard/projects/templates/${template.id}/edit`}
-                  className="flex items-center justify-center w-10 h-10 rounded-xl transition-all hover:bg-gray-50"
-                  style={{ border: "1px solid #E2E0D8" }}
+                </MarsaButton>
+                <MarsaButton variant="secondary" size="lg" iconOnly icon={<Copy size={16} style={{ color: "#5E5495" }} />}
+                  onClick={() => handleClone(template.id)} title="نسخ"
+                />
+                <MarsaButton href={`/dashboard/projects/templates/${template.id}/edit`} variant="secondary" size="lg" iconOnly icon={<Edit3 size={16} />}
                   title="تعديل"
-                >
-                  <Edit3 size={16} style={{ color: "#1C1B2E" }} />
-                </Link>
-                <button
-                  onClick={() => handleDelete(template.id)}
-                  disabled={deletingId === template.id}
-                  className="flex items-center justify-center w-10 h-10 rounded-xl transition-all hover:bg-red-50 disabled:opacity-50"
-                  style={{ border: "1px solid #E2E0D8" }}
-                  title="حذف"
-                >
-                  <Trash2
-                    size={16}
-                    style={{
-                      color:
-                        deletingId === template.id ? "#9CA3AF" : "#DC2626",
-                    }}
-                  />
-                </button>
+                />
+                <MarsaButton variant="secondary" size="lg" iconOnly
+                  icon={<Trash2 size={16} style={{ color: deletingId === template.id ? "#9CA3AF" : "#DC2626" }} />}
+                  onClick={() => handleDelete(template.id)} disabled={deletingId === template.id} title="حذف"
+                />
               </div>
             </div>
           ))}
@@ -375,21 +332,19 @@ export default function ProjectTemplatesPage() {
             />
             {cloneError && <p className="text-xs mb-4 font-medium" style={{ color: "#DC2626" }}>{cloneError}</p>}
             <div className="flex gap-3 mt-5">
-              <button
+              <MarsaButton variant="primary" size="lg" className="flex-1"
+                icon={!cloneLoading ? <Copy size={16} /> : undefined}
+                loading={cloneLoading}
                 onClick={handleCloneSave}
                 disabled={cloneLoading || !cloneName.trim() || cloneName.trim() === cloneOriginalName}
-                className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-50"
-                style={{ backgroundColor: "#5E5495" }}
               >
-                {cloneLoading ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />}
                 حفظ النسخة
-              </button>
-              <button
+              </MarsaButton>
+              <MarsaButton variant="secondary" size="lg"
                 onClick={() => { setCloneModal(false); setCloneData(null); }}
-                className="px-5 py-3 rounded-xl text-sm font-semibold" style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
               >
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

@@ -17,6 +17,7 @@ import {
   Loader2,
   Inbox,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Notification {
   id: string;

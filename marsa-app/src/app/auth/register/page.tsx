@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Eye, EyeOff, Mail, Lock, User, Phone } from "lucide-react";
 import MarsaLogo from "@/components/MarsaLogo";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -304,55 +304,24 @@ export default function RegisterPage() {
               </span>
             </div>
 
-            <button
+            <MarsaButton
               type="submit"
-              disabled={loading}
-              className="w-full py-3.5 rounded-xl text-white font-semibold text-sm transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                backgroundColor: "#5E5495",
-                boxShadow: "0 4px 15px rgba(27, 42, 74, 0.3)",
-              }}
+              variant="primary"
+              size="lg"
+              loading={loading}
+              className="w-full"
             >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg
-                    className="animate-spin h-5 w-5"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
-                  جارٍ إنشاء الحساب...
-                </span>
-              ) : (
-                "إنشاء الحساب"
-              )}
-            </button>
+              {loading ? "جارٍ إنشاء الحساب..." : "إنشاء الحساب"}
+            </MarsaButton>
           </form>
 
           {/* رابط تسجيل الدخول */}
           <div className="mt-6 text-center">
             <p className="text-sm" style={{ color: "#2D3748", opacity: 0.6 }}>
               لديك حساب بالفعل؟{" "}
-              <Link
-                href="/auth/login"
-                className="font-semibold hover:underline"
-                style={{ color: "#C9A84C" }}
-              >
+              <MarsaButton href="/auth/login" variant="link">
                 سجّل دخولك
-              </Link>
+              </MarsaButton>
             </p>
           </div>
 

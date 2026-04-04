@@ -14,6 +14,7 @@ import {
   GripVertical,
   Loader2,
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 const ICONS = ["BookOpen", "Shield", "Landmark", "ClipboardList", "AlertCircle", "FileText", "Lock"];
 
@@ -177,13 +178,9 @@ function ManagePoliciesContent() {
           <h2 className="font-bold text-sm" style={{ color: "#1C1B2E" }}>
             اللوائح ({policies.length})
           </h2>
-          <button
-            onClick={newPolicy}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ backgroundColor: "#5E5495" }}
-          >
-            <Plus size={13} /> جديد
-          </button>
+          <MarsaButton onClick={newPolicy} variant="primary" size="sm" icon={<Plus size={13} />}>
+            جديد
+          </MarsaButton>
         </div>
 
         <div className="p-2 space-y-1">
@@ -242,14 +239,9 @@ function ManagePoliciesContent() {
           <div className="p-6 max-w-3xl mx-auto">
             {/* Top bar */}
             <div className="flex items-center justify-between mb-5">
-              <button
-                onClick={() => router.push("/dashboard/policies")}
-                className="flex items-center gap-1.5 text-sm"
-                style={{ color: "#6B7280" }}
-              >
-                <ArrowRight size={16} />
+              <MarsaButton onClick={() => router.push("/dashboard/policies")} variant="ghost" size="sm" icon={<ArrowRight size={16} />}>
                 عودة للعرض
-              </button>
+              </MarsaButton>
               <div className="flex items-center gap-2">
                 {saved && (
                   <span
@@ -259,22 +251,12 @@ function ManagePoliciesContent() {
                     تم الحفظ والإشعار لجميع الموظفين
                   </span>
                 )}
-                <button
-                  onClick={() => router.push("/dashboard/policies")}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs"
-                  style={{ color: "#6B7280", border: "1px solid #E2E0D8" }}
-                >
-                  <Eye size={14} /> معاينة
-                </button>
-                <button
-                  onClick={savePolicy}
-                  disabled={saving}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                  style={{ backgroundColor: "#5E5495" }}
-                >
-                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                <MarsaButton onClick={() => router.push("/dashboard/policies")} variant="secondary" size="sm" icon={<Eye size={14} />}>
+                  معاينة
+                </MarsaButton>
+                <MarsaButton onClick={savePolicy} disabled={saving} variant="primary" loading={saving} icon={!saving ? <Save size={15} /> : undefined}>
                   {saving ? "جاري الحفظ..." : "حفظ ونشر"}
-                </button>
+                </MarsaButton>
               </div>
             </div>
 

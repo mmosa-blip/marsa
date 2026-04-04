@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { exportToExcel } from "@/lib/export-utils";
 import { useLang } from "@/contexts/LanguageContext";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Project {
   id: string;
@@ -122,19 +123,16 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>{t.projects.title}</h1>
           <p className="text-sm mt-1 text-gray-500">{t.projects.subtitle}</p>
         </div>
-        <Link
-          href="/dashboard/projects/new"
-          className="flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg"
-          style={{ backgroundColor: "#5E5495", boxShadow: "0 4px 12px rgba(27,42,74,0.25)" }}
-        >
-          <Plus size={18} />
+        <MarsaButton href="/dashboard/projects/new" variant="primary" size="lg" icon={<Plus size={18} />}>
           {t.projects.new}
-        </Link>
+        </MarsaButton>
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6">
-        <button
+        <MarsaButton
+          variant="primary"
+          icon={<Download size={16} />}
           onClick={() => {
             const headers = [
               { key: "name", label: t.projects.projectName },
@@ -154,12 +152,9 @@ export default function ProjectsPage() {
             }));
             exportToExcel(rows, headers, "projects");
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90"
-          style={{ backgroundColor: "#5E5495" }}
         >
-          <Download size={16} />
           {`${t.common.download} Excel`}
-        </button>
+        </MarsaButton>
         <div className="relative flex-1 max-w-sm">
           <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -208,14 +203,9 @@ export default function ProjectsPage() {
           <FolderKanban size={56} className="mx-auto mb-4" style={{ color: "#C9A84C", opacity: 0.4 }} />
           <p className="text-lg font-medium" style={{ color: "#2D3748" }}>{t.projects.noProjects}</p>
           <p className="text-sm mt-1 mb-6 text-gray-400">{t.projects.noProjectsDesc}</p>
-          <Link
-            href="/dashboard/projects/new"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-medium"
-            style={{ backgroundColor: "#5E5495" }}
-          >
-            <Plus size={18} />
+          <MarsaButton href="/dashboard/projects/new" variant="primary" size="lg" icon={<Plus size={18} />}>
             {t.projects.new}
-          </Link>
+          </MarsaButton>
         </div>
       ) : (
         <div className="space-y-4">
@@ -312,20 +302,18 @@ export default function ProjectsPage() {
               {confirmId === project.id ? (
                 <div className="absolute top-4 left-4 flex items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-lg z-10" style={{ border: "1px solid #FCA5A5" }}>
                   <span className="text-xs font-medium" style={{ color: "#DC2626" }}>{t.common.confirmDelete}</span>
-                  <button onClick={() => handleDelete(project.id)} disabled={deletingId === project.id}
-                    className="px-2 py-1 rounded-lg text-xs font-bold text-white" style={{ backgroundColor: "#DC2626" }}>
+                  <MarsaButton variant="danger" size="xs" onClick={() => handleDelete(project.id)} disabled={deletingId === project.id}>
                     {deletingId === project.id ? "..." : t.common.yes}
-                  </button>
-                  <button onClick={() => setConfirmId(null)} className="px-2 py-1 rounded-lg text-xs font-bold" style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}>
+                  </MarsaButton>
+                  <MarsaButton variant="secondary" size="xs" onClick={() => setConfirmId(null)}>
                     {t.common.no}
-                  </button>
+                  </MarsaButton>
                 </div>
               ) : (
-                <button onClick={(e) => { e.preventDefault(); setConfirmId(project.id); }}
-                  className="absolute top-4 left-4 w-8 h-8 rounded-lg items-center justify-center hidden group-hover:flex transition-all"
-                  style={{ backgroundColor: "rgba(220,38,38,0.08)", color: "#DC2626" }}>
-                  <Trash2 size={15} />
-                </button>
+                <MarsaButton variant="dangerSoft" size="sm" iconOnly icon={<Trash2 size={15} />}
+                  className="absolute top-4 left-4 hidden group-hover:flex"
+                  onClick={(e) => { e.preventDefault(); setConfirmId(project.id); }}
+                />
               )}
               </div>
             );

@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import {
   AreaChart,
   Area,
@@ -276,9 +277,9 @@ export default function AdminDashboard({ data, userName }: Props) {
         <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>آخر الطلبات</h2>
-            <Link href="/dashboard/projects" className="text-xs font-medium flex items-center gap-1 hover:underline" style={{ color: "#C9A84C" }}>
-              عرض الكل <ChevronLeft size={14} />
-            </Link>
+            <MarsaButton href="/dashboard/projects" variant="link" size="xs" icon={<ChevronLeft size={14} />}>
+              عرض الكل
+            </MarsaButton>
           </div>
           {recentOrders.length > 0 ? (
             <div className="space-y-3">

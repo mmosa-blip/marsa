@@ -25,6 +25,7 @@ import {
   Copy,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 type TaskExecutionMode = "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
 
@@ -346,22 +347,18 @@ export default function ServiceCatalogPage() {
           </div>
         </div>
         <div className="flex gap-3">
-          <button
+          <MarsaButton
             onClick={() => { setEditingCategory(null); setCatForm({ name: "", description: "", color: "#3B82F6", sortOrder: 0 }); setShowCategoryModal(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90"
-            style={{ backgroundColor: "#5E5495" }}
+            variant="primary" icon={<Plus size={18} />}
           >
-            <Plus size={18} />
             إضافة فئة
-          </button>
-          <button
+          </MarsaButton>
+          <MarsaButton
             onClick={() => { setEditingTemplate(null); resetTplForm(); setShowTemplateModal(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:opacity-90"
-            style={{ backgroundColor: "#C9A84C" }}
+            variant="gold" icon={<Plus size={18} />}
           >
-            <Plus size={18} />
             إضافة خدمة
-          </button>
+          </MarsaButton>
         </div>
       </div>
 
@@ -605,20 +602,12 @@ export default function ServiceCatalogPage() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleSaveCategory}
-                disabled={!catForm.name}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C" }}
-              >
+              <MarsaButton onClick={handleSaveCategory} disabled={!catForm.name} variant="gold" className="flex-1">
                 {editingCategory ? "حفظ التعديلات" : "إضافة الفئة"}
-              </button>
-              <button
-                onClick={() => setShowCategoryModal(false)}
-                className="px-6 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50"
-              >
+              </MarsaButton>
+              <MarsaButton onClick={() => setShowCategoryModal(false)} variant="secondary">
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>
@@ -904,7 +893,7 @@ export default function ServiceCatalogPage() {
                         >
                           {newTaskRequired ? "إجبارية" : "اختيارية"}
                         </button>
-                        <button
+                        <MarsaButton
                           onClick={() => {
                             if (!newTaskName.trim()) return;
                             setTplTasks(prev => [...prev, {
@@ -924,11 +913,10 @@ export default function ServiceCatalogPage() {
                             setNewTaskSameDay(false);
                           }}
                           disabled={!newTaskName.trim()}
-                          className="w-9 h-9 rounded-lg flex items-center justify-center text-white transition-all disabled:opacity-40 flex-shrink-0"
-                          style={{ backgroundColor: "#C9A84C" }}
-                        >
-                          <Plus size={16} />
-                        </button>
+                          variant="gold" size="sm" iconOnly icon={<Plus size={16} />}
+                          className="flex-shrink-0"
+                        />
+
                       </div>
                       {/* Dependency selector & parallel group */}
                       <div className="flex items-center gap-4">
@@ -991,21 +979,16 @@ export default function ServiceCatalogPage() {
 
             {/* Footer */}
             <div className="sticky bottom-0 bg-white rounded-b-2xl px-6 py-4 flex gap-3" style={{ borderTop: "1px solid #F3F4F6" }}>
-              <button
+              <MarsaButton
                 onClick={handleSaveTemplate}
                 disabled={!tplForm.name || !tplForm.categoryId || (cloneOriginalName !== null && tplForm.name.trim() === cloneOriginalName)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{ backgroundColor: "#C9A84C" }}
+                variant="gold" icon={<Check size={16} />} className="flex-1"
               >
-                <Check size={16} />
                 {editingTemplate ? "حفظ التعديلات" : cloneOriginalName !== null ? "حفظ النسخة" : tplTasks.length > 0 ? `إضافة الخدمة مع ${tplTasks.length} مهمة` : "إضافة الخدمة"}
-              </button>
-              <button
-                onClick={() => setShowTemplateModal(false)}
-                className="px-6 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50"
-              >
+              </MarsaButton>
+              <MarsaButton onClick={() => setShowTemplateModal(false)} variant="secondary">
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

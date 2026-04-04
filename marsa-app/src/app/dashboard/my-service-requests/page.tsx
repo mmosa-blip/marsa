@@ -5,6 +5,7 @@ import {
   ClipboardList, Clock, CheckCircle, XCircle, Layers,
   DollarSign, Calendar, User, ChevronDown, X, AlertCircle, FolderKanban
 } from "lucide-react";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 import SarSymbol from "@/components/SarSymbol";
 
 interface RequestItem {
@@ -116,11 +117,9 @@ function ClientReplySection({ request, onUpdate }: {
             style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
           />
           <div className="flex gap-2">
-            <button onClick={handleSaveReply} disabled={saving || !reply.trim()}
-              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-              style={{ backgroundColor: "#5E5495" }}>
+            <MarsaButton onClick={handleSaveReply} disabled={saving || !reply.trim()} variant="primary" loading={saving} className="flex-1">
               {saving ? "جاري الإرسال..." : "إرسال الرد"}
-            </button>
+            </MarsaButton>
             <label className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer"
               style={{ backgroundColor: "#F8F7F4", color: "#1C1B2E", border: "1px solid #E2E0D8" }}>
               {uploading ? "جاري الرفع..." : "📎 رفع وثيقة"}

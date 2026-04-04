@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   ArrowRight,
   UserPlus,
@@ -10,20 +9,9 @@ import {
   Mail,
   Phone,
   Lock,
-  Shield,
-  ShieldAlert,
-  ShieldOff,
   Save,
-  Loader2,
 } from "lucide-react";
-
-type AuthType = "FULL" | "PER_SERVICE" | "NONE";
-
-const authOptions: { value: AuthType; label: string; desc: string; icon: typeof Shield; color: string; bg: string }[] = [
-  { value: "FULL", label: "تفويض شامل", desc: "تفويض كامل لجميع الخدمات", icon: Shield, color: "#059669", bg: "rgba(5,150,105,0.08)" },
-  { value: "PER_SERVICE", label: "لكل خدمة", desc: "تفويض منفصل لكل خدمة", icon: ShieldAlert, color: "#C9A84C", bg: "rgba(201,168,76,0.1)" },
-  { value: "NONE", label: "بدون تفويض", desc: "لا يوجد تفويض حالياً", icon: ShieldOff, color: "#94A3B8", bg: "rgba(148,163,184,0.1)" },
-];
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 export default function NewClientPage() {
   const router = useRouter();
@@ -34,7 +22,6 @@ export default function NewClientPage() {
     email: "",
     phone: "",
     password: "",
-    authorizationType: "NONE" as AuthType,
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,7 +58,6 @@ export default function NewClientPage() {
           password: form.password,
           phone: form.phone.trim() || undefined,
           role: "CLIENT",
-          authorizationType: form.authorizationType,
         }),
       });
 
@@ -95,13 +81,7 @@ export default function NewClientPage() {
     <div className="p-8 max-w-3xl" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <Link
-          href="/dashboard/clients"
-          className="w-10 h-10 rounded-xl flex items-center justify-center transition-all hover:shadow-md"
-          style={{ backgroundColor: "rgba(27,42,74,0.06)", color: "#1C1B2E" }}
-        >
-          <ArrowRight size={20} />
-        </Link>
+        <MarsaButton href="/dashboard/clients" variant="ghost" size="md" iconOnly icon={<ArrowRight size={20} />} />
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>
             إضافة عميل جديد
@@ -219,79 +199,14 @@ export default function NewClientPage() {
           </div>
         </div>
 
-        {/* نوع التفويض */}
-        <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
-          <h2 className="text-base font-bold mb-5" style={{ color: "#1C1B2E" }}>
-            نوع التفويض
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {authOptions.map((opt) => {
-              const isSelected = form.authorizationType === opt.value;
-              const Icon = opt.icon;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setForm({ ...form, authorizationType: opt.value })}
-                  className="p-4 rounded-xl text-right transition-all"
-                  style={{
-                    border: isSelected ? `2px solid ${opt.color}` : "2px solid #E2E0D8",
-                    backgroundColor: isSelected ? opt.bg : "transparent",
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: isSelected ? `${opt.color}20` : "rgba(148,163,184,0.1)" }}
-                    >
-                      <Icon size={16} style={{ color: isSelected ? opt.color : "#94A3B8" }} />
-                    </div>
-                    <span
-                      className="text-sm font-bold"
-                      style={{ color: isSelected ? opt.color : "#2D3748" }}
-                    >
-                      {opt.label}
-                    </span>
-                  </div>
-                  <p className="text-xs" style={{ color: "#94A3B8" }}>
-                    {opt.desc}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Buttons */}
         <div className="flex items-center gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex items-center gap-2 px-8 py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-50 transition-all hover:shadow-lg"
-            style={{
-              backgroundColor: "#5E5495",
-              boxShadow: "0 4px 12px rgba(27,42,74,0.25)",
-            }}
-          >
-            {saving ? (
-              <>
-                <Loader2 size={18} className="animate-spin" />
-                جارٍ الحفظ...
-              </>
-            ) : (
-              <>
-                <Save size={18} />
-                حفظ العميل
-              </>
-            )}
-          </button>
-          <Link
-            href="/dashboard/clients"
-            className="px-6 py-3 rounded-xl text-sm font-medium transition-all hover:bg-gray-50"
-            style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
-          >
+          <MarsaButton type="submit" variant="primary" size="lg" loading={saving} icon={<Save size={18} />}>
+            {saving ? "جارٍ الحفظ..." : "حفظ العميل"}
+          </MarsaButton>
+          <MarsaButton href="/dashboard/clients" variant="secondary" size="lg">
             إلغاء
-          </Link>
+          </MarsaButton>
         </div>
       </form>
     </div>
