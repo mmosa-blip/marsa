@@ -8,6 +8,7 @@ import AdminDashboard from "./AdminDashboard";
 import EmployeeDashboard from "./EmployeeDashboard";
 import ProviderDashboard from "./ProviderDashboard";
 import ProjectHealthRadar from "@/components/ProjectHealthRadar";
+import PrayerTimesCard from "@/components/PrayerTimesCard";
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -50,7 +51,8 @@ export default function DashboardPage() {
     return (
       <>
         <AdminDashboard data={data} userName={session.user.name || "مستخدم"} />
-        <div className="p-8 pt-0">
+        <div className="p-8 pt-0 space-y-6">
+          <PrayerTimesCard />
           <ProjectHealthRadar compact />
         </div>
       </>
@@ -68,13 +70,23 @@ export default function DashboardPage() {
             نظرة عامة على صحة مشاريعك
           </p>
         </div>
-        <ProjectHealthRadar />
+        <PrayerTimesCard />
+        <div className="mt-6">
+          <ProjectHealthRadar />
+        </div>
       </div>
     );
   }
 
   if (role === "EXTERNAL_PROVIDER") {
-    return <ProviderDashboard data={data} userName={session.user.name || "مستخدم"} />;
+    return (
+      <>
+        <ProviderDashboard data={data} userName={session.user.name || "مستخدم"} />
+        <div className="p-8 pt-0">
+          <PrayerTimesCard />
+        </div>
+      </>
+    );
   }
 
   return <ClientDashboard userName={session.user.name || "مستخدم"} />;
