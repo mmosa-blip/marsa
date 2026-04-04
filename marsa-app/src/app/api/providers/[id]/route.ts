@@ -128,7 +128,11 @@ export async function DELETE(
       );
     }
 
-    await prisma.user.delete({ where: { id } });
+    // Soft delete — never hard delete users
+    await prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date(), isActive: false },
+    });
 
     return NextResponse.json({ message: "تم حذف مزود الخدمة بنجاح" });
   } catch (error) {

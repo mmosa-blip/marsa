@@ -57,9 +57,17 @@ export async function DELETE(
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
+    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
+    }
+
     const { id } = await params;
 
-    await prisma.task.delete({ where: { id } });
+    // Soft delete: set status to CANCELLED instead of hard delete
+    await prisma.task.update({
+      where: { id },
+      data: { status: "CANCELLED" },
+    });
 
     return NextResponse.json({ message: "تم حذف المهمة" });
   } catch (error) {

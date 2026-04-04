@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { can, PERMISSIONS } from "@/lib/permissions";
 import { createAuditLog, AuditModule } from "@/lib/audit";
+import { isProtectedUser } from "@/lib/protected-users";
 
 export async function GET(
   _request: NextRequest,
@@ -191,9 +192,29 @@ export async function DELETE(
       );
     }
 
+    // Protect critical accounts from deletion
+    if (isProtectedUser(user.email)) {
+      return NextResponse.json(
+        { error: "لا يمكن حذف هذا الحساب - حساب محمي" },
+        { status: 403 }
+      );
+    }
+
+    // Soft delete only — never hard delete users
     await prisma.user.update({
       where: { id },
-      data: { deletedAt: new Date() }
+      data: { deletedAt: new Date(), isActive: false },
+    });
+
+    createAuditLog({
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+      userRole: session.user.role,
+      action: "USER_DELETED",
+      module: AuditModule.USERS,
+      entityType: "User",
+      entityId: id,
+      entityName: user.name,
     });
 
     return NextResponse.json({ message: "تم حذف المستخدم بنجاح" });
