@@ -13,7 +13,7 @@ export async function GET() {
     const userId = session.user.id;
     const role = session.user.role;
 
-    let users: { id: string; name: string; email: string; role: string }[] = [];
+    let users: { id: string; name: string; email: string | null; role: string }[] = [];
 
     if (["ADMIN", "MANAGER"].includes(role)) {
       // Admins/Managers see all users except themselves
