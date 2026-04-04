@@ -50,9 +50,11 @@ export default function DashboardPage() {
   if (role === "ADMIN" || role === "MANAGER") {
     return (
       <>
-        <AdminDashboard data={data} userName={session.user.name || "مستخدم"} />
-        <div className="p-8 pt-0 space-y-6">
+        <div className="px-8 pt-6">
           <PrayerTimesCard />
+        </div>
+        <AdminDashboard data={data} userName={session.user.name || "مستخدم"} />
+        <div className="p-8 pt-0">
           <ProjectHealthRadar compact />
         </div>
       </>
@@ -62,7 +64,8 @@ export default function DashboardPage() {
   if (role === "EXECUTOR") {
     return (
       <div className="p-8" dir="rtl">
-        <div className="mb-6">
+        <PrayerTimesCard />
+        <div className="mt-6 mb-6">
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>
             مرحباً {session.user.name || "مستخدم"}
           </h1>
@@ -70,10 +73,7 @@ export default function DashboardPage() {
             نظرة عامة على صحة مشاريعك
           </p>
         </div>
-        <PrayerTimesCard />
-        <div className="mt-6">
-          <ProjectHealthRadar />
-        </div>
+        <ProjectHealthRadar />
       </div>
     );
   }
@@ -81,10 +81,10 @@ export default function DashboardPage() {
   if (role === "EXTERNAL_PROVIDER") {
     return (
       <>
-        <ProviderDashboard data={data} userName={session.user.name || "مستخدم"} />
-        <div className="p-8 pt-0">
+        <div className="px-8 pt-6">
           <PrayerTimesCard />
         </div>
+        <ProviderDashboard data={data} userName={session.user.name || "مستخدم"} />
       </>
     );
   }

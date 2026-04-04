@@ -31,6 +31,13 @@ function parseTime(timeStr: string): { hours: number; minutes: number } {
   return { hours: h, minutes: m };
 }
 
+function to12Hour(timeStr: string): string {
+  const { hours, minutes } = parseTime(timeStr);
+  const period = hours >= 12 ? "م" : "ص";
+  const h12 = hours % 12 || 12;
+  return `${h12}:${String(minutes).padStart(2, "0")} ${period}`;
+}
+
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "الآن";
   const totalMin = Math.floor(ms / 60000);
@@ -200,7 +207,7 @@ export default function PrayerTimesCard() {
                   }}
                   dir="ltr"
                 >
-                  {p.time}
+                  {to12Hour(p.time)}
                 </p>
                 {isNext && (
                   <div className="w-1.5 h-1.5 rounded-full mx-auto mt-1.5" style={{ backgroundColor: "#C9A84C" }} />
