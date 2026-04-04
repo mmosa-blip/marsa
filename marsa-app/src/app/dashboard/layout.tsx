@@ -10,6 +10,7 @@ import GlobalSearch from "@/components/GlobalSearch";
 import { useLang } from "@/contexts/LanguageContext";
 import { SidebarCountsProvider, useSidebarCounts } from "@/contexts/SidebarCountsContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import PrayerTimes from "@/components/PrayerTimes";
 import MarsaLogo from "@/components/MarsaLogo";
 import {
   LayoutDashboard,
@@ -412,6 +413,7 @@ function DashboardLayoutInner({
           <span className="text-lg font-bold" style={{ color: "#C9A84C" }}>{t.brand.name}</span>
         </div>
         <div className="flex items-center gap-2">
+          <PrayerTimes />
           <LanguageToggle />
           <NotificationBell />
           <button onClick={() => setSidebarOpen(true)} className="p-2 text-white/70">
@@ -624,8 +626,9 @@ function DashboardLayoutInner({
         {/* Left: search placeholder */}
         <div />
 
-        {/* Right: lang toggle + notification + user */}
+        {/* Right: prayer times + lang toggle + notification + user */}
         <div className="flex items-center gap-3">
+          <PrayerTimes />
           <LanguageToggle variant="light" />
           <NotificationBell />
 
