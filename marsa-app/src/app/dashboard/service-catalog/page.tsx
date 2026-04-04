@@ -23,6 +23,7 @@ import {
   Eye,
   EyeOff,
   Copy,
+  Building2,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -48,6 +49,7 @@ interface ServiceTemplate {
   workflowType: "SEQUENTIAL" | "INDEPENDENT";
   isActive: boolean;
   sortOrder: number;
+  department?: { id: string; name: string; nameEn?: string; color: string | null } | null;
   _count: { taskTemplates: number; qualifiedEmployees: number };
 }
 
@@ -77,10 +79,13 @@ export default function ServiceCatalogPage() {
 
   // Category form
   const [catForm, setCatForm] = useState({ name: "", description: "", color: "#3B82F6", sortOrder: 0 });
+  // Departments
+  const [departments, setDepartments] = useState<{id:string;name:string;nameEn:string|null;color:string|null}[]>([]);
   // Template form
   const [tplForm, setTplForm] = useState({
     name: "", description: "", categoryId: "", defaultPrice: "",
     defaultDuration: "", workflowType: "SEQUENTIAL" as "SEQUENTIAL" | "INDEPENDENT", sortOrder: 0,
+    departmentId: "",
   });
   // Tasks for new template
   const [tplTasks, setTplTasks] = useState<{ name: string; defaultDuration: number; isRequired: boolean; description: string; dependsOnIndex: number | null; executionMode: TaskExecutionMode; sameDay: boolean }[]>([]);
@@ -118,6 +123,7 @@ export default function ServiceCatalogPage() {
 
   useEffect(() => {
     Promise.all([fetchCategories(), fetchAllStats()]).finally(() => setLoading(false));
+    fetch("/api/departments").then(r => r.json()).then(d => { if (Array.isArray(d)) setDepartments(d); });
   }, [fetchCategories, fetchAllStats]);
 
   const toggleCategory = async (catId: string) => {
@@ -169,7 +175,7 @@ export default function ServiceCatalogPage() {
   };
 
   const resetTplForm = () => {
-    setTplForm({ name: "", description: "", categoryId: "", defaultPrice: "", defaultDuration: "", workflowType: "SEQUENTIAL", sortOrder: 0 });
+    setTplForm({ name: "", description: "", categoryId: "", defaultPrice: "", defaultDuration: "", workflowType: "SEQUENTIAL", sortOrder: 0, departmentId: "" });
     setTplTasks([]);
     setNewTaskName("");
     setNewTaskDuration("1");
@@ -194,6 +200,7 @@ export default function ServiceCatalogPage() {
       ...tplForm,
       defaultPrice: tplForm.defaultPrice ? parseFloat(tplForm.defaultPrice) : null,
       defaultDuration: tplForm.defaultDuration ? parseInt(tplForm.defaultDuration) : null,
+      departmentId: tplForm.departmentId || null,
     };
     // Include tasks only for new templates
     if (!editingTemplate && tplTasks.length > 0) {
@@ -275,6 +282,7 @@ export default function ServiceCatalogPage() {
       categoryId: "", defaultPrice: tpl.defaultPrice?.toString() || "",
       defaultDuration: tpl.defaultDuration?.toString() || "",
       workflowType: tpl.workflowType, sortOrder: tpl.sortOrder,
+      departmentId: tpl.department?.id || "",
     });
     setShowTemplateModal(true);
   };
@@ -299,6 +307,7 @@ export default function ServiceCatalogPage() {
         defaultDuration: t.defaultDuration?.toString() || "",
         workflowType: t.workflowType || "SEQUENTIAL",
         sortOrder: t.sortOrder || 0,
+        departmentId: t.departmentId || "",
       });
       // Pre-fill tasks
       if (t.taskTemplates && Array.isArray(t.taskTemplates)) {
@@ -455,9 +464,16 @@ export default function ServiceCatalogPage() {
                       {categoryTemplates[cat.id].map((tpl) => (
                         <div key={tpl.id} className="bg-white rounded-xl p-4 border border-gray-100 hover:shadow-md transition-shadow">
                           <div className="flex items-start justify-between mb-3">
-                            <h4 className="font-bold text-sm" style={{ color: "#1C1B2E" }}>{tpl.name}</h4>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-bold text-sm" style={{ color: "#1C1B2E" }}>{tpl.name}</h4>
+                              {tpl.department && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ backgroundColor: `${tpl.department.color}15`, color: tpl.department.color || "#5E5495" }}>
+                                  {tpl.department.name}
+                                </span>
+                              )}
+                            </div>
                             <span
-                              className="text-xs px-2 py-0.5 rounded-full font-medium"
+                              className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
                               style={tpl.isActive
                                 ? { backgroundColor: "#ECFDF5", color: "#059669" }
                                 : { backgroundColor: "#FEF2F2", color: "#DC2626" }
@@ -665,6 +681,23 @@ export default function ServiceCatalogPage() {
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-200 text-sm"
                   rows={2}
                 />
+              </div>
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium mb-2" style={{ color: "#2D3748" }}>
+                  <Building2 size={14} style={{ color: "#C9A84C" }} />
+                  القسم
+                </label>
+                <select
+                  value={tplForm.departmentId}
+                  onChange={(e) => setTplForm(prev => ({ ...prev, departmentId: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none cursor-pointer"
+                  style={{ border: "1px solid #E2E0D8", backgroundColor: "#FAFAFE", color: "#2D3748" }}
+                >
+                  <option value="">جميع الأقسام</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

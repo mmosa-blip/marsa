@@ -38,6 +38,8 @@ interface Project {
   contractDurationDays: number | null;
   client: { id: string; name: string };
   manager: { id: string; name: string } | null;
+  departmentId?: string | null;
+  department?: { id: string; name: string; nameEn?: string; color: string | null } | null;
   progress: number;
   totalTasks: number;
   completedTasks: number;
@@ -69,20 +71,33 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [clientFilter, setClientFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [filterDept, setFilterDept] = useState("");
+  const [departments, setDepartments] = useState<{id:string;name:string}[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
   useEffect(() => { document.title = "المشاريع | مرسى"; }, []);
 
   useEffect(() => {
-    if (authStatus === "authenticated") fetchProjects();
+    if (authStatus === "authenticated") {
+      fetchProjects();
+      fetch("/api/departments").then(r => r.json()).then(d => { if (Array.isArray(d)) setDepartments(d); }).catch(() => {});
+    }
   }, [authStatus]);
+
+  useEffect(() => {
+    if (authStatus === "authenticated") fetchProjects();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterDept]);
 
   if (authStatus === "loading") return null;
   if (!session) redirect("/auth/login");
 
   function fetchProjects() {
-    fetch("/api/projects")
+    const params = new URLSearchParams();
+    if (filterDept) params.set("departmentId", filterDept);
+    const qs = params.toString();
+    fetch(`/api/projects${qs ? `?${qs}` : ""}`)
       .then((r) => r.json())
       .then((data) => { setProjects(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -191,6 +206,15 @@ export default function ProjectsPage() {
           <option value="project">مشاريع</option>
           <option value="quick">طلبات خدمات</option>
         </select>
+        <select
+          value={filterDept}
+          onChange={(e) => { setFilterDept(e.target.value); }}
+          className="px-3 py-2.5 rounded-xl text-sm outline-none bg-white"
+          style={{ border: "1px solid #E2E0D8" }}
+        >
+          <option value="">جميع الأقسام</option>
+          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
       </div>
 
       {/* Projects List */}
@@ -244,6 +268,11 @@ export default function ProjectsPage() {
                         </span>
                         {project.isQuickService && (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ backgroundColor: "rgba(201,168,76,0.15)", color: "#C9A84C" }}>خدمة سريعة</span>
+                        )}
+                        {project.department && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ backgroundColor: `${project.department.color}15`, color: project.department.color || "#5E5495" }}>
+                            {project.department.name}
+                          </span>
                         )}
                       </div>
                     </div>

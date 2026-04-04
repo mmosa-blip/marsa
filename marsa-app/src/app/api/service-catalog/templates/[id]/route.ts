@@ -30,6 +30,7 @@ export async function GET(
       where: { id },
       include: {
         category: true,
+        department: { select: { id: true, name: true, nameEn: true, color: true } },
         taskTemplates: {
           orderBy: { sortOrder: "asc" },
         },

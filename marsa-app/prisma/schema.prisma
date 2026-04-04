@@ -375,6 +375,7 @@ model User {
 
   editedPolicies       SystemPolicy[]       @relation("PolicyEditor")
   policyNotifications  PolicyNotification[] @relation("PolicyNotifications")
+  departments          UserDepartment[]     @relation("UserDepartments")
 
   @@map("users")
 }
@@ -421,6 +422,9 @@ model Service {
 
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
 
   tasks              Task[]
   projectMilestones  ProjectMilestone[]
@@ -469,6 +473,9 @@ model Project {
   contractId String?
   contract   Contract? @relation("ProjectContract", fields: [contractId], references: [id])
 
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
   tasks        Task[]
   invoices     Invoice[]
   services     Service[]
@@ -503,6 +510,9 @@ model Task {
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
 
   assigneeId String?
   assignedAt DateTime?
@@ -797,6 +807,9 @@ model ServiceTemplate {
 
   categoryId String
   category   ServiceCategory @relation(fields: [categoryId], references: [id])
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
 
   taskTemplates      TaskTemplate[]
   qualifiedEmployees ServiceTemplateEmployee[]
@@ -1540,4 +1553,37 @@ model PolicyNotification {
 
   @@unique([policyId, userId])
   @@map("policy_notifications")
+}
+
+// ===== Departments =====
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  nameEn      String?
+  description String?  @db.Text
+  color       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  projects         Project[]
+  services         Service[]
+  serviceTemplates ServiceTemplate[]
+  tasks            Task[]
+  employees        UserDepartment[]  @relation("DepartmentUsers")
+
+  @@map("departments")
+}
+
+model UserDepartment {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation("UserDepartments", fields: [userId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department @relation("DepartmentUsers", fields: [departmentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, departmentId])
+  @@map("user_departments")
 }

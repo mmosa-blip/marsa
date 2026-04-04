@@ -20,6 +20,7 @@ export async function GET(
       include: {
         client: { select: { id: true, name: true, email: true } },
         manager: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, nameEn: true, color: true } },
         services: {
           include: {
             tasks: {

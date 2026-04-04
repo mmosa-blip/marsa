@@ -76,6 +76,8 @@ interface ProjectsData {
     completedTasks: number;
     progress: number;
     priority: string;
+    departmentId?: string | null;
+    department?: { id: string; name: string; nameEn?: string; color: string | null } | null;
   }[];
   statusDistribution: Record<string, number>;
   timeline: {
@@ -126,6 +128,8 @@ const roleLabels: Record<string, string> = {
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<"financial" | "performance" | "projects">("financial");
   const [loading, setLoading] = useState(false);
+  const [departments, setDepartments] = useState<{id:string;name:string}[]>([]);
+  const [filterDept, setFilterDept] = useState("");
 
   // Date range - default last 6 months
   const now = new Date();
@@ -138,6 +142,10 @@ export default function ReportsPage() {
   const [projectsData, setProjectsData] = useState<ProjectsData | null>(null);
 
   useEffect(() => { document.title = "التقارير | مرسى"; }, []);
+
+  useEffect(() => {
+    fetch("/api/departments").then(r => r.json()).then(d => { if (Array.isArray(d)) setDepartments(d); }).catch(() => {});
+  }, []);
 
   const fetchData = () => {
     setLoading(true);
@@ -220,6 +228,15 @@ export default function ReportsPage() {
             style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
           />
         </div>
+        <select
+          value={filterDept}
+          onChange={(e) => setFilterDept(e.target.value)}
+          className="px-3 py-2 rounded-xl text-sm outline-none bg-white"
+          style={{ border: "1px solid #E2E0D8" }}
+        >
+          <option value="">جميع الأقسام</option>
+          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
         <MarsaButton onClick={fetchData} variant="gold">
           تطبيق
         </MarsaButton>
@@ -260,7 +277,7 @@ export default function ReportsPage() {
             <PerformanceTab data={performanceData} />
           )}
           {activeTab === "projects" && projectsData && (
-            <ProjectsTab data={projectsData} />
+            <ProjectsTab data={projectsData} filterDept={filterDept} />
           )}
         </>
       )}
@@ -677,8 +694,10 @@ function PerformanceTab({ data }: { data: PerformanceData }) {
 
 // ===== Projects Tab =====
 
-function ProjectsTab({ data }: { data: ProjectsData }) {
-  const { projects, statusDistribution, timeline } = data;
+function ProjectsTab({ data, filterDept }: { data: ProjectsData; filterDept: string }) {
+  const filteredProjects = filterDept ? data.projects.filter(p => p.departmentId === filterDept) : data.projects;
+  const { statusDistribution, timeline } = data;
+  const projects = filteredProjects;
 
   const handleExportProjects = () => {
     const headers = [

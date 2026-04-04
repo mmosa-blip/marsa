@@ -6,14 +6,18 @@ import { can, PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { createAuditLog, AuditModule } from "@/lib/audit";
 import type { WorkflowType, ProjectPriority, MilestoneStatus } from "@/generated/prisma/client";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const departmentId = searchParams.get("departmentId");
+
     const where: Record<string, unknown> = { deletedAt: null };
+    if (departmentId) where.departmentId = departmentId;
 
     if (session.user.role === "CLIENT") {
       where.clientId = session.user.id;
@@ -36,6 +40,7 @@ export async function GET() {
       include: {
         client: { select: { id: true, name: true, email: true } },
         manager: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, nameEn: true, color: true } },
         tasks: { select: { id: true, status: true } },
         _count: { select: { services: true } },
       },
@@ -93,6 +98,7 @@ export async function POST(request: Request) {
       services,
       priority,
       paymentMilestones,
+      departmentId,
       contractId,
       contractStartDate,
       contractDurationDays,
@@ -106,6 +112,7 @@ export async function POST(request: Request) {
       services?: ServiceInput[];
       priority?: string;
       paymentMilestones?: PaymentMilestoneInput[];
+      departmentId?: string;
       contractId?: string;
       contractStartDate?: string;
       contractDurationDays?: number;
@@ -203,6 +210,7 @@ export async function POST(request: Request) {
           priority: (priority || "MEDIUM") as ProjectPriority,
           startDate: now,
           endDate,
+          departmentId: departmentId || null,
           contractId: contractId || null,
           contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
           contractDurationDays: contractDurationDays || null,
@@ -486,6 +494,7 @@ export async function POST(request: Request) {
         priority: (priority || "MEDIUM") as ProjectPriority,
         workflowType: (workflowType || "SEQUENTIAL") as WorkflowType,
         totalPrice: contractTotalPrice || totalPrice || null,
+        departmentId: departmentId || null,
         contractId: contractId || null,
         contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
         contractDurationDays: contractDurationDays || null,

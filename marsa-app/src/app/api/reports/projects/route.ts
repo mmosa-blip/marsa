@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         client: { select: { name: true } },
+        department: { select: { id: true, name: true, nameEn: true, color: true } },
         tasks: { select: { id: true, status: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -52,6 +53,8 @@ export async function GET(request: NextRequest) {
         completedTasks,
         progress,
         priority: p.priority,
+        departmentId: p.departmentId,
+        department: p.department,
       };
     });
 

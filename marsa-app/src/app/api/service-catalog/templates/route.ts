@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         category: true,
+        department: { select: { id: true, name: true, nameEn: true, color: true } },
         _count: {
           select: {
             taskTemplates: true,
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, categoryId, defaultPrice, defaultDuration, workflowType, sortOrder } = body;
+    const { name, description, categoryId, defaultPrice, defaultDuration, workflowType, sortOrder, departmentId } = body;
 
     if (!name || !categoryId) {
       return NextResponse.json(
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
           defaultDuration,
           workflowType,
           sortOrder,
+          departmentId: departmentId || null,
         },
       });
 

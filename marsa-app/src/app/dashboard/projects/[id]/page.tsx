@@ -61,6 +61,7 @@ interface ProjectType {
   completedTasks: number;
   client: { id: string; name: string; email: string };
   manager: { id: string; name: string; email: string } | null;
+  department?: { id: string; name: string; nameEn?: string; color: string | null } | null;
   tasks: TaskType[];
   services: ServiceType[];
 }
@@ -225,6 +226,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 {project.workflowType === "SEQUENTIAL" ? <ArrowDown size={12} /> : <ArrowLeftRight size={12} />}
                 {project.workflowType === "SEQUENTIAL" ? "تسلسلي" : "مستقل"}
               </span>
+              {project.department && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ backgroundColor: `${project.department.color}15`, color: project.department.color || "#5E5495" }}>
+                  {project.department.name}
+                </span>
+              )}
             </div>
             {project.description && <p className="text-sm text-gray-500 mb-2">{project.description}</p>}
             <div className="flex items-center gap-5 text-xs text-gray-400">

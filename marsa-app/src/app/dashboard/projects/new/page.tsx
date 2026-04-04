@@ -31,6 +31,7 @@ import {
   Grid3X3,
   CreditCard,
   Edit3,
+  Building2,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -167,6 +168,8 @@ export default function NewProjectPage() {
 
   const [projectName, setProjectName] = useState("");
   const [description, setDescription] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
+  const [departments, setDepartments] = useState<{id:string;name:string;nameEn:string|null;color:string|null}[]>([]);
   const [workflowType, setWorkflowType] = useState<"SEQUENTIAL" | "INDEPENDENT">("SEQUENTIAL");
 
   // SLA Timeline
@@ -214,6 +217,11 @@ export default function NewProjectPage() {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // ─── Fetch departments on mount ───
+  useEffect(() => {
+    fetch("/api/departments").then(r => r.json()).then(d => { if (Array.isArray(d)) setDepartments(d); });
   }, []);
 
   // ─── Fetch project templates on mount ───
@@ -589,6 +597,7 @@ export default function NewProjectPage() {
             templateId: selectedTemplateId,
             clientId: selectedClient!.id,
             name: projectName,
+            departmentId: departmentId || undefined,
             contractId: selectedContractId || undefined,
             contractStartDate: contractStartDate || undefined,
             contractDurationDays: contractDurationDays ? parseInt(contractDurationDays) : undefined,
@@ -614,6 +623,7 @@ export default function NewProjectPage() {
             description: description || null,
             workflowType,
             totalPrice: finalTotal,
+            departmentId: departmentId || undefined,
             contractId: selectedContractId || undefined,
             contractStartDate: contractStartDate || undefined,
             contractDurationDays: contractDurationDays ? parseInt(contractDurationDays) : undefined,
@@ -1010,6 +1020,23 @@ export default function NewProjectPage() {
                   onFocus={(e) => (e.target.style.borderColor = "#C9A84C")}
                   onBlur={(e) => (e.target.style.borderColor = "#E8E6F0")}
                 />
+              </div>
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium mb-2" style={{ color: "#2D3748" }}>
+                  <Building2 size={14} style={{ color: "#C9A84C" }} />
+                  القسم
+                </label>
+                <select
+                  value={departmentId}
+                  onChange={(e) => setDepartmentId(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none cursor-pointer"
+                  style={{ border: "1px solid #E2E0D8", backgroundColor: "#FAFAFE", color: "#2D3748" }}
+                >
+                  <option value="">جميع الأقسام</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

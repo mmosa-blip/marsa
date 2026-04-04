@@ -127,6 +127,7 @@ const adminGroups: NavGroup[] = [
       { href: "/dashboard/hr/leaves", label: "الإجازات", tKey: "leaves" },
       { href: "/dashboard/hr/attendance", label: "الحضور", tKey: "attendance" },
 { href: "/dashboard/users", label: "إدارة المستخدمين", tKey: "users", roles: ["ADMIN"] },
+      { href: "/dashboard/departments", label: "الأقسام", tKey: "departments", roles: ["ADMIN"] },
     ],
   },
   {

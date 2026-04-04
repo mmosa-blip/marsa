@@ -48,6 +48,7 @@ export const ar = {
     myReminders: "تذكيراتي",
     myEmployees: "موظفيني",
     myAuthorization: "التفويض",
+    departments: "الأقسام",
   },
 
   groups: {
