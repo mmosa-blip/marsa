@@ -39,12 +39,13 @@ export async function GET(request: Request) {
         delete where.OR;
         where.AND = [
           { OR: executorConditions },
-          { OR: [{ name: { contains: search } }, { email: { contains: search } }] },
+          { OR: [{ name: { contains: search } }, { phone: { contains: search } }, { email: { not: null, contains: search } }] },
         ];
       } else {
         where.OR = [
           { name: { contains: search } },
-          { email: { contains: search } },
+          { phone: { contains: search } },
+          { email: { not: null, contains: search } },
         ];
       }
     }

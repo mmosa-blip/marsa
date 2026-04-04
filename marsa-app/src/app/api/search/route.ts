@@ -31,14 +31,16 @@ export async function GET(request: NextRequest) {
         where: {
           OR: [
             { name: { contains: q } },
-            { email: { contains: q } },
+            { phone: { contains: q } },
+            { email: { not: null, contains: q } },
           ],
         },
-        select: { id: true, name: true, email: true, role: true },
+        select: { id: true, name: true, email: true, phone: true, role: true },
         take: 5,
       });
       users = foundUsers.map((u) => ({
         ...u,
+        email: u.email ?? u.phone,
         link: `/dashboard/users/${u.id}`,
       }));
     }

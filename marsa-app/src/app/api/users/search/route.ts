@@ -58,8 +58,8 @@ export async function GET(request: NextRequest) {
     if (q.trim()) {
       where.OR = [
         { name: { contains: q } },
-        { email: { contains: q } },
         { phone: { contains: q } },
+        { email: { not: null, contains: q } },
       ];
     }
 
