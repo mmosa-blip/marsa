@@ -1,0 +1,304 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* KAF Brand Colors */
+  --color-brand-100: #EAE8F5;
+  --color-brand-300: #9F96CC;
+  --color-brand-500: #5E5495;
+  --color-brand-600: #4A4178;
+  --color-brand-700: #382F5C;
+  --color-brand-800: #2A2542;
+  --color-brand-900: #1C1B2E;
+  --color-gold-100: #F5EDD4;
+  --color-gold-500: #C9A84C;
+  --color-sidebar-bg: #2A2542;
+  --color-sidebar-hover: #3D3660;
+  --color-sidebar-active: #5E5495;
+  --color-surface: #F8F9FA;
+  --color-text-primary: #1C1B2E;
+}
+
+:root {
+  /* KAF Brand Variables */
+  --brand-500: #5E5495;
+  --brand-600: #4A4178;
+  --brand-800: #2A2542;
+  --brand-100: #EAE8F5;
+  --gold-500:  #C9A84C;
+  --surface:   #F8F9FA;
+  --text-primary: #1C1B2E;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #5E5495;
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: #EAE8F5;
+  --accent-foreground: #1C1B2E;
+  --destructive: oklch(0.58 0.22 27);
+  --border: #E8E6F0;
+  --input: #E8E6F0;
+  --ring: #5E5495;
+  --chart-1: oklch(0.809 0.105 251.813);
+  --chart-2: oklch(0.623 0.214 259.815);
+  --chart-3: oklch(0.546 0.245 262.881);
+  --chart-4: oklch(0.488 0.243 264.376);
+  --chart-5: oklch(0.424 0.199 265.638);
+  --radius: 0.625rem;
+  --sidebar: #2A2542;
+  --sidebar-foreground: rgba(255,255,255,0.85);
+  --sidebar-primary: #5E5495;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: #3D3660;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-ring: #5E5495;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.87 0.00 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.371 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.809 0.105 251.813);
+  --chart-2: oklch(0.623 0.214 259.815);
+  --chart-3: oklch(0.546 0.245 262.881);
+  --chart-4: oklch(0.488 0.243 264.376);
+  --chart-5: oklch(0.424 0.199 265.638);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Prose RTL styles for policy content */
+.prose-rtl h1 { font-size: 1.8em; font-weight: 700; margin: 0.6em 0; color: #1C1B2E; }
+.prose-rtl h2 { font-size: 1.4em; font-weight: 700; margin: 0.8em 0 0.4em; color: #1C1B2E; border-bottom: 2px solid #EAE8F5; padding-bottom: 6px; }
+.prose-rtl h3 { font-size: 1.1em; font-weight: 700; margin: 0.6em 0 0.3em; color: #2D3748; }
+.prose-rtl p { margin: 0.6em 0; line-height: 2; }
+.prose-rtl ul { list-style: none; padding-right: 0; margin: 0.6em 0; }
+.prose-rtl ul li::before { content: "\25C6 "; color: #5E5495; font-size: 0.7em; }
+.prose-rtl ol { list-style: decimal; padding-right: 24px; margin: 0.6em 0; }
+.prose-rtl li { margin: 0.4em 0; line-height: 1.9; }
+.prose-rtl strong { font-weight: 700; color: #1C1B2E; }
+.prose-rtl blockquote { border-right: 4px solid #5E5495; padding: 12px 16px; margin: 1em 0; color: #4B5563; background: #FAFAFE; border-radius: 0 8px 8px 0; }
+.prose-rtl table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+.prose-rtl th { background: #5E5495; color: white; padding: 10px 14px; text-align: right; }
+.prose-rtl td { border: 1px solid #E2E0D8; padding: 8px 14px; }
+.prose-rtl tr:nth-child(even) td { background: #FAFAFE; }
+
+/* ==============================
+   MARSA Premium Business Styles
+   ============================== */
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(201, 168, 76, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(201, 168, 76, 0.5);
+}
+
+/* Selection Color */
+::selection {
+  background: rgba(201, 168, 76, 0.2);
+  color: #1C1B2E;
+}
+
+/* Smooth Scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Tabular Numbers for Tables */
+table td, .tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shimmer Skeleton Loader */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #F0EEF5 25%, #E8E6F0 50%, #F0EEF5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* Modal Backdrop Blur */
+.modal-backdrop {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Card Enter Animation */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-slide-up {
+  animation: fadeSlideUp 0.4s ease-out;
+}
+
+/* Modal Scale Animation */
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-modal-in {
+  animation: modalIn 0.2s ease-out;
+}
+
+/* Gold Gradient Button */
+.btn-gold {
+  background: linear-gradient(135deg, #C9A84C 0%, #B8943F 100%);
+  color: white;
+  border: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(201, 168, 76, 0.3);
+}
+.btn-gold:hover {
+  background: linear-gradient(135deg, #B8943F 0%, #A68535 100%);
+  box-shadow: 0 4px 16px rgba(201, 168, 76, 0.4);
+  transform: translateY(-1px);
+}
+
+/* Gold Focus Ring for Inputs */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #C9A84C !important;
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.15);
+}
+
+/* Premium Card Hover */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(28, 27, 46, 0.08), 0 4px 8px rgba(28, 27, 46, 0.04);
+}
+
+/* Gold Separator */
+.gold-separator {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(201, 168, 76, 0.3), transparent);
+  margin: 16px 0;
+}
+
+/* Islamic Geometric Pattern (for login page) */
+.islamic-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Glassmorphism */
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}

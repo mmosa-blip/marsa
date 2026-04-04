@@ -1,0 +1,1542 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ===== Enums =====
+
+enum Role {
+  ADMIN
+  MANAGER
+  CLIENT
+  EXECUTOR
+  EXTERNAL_PROVIDER
+  FINANCE_MANAGER
+  TREASURY_MANAGER
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  WAITING
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  CANCELLED
+  WAITING_EXTERNAL
+}
+
+enum ServiceType {
+  NORMAL
+  START
+  END
+}
+
+model UserService {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation("ExecutorServices", fields: [userId], references: [id], onDelete: Cascade)
+  serviceId  String
+  service    Service  @relation("ServiceExecutors", fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceTemplateId  String?
+  serviceTemplate    ServiceTemplate?  @relation("TemplateExecutors", fields: [serviceTemplateId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  @@unique([userId, serviceId])
+  @@map("user_services")
+}
+
+enum TaskExecutionMode {
+  SEQUENTIAL
+  PARALLEL
+  INDEPENDENT
+}
+
+enum RequirementType {
+  DOCUMENT
+  PAYMENT
+  SIGNATURE
+  CUSTOM
+}
+
+enum RequirementStatus {
+  PENDING
+  COMPLETED
+  WAIVED
+}
+
+enum MilestoneType {
+  SERVICE
+  PAYMENT
+  APPROVAL
+}
+
+enum MilestoneStatus {
+  LOCKED
+  UNLOCKED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum TicketStatus {
+  NEW
+  OPEN
+  IN_PROGRESS
+  PENDING_CLIENT
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  EMERGENCY
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum ReminderType {
+  RESIDENCY_EXPIRY
+  INSURANCE_EXPIRY
+  LICENSE_EXPIRY
+  CONTRACT_RENEWAL
+  CUSTOM
+}
+
+enum ReminderStatus {
+  PENDING
+  NOTIFIED
+  COMPLETED
+  OVERDUE
+}
+
+enum ReminderPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CREDIT_CARD
+  CHECK
+}
+
+enum AuthorizationType {
+  FULL
+  PER_SERVICE
+  NONE
+}
+
+enum DocumentType {
+  COMMERCIAL_REGISTER
+  MUNICIPAL_LICENSE
+  ZAKAT_CERTIFICATE
+  INSURANCE_CERTIFICATE
+  CHAMBER_CERTIFICATE
+  LEASE_CONTRACT
+  CIVIL_DEFENSE
+  SAUDIZATION
+  GOSI_CERTIFICATE
+  CUSTOM
+}
+
+enum DocumentStatus {
+  VALID
+  EXPIRING_SOON
+  EXPIRED
+  PENDING_RENEWAL
+}
+
+enum CashierPaymentMethod {
+  CASH
+  MADA
+  BANK_TRANSFER
+  DEFERRED
+}
+
+enum TransactionStatus {
+  COMPLETED
+  DEFERRED
+  CANCELLED
+}
+
+enum WorkflowType {
+  SEQUENTIAL
+  INDEPENDENT
+}
+
+enum PaymentRequestStatus {
+  PENDING_SUPERVISOR
+  PENDING_FINANCE
+  PENDING_TREASURY
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum NotificationType {
+  NEW_TASK
+  TASK_UPDATE
+  PROJECT_STATUS_CHANGE
+  INVOICE_DUE
+  INVOICE_PAID
+  REMINDER_UPCOMING
+  DOCUMENT_EXPIRING
+  NEW_MESSAGE
+  PAYMENT_REQUEST_UPDATE
+  TASK_REJECTED
+  TASK_TRANSFER_REQUEST
+  TASK_TRANSFER_APPROVED
+  TASK_TRANSFER_REJECTED
+  ESCALATION_ALERT
+}
+
+enum TransferStatus {
+  PENDING_ADMIN
+  PENDING_TARGET
+  APPROVED
+  REJECTED_BY_ADMIN
+  REJECTED_BY_TARGET
+  CANCELLED
+}
+
+enum ServiceRequestStatus {
+  PENDING
+  REVIEWING
+  AWAITING_PAYMENT
+  APPROVED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ===== Models =====
+
+model User {
+  id                     String            @id @default(cuid())
+  email                  String            @unique
+  password               String
+  name                   String
+  role                   Role              @default(CLIENT)
+  phone                  String?
+  avatar                 String?           @db.Text
+  authorizationType      AuthorizationType @default(NONE)
+  authorizationGrantedAt DateTime?
+  isExternal             Boolean           @default(false)
+  specialization         String?
+  costPerTask            Float?
+  bankName               String?
+  bankIban               String?
+  signatureImage         String?           @db.Text
+  stampImage             String?           @db.Text
+  isActive               Boolean           @default(true)
+  deletedAt              DateTime?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  // علاقة المشرف
+  supervisorId        String?
+  supervisor          User?    @relation("SupervisorExternal", fields: [supervisorId], references: [id])
+  supervisedProviders User[]   @relation("SupervisorExternal")
+
+  // العلاقات
+  ownedCompanies  Company[]  @relation("CompanyOwner")
+  clientProjects  Project[]  @relation("ProjectClient")
+  managedProjects Project[]  @relation("ProjectManager")
+  assignedTasks   Task[]     @relation("TaskAssignee")
+  reminders       Reminder[] @relation("ReminderCreator")
+  invoices        Invoice[]  @relation("InvoiceCreator")
+  clientServices  Service[]  @relation("ServiceClient")
+  clientInvoices  Invoice[]  @relation("InvoiceClient")
+  clientReminders      Reminder[]            @relation("ReminderClient")
+  documents            Document[]            @relation("DocumentOwner")
+  cashierTransactions  CashierTransaction[]  @relation("TransactionClient")
+  cashierOperations    CashierTransaction[]  @relation("TransactionCashier")
+  qualifiedServices    ServiceTemplateEmployee[] @relation("QualifiedServices")
+  escalationServices   ServiceTemplateEscalation[] @relation("EscalationServices")
+  createdProjectTemplates ProjectTemplate[] @relation("ProjectTemplateCreator")
+  providerTaskCosts       TaskCost[]        @relation("ProviderTaskCosts")
+  providerPaymentRequests PaymentRequest[]  @relation("ProviderPaymentRequests")
+  requestedPayments       PaymentRequest[]  @relation("RequestedPayments")
+  notifications           Notification[]
+  conversations           Conversation[]    @relation("ConversationUsers")
+  sentMessages            Message[]
+  seenMessages            Message[]         @relation("SeenMessages")
+  closedProjects          Project[]         @relation("ProjectCloser")
+  executorServices        UserService[]     @relation("ExecutorServices")
+
+  // علاقات نظام المهام
+  providedServices        ServiceProviderMapping[] @relation("ProviderMappings")
+  taskRejections          TaskRejection[]          @relation("TaskRejections")
+  transfersRequested      TaskTransferRequest[]    @relation("TransferRequester")
+  transfersTargeted       TaskTransferRequest[]    @relation("TransferTarget")
+  transfersReviewed       TaskTransferRequest[]    @relation("TransferReviewer")
+  delegationsGranted      TaskTransferDelegation[] @relation("DelegationFrom")
+  delegationsReceived     TaskTransferDelegation[] @relation("DelegationTo")
+
+  // علاقات طلبات الخدمات
+  clientServiceRequests   ServiceRequest[]           @relation("ClientServiceRequests")
+  assignedServiceRequests ServiceRequest[]           @relation("AssignedServiceRequests")
+
+  // علاقات العقود
+  contractTemplates       ContractTemplate[]         @relation("TemplateCreator")
+  issuedContracts         Contract[]                 @relation("ContractIssuer")
+  clientContracts         Contract[]                 @relation("ContractClient")
+  approvedContracts       Contract[]                 @relation("ContractApprover")
+
+  // علاقات تتبع الوقت
+  timeLogs                TaskTimeLog[]
+
+  startedTasks            Task[]            @relation("TaskStarter")
+  taskAssignments         TaskAssignment[]
+
+  // علاقات الملاحق
+  createdAddenda          ContractAddendum[] @relation("AddendumCreator")
+  approvedAddenda         ContractAddendum[] @relation("AddendumApprover")
+
+  // علاقات التذاكر
+  clientTickets         Ticket[]        @relation("ClientTickets")
+  agentTickets          Ticket[]        @relation("AgentTickets")
+  ticketMessages        TicketMessage[] @relation("TicketMessageSender")
+
+  // علاقات الصلاحيات
+  permissions            UserPermission[]  @relation("UserPermissions")
+  permissionsGranted     UserPermission[]  @relation("PermissionGranter")
+  auditLogs              AuditLog[]
+  clientDocuments    ClientDocument[] @relation("ClientDocuments")
+  uploadedDocuments  ClientDocument[] @relation("DocumentUploader")
+
+  providerLinks      TaskExternalProvider[] @relation("ProviderLinks")
+  providerLinksMade  TaskExternalProvider[] @relation("ProviderLinkCreator")
+  remindersSent      ProviderReminder[]     @relation("ReminderSender")
+  governmentHolds    TaskGovernmentHold[]   @relation("GovernmentHoldCreator")
+  governmentUpdates  GovernmentUpdate[]     @relation("GovUpdateCreator")
+
+  editedPolicies       SystemPolicy[]       @relation("PolicyEditor")
+  policyNotifications  PolicyNotification[] @relation("PolicyNotifications")
+
+  @@map("users")
+}
+
+model Company {
+  id                 String   @id @default(cuid())
+  name               String
+  commercialRegister String?  @unique
+  sector             String?
+  createdAt          DateTime @default(now())
+  deletedAt          DateTime?
+
+  // العلاقات
+  ownerId String
+  owner   User   @relation("CompanyOwner", fields: [ownerId], references: [id])
+
+  employees Employee[]
+  reminders Reminder[]
+  invoices  Invoice[]
+  documents Document[]
+
+  @@map("companies")
+}
+
+model Service {
+  id                  String   @id @default(cuid())
+  name                String
+  description         String?  @db.Text
+  category            String?
+  price               Float?
+  duration            Int?
+  isActive            Boolean  @default(true)
+  isPublic            Boolean  @default(true)
+  type                ServiceType @default(NORMAL)
+  serviceTemplateId   String?
+  serviceTemplate     ServiceTemplate? @relation("ServiceInstances", fields: [serviceTemplateId], references: [id])
+  status              String?  @default("PENDING")
+  createdAt           DateTime @default(now())
+  deletedAt           DateTime?
+
+  // العلاقات
+  clientId String
+  client   User   @relation("ServiceClient", fields: [clientId], references: [id])
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tasks              Task[]
+  projectMilestones  ProjectMilestone[]
+  executors          UserService[]  @relation("ServiceExecutors")
+
+  @@map("services")
+}
+
+model Project {
+  id           String          @id @default(cuid())
+  name         String
+  description  String?         @db.Text
+  status       ProjectStatus   @default(DRAFT)
+  priority     ProjectPriority @default(MEDIUM)
+  workflowType WorkflowType    @default(SEQUENTIAL)
+  totalPrice   Float?
+  startDate    DateTime?
+  endDate      DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  deletedAt    DateTime?
+
+  // حقول SLA العقد
+  contractStartDate    DateTime?
+  contractDurationDays Int?
+  contractEndDate      DateTime?
+
+  isQuickService       Boolean         @default(false)
+
+  // حقول إغلاق المشروع
+  closedAt     DateTime?
+  closureNotes String?         @db.Text
+  closedById   String?
+  closedBy     User?           @relation("ProjectCloser", fields: [closedById], references: [id])
+
+  // العلاقات
+  clientId String
+  client   User   @relation("ProjectClient", fields: [clientId], references: [id])
+
+  managerId String?
+  manager   User?  @relation("ProjectManager", fields: [managerId], references: [id])
+
+  templateId String?
+  template   ProjectTemplate? @relation(fields: [templateId], references: [id])
+
+  contractId String?
+  contract   Contract? @relation("ProjectContract", fields: [contractId], references: [id])
+
+  tasks        Task[]
+  invoices     Invoice[]
+  services     Service[]
+  conversation Conversation?
+
+  // علاقات إدارة المشاريع المتقدمة
+  milestones         ProjectMilestone[]
+  serviceRequest     ServiceRequest?
+  contracts          Contract[]
+
+  @@map("projects")
+}
+
+model Task {
+  id        String       @id @default(cuid())
+  title     String
+  status    TaskStatus   @default(TODO)
+  priority  TaskPriority @default(MEDIUM)
+  order          Int               @default(0)
+  executionMode  TaskExecutionMode @default(SEQUENTIAL)
+  sameDay        Boolean           @default(false)
+  dueDate        DateTime?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // حقل الجهة الخارجية
+  externalEntity String?
+
+  // العلاقات
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id])
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  assigneeId String?
+  assignedAt DateTime?
+  assignee   User?  @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  dependsOnId    String?
+  dependsOn      Task?  @relation("TaskDependency", fields: [dependsOnId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  dependentTasks Task[] @relation("TaskDependency")
+
+  startedById    String?
+  startedBy      User?  @relation("TaskStarter", fields: [startedById], references: [id])
+
+  assignments    TaskAssignment[]
+
+  taskCosts        TaskCost[]
+  rejections       TaskRejection[]
+  transferRequests TaskTransferRequest[]
+  timeLogs         TaskTimeLog[]
+  timeSummary      TaskTimeSummary?
+  linkedInstallment ContractPaymentInstallment? @relation("InstallmentTask")
+
+  waitingMode        String?
+  escalationLevel    Int       @default(0)
+  lastEscalatedAt    DateTime?
+  externalProviders  TaskExternalProvider[]
+  governmentHolds    TaskGovernmentHold[]
+
+  @@map("tasks")
+}
+
+model TaskAssignment {
+  id         String   @id @default(cuid())
+  taskId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@unique([taskId, userId])
+  @@map("task_assignments")
+}
+
+model Employee {
+  id                  String         @id @default(cuid())
+  name                String
+  nationality         String?
+  nationalId          String?        @unique
+  dateOfBirth         DateTime?
+  jobTitle            String?
+  department          String?
+  hireDate            DateTime?
+  baseSalary          Float?
+  housingAllowance    Float?
+  transportAllowance  Float?
+  phone               String?
+  email               String?
+  status              EmployeeStatus @default(ACTIVE)
+  passportNumber      String?
+  residencyExpiry     DateTime?
+  insuranceExpiry     DateTime?
+  avatar              String?        @db.Text
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  leaveRequests LeaveRequest[]
+  attendances   Attendance[]
+  reminders     Reminder[]
+  documents     EmployeeDocument[]
+
+  @@map("employees")
+}
+
+model EmployeeDocument {
+  id          String   @id @default(cuid())
+  name        String
+  url         String   @db.Text
+  type        String?
+  size        Int?
+  category    String?
+  expiryDate  DateTime?
+  createdAt   DateTime @default(now())
+
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_documents")
+}
+
+model LeaveRequest {
+  id        String      @id @default(cuid())
+  type      LeaveType
+  startDate DateTime
+  endDate   DateTime
+  status    LeaveStatus @default(PENDING)
+  reason    String?     @db.Text
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("leave_requests")
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  date      DateTime
+  checkIn   DateTime?
+  checkOut  DateTime?
+  status    AttendanceStatus @default(PRESENT)
+  createdAt DateTime         @default(now())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("attendances")
+}
+
+model Reminder {
+  id              String           @id @default(cuid())
+  title           String
+  description     String?          @db.Text
+  type            ReminderType     @default(CUSTOM)
+  dueDate         DateTime
+  status          ReminderStatus   @default(PENDING)
+  reminderDays    Int              @default(30)
+  isRecurring     Boolean          @default(false)
+  recurringMonths Int?
+  priority        ReminderPriority @default(MEDIUM)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  clientId   String?
+  client     User?    @relation("ReminderClient", fields: [clientId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("ReminderCreator", fields: [createdById], references: [id])
+
+  @@map("reminders")
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  title         String
+  description   String?       @db.Text
+  subtotal      Float         @default(0)
+  taxRate       Float         @default(15)
+  taxAmount     Float         @default(0)
+  totalAmount   Float         @default(0)
+  status        InvoiceStatus @default(DRAFT)
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  clientId    String?
+  client      User?    @relation("InvoiceClient", fields: [clientId], references: [id])
+
+  createdById String
+  createdBy   User     @relation("InvoiceCreator", fields: [createdById], references: [id])
+
+  items               InvoiceItem[]
+  payments            Payment[]
+  transaction         CashierTransaction?
+  projectMilestones   ProjectMilestone[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String @id @default(cuid())
+  description String @db.Text
+  quantity    Float  @default(1)
+  unitPrice   Float
+  total       Float
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  amount        Float
+  method        PaymentMethod @default(BANK_TRANSFER)
+  paymentDate   DateTime      @default(now())
+  referenceNumber String?
+  notes         String?       @db.Text
+  createdAt     DateTime      @default(now())
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Document {
+  id              String         @id @default(cuid())
+  title           String
+  type            DocumentType   @default(CUSTOM)
+  customTypeName  String?
+  documentNumber  String?
+  issueDate       DateTime?
+  expiryDate      DateTime?
+  status          DocumentStatus @default(VALID)
+  fileUrl         String?        @db.Text
+  notes           String?        @db.Text
+  reminderDays    Int            @default(30)
+  isLinkedToCompany Boolean      @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  ownerId   String
+  owner     User    @relation("DocumentOwner", fields: [ownerId], references: [id])
+
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  @@map("documents")
+}
+
+model CashierTransaction {
+  id                String              @id @default(cuid())
+  transactionNumber String              @unique
+  totalAmount       Float
+  taxAmount         Float
+  grandTotal        Float
+  paymentMethod     CashierPaymentMethod
+  amountReceived    Float?
+  changeAmount      Float?
+  referenceNumber   String?
+  status            TransactionStatus   @default(COMPLETED)
+  createdAt         DateTime            @default(now())
+
+  clientId  String
+  client    User    @relation("TransactionClient", fields: [clientId], references: [id])
+
+  invoiceId String  @unique
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  cashierId String
+  cashier   User   @relation("TransactionCashier", fields: [cashierId], references: [id])
+
+  @@map("cashier_transactions")
+}
+
+model ServiceCategory {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  icon        String?
+  color       String?
+  isActive    Boolean  @default(true)
+  isPublic    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  templates ServiceTemplate[]
+
+  @@unique([name])
+  @@map("service_categories")
+}
+
+model ServiceTemplate {
+  id              String       @id @default(cuid())
+  name            String
+  description     String?      @db.Text
+  defaultPrice    Float?
+  defaultDuration Int?
+  workflowType    WorkflowType @default(SEQUENTIAL)
+  isActive        Boolean      @default(true)
+  sortOrder       Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  categoryId String
+  category   ServiceCategory @relation(fields: [categoryId], references: [id])
+
+  taskTemplates      TaskTemplate[]
+  qualifiedEmployees ServiceTemplateEmployee[]
+  escalationEmployees ServiceTemplateEscalation[]
+  executorServices   UserService[]  @relation("TemplateExecutors")
+  serviceInstances   Service[]  @relation("ServiceInstances")
+  projectTemplateServices ProjectTemplateService[]
+  providerMappings   ServiceProviderMapping[]
+
+  @@unique([name, categoryId])
+  @@map("service_templates")
+}
+
+model TaskTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?  @db.Text
+  defaultDuration Int      @default(1)
+  sortOrder       Int               @default(0)
+  executionMode   TaskExecutionMode @default(SEQUENTIAL)
+  sameDay         Boolean           @default(false)
+  isRequired      Boolean           @default(true)
+  createdAt       DateTime @default(now())
+
+  serviceTemplateId String
+  serviceTemplate   ServiceTemplate @relation(fields: [serviceTemplateId], references: [id], onDelete: Cascade)
+
+  dependsOnId    String?
+  dependsOn      TaskTemplate?  @relation("TaskDependency", fields: [dependsOnId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  dependentTasks TaskTemplate[] @relation("TaskDependency")
+
+  @@map("task_templates")
+}
+
+model ServiceTemplateEmployee {
+  id         String   @id @default(cuid())
+  assignedAt DateTime @default(now())
+
+  serviceTemplateId String
+  serviceTemplate   ServiceTemplate @relation(fields: [serviceTemplateId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User @relation("QualifiedServices", fields: [userId], references: [id])
+
+  @@unique([serviceTemplateId, userId])
+  @@map("service_template_employees")
+}
+
+model ServiceTemplateEscalation {
+  id                String          @id @default(cuid())
+  priority          Int
+  createdAt         DateTime        @default(now())
+
+  serviceTemplateId String
+  serviceTemplate   ServiceTemplate @relation(fields: [serviceTemplateId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User            @relation("EscalationServices", fields: [userId], references: [id])
+
+  @@unique([serviceTemplateId, userId])
+  @@unique([serviceTemplateId, priority])
+  @@map("service_template_escalations")
+}
+
+model ProjectTemplate {
+  id           String       @id @default(cuid())
+  name         String
+  description  String?      @db.Text
+  workflowType WorkflowType @default(SEQUENTIAL)
+  isSystem     Boolean      @default(false)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  createdById String?
+  createdBy   User?   @relation("ProjectTemplateCreator", fields: [createdById], references: [id])
+
+  services ProjectTemplateService[]
+  milestones ProjectTemplateMilestone[]
+  projects Project[]
+
+  @@unique([name])
+  @@map("project_templates")
+}
+
+model ProjectTemplateService {
+  id        String @id @default(cuid())
+  sortOrder Int    @default(0)
+
+  projectTemplateId String
+  projectTemplate   ProjectTemplate @relation(fields: [projectTemplateId], references: [id], onDelete: Cascade)
+  serviceTemplateId String
+  serviceTemplate   ServiceTemplate @relation(fields: [serviceTemplateId], references: [id])
+
+  @@unique([projectTemplateId, serviceTemplateId])
+  @@map("project_template_services")
+}
+
+model ProjectTemplateMilestone {
+  id                String          @id @default(cuid())
+  title             String
+  amount            Float
+  afterServiceIndex Int
+  order             Int             @default(0)
+
+  projectTemplateId String
+  projectTemplate   ProjectTemplate @relation(fields: [projectTemplateId], references: [id], onDelete: Cascade)
+
+  @@map("project_template_milestones")
+}
+
+model TaskCost {
+  id        String   @id @default(cuid())
+  amount    Float
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  taskId     String
+  task       Task   @relation(fields: [taskId], references: [id])
+  providerId String
+  provider   User   @relation("ProviderTaskCosts", fields: [providerId], references: [id])
+
+  paymentRequest PaymentRequest?
+
+  @@unique([taskId, providerId])
+  @@map("task_costs")
+}
+
+model PaymentRequest {
+  id            String               @id @default(cuid())
+  requestNumber String               @unique
+  amount        Float
+  status        PaymentRequestStatus @default(PENDING_SUPERVISOR)
+  notes         String?              @db.Text
+
+  supervisorApproval   Boolean?
+  supervisorApprovedAt DateTime?
+  supervisorNotes      String?      @db.Text
+
+  financeApproval      Boolean?
+  financeApprovedAt    DateTime?
+  financeNotes         String?      @db.Text
+
+  treasuryApproval     Boolean?
+  treasuryApprovedAt   DateTime?
+  treasuryNotes        String?      @db.Text
+  paymentMethod        PaymentMethod?
+  paymentReference     String?
+  paidAt               DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taskCostId    String   @unique
+  taskCost      TaskCost @relation(fields: [taskCostId], references: [id])
+  providerId    String
+  provider      User     @relation("ProviderPaymentRequests", fields: [providerId], references: [id])
+  requestedById String
+  requestedBy   User     @relation("RequestedPayments", fields: [requestedById], references: [id])
+
+  @@map("payment_requests")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  message   String           @db.Text
+  link      String
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model Conversation {
+  id            String   @id @default(cuid())
+  name          String?
+  isGroup       Boolean  @default(false)
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users    User[]    @relation("ConversationUsers")
+  messages Message[]
+
+  projectId String?  @unique
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("conversations")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  body      String?  @db.Text
+  image     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  seen           User[]       @relation("SeenMessages")
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// ===== نظام ربط مقدمي الخدمات =====
+
+model ServiceProviderMapping {
+  id        String   @id @default(cuid())
+  isActive  Boolean  @default(true)
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  serviceTemplateId String
+  serviceTemplate   ServiceTemplate @relation(fields: [serviceTemplateId], references: [id], onDelete: Cascade)
+  providerId        String
+  provider          User @relation("ProviderMappings", fields: [providerId], references: [id])
+
+  @@unique([serviceTemplateId, providerId])
+  @@map("service_provider_mappings")
+}
+
+// ===== نظام رفض المهام =====
+
+model TaskRejection {
+  id        String   @id @default(cuid())
+  reason    String   @db.Text
+  createdAt DateTime @default(now())
+
+  taskId     String
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  providerId String
+  provider   User @relation("TaskRejections", fields: [providerId], references: [id])
+
+  @@map("task_rejections")
+}
+
+// ===== نظام نقل المهام =====
+
+model TaskTransferRequest {
+  id                String         @id @default(cuid())
+  reason            String         @db.Text
+  status            TransferStatus @default(PENDING_ADMIN)
+  urgency           String         @default("NORMAL")
+  expiresAt         DateTime?
+  autoExpired       Boolean        @default(false)
+  adminNote         String?        @db.Text
+  targetNote        String?        @db.Text
+  createdAt         DateTime       @default(now())
+  reviewedAt        DateTime?
+  targetRespondedAt DateTime?
+
+  taskId       String
+  task         Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  requesterId  String
+  requester    User @relation("TransferRequester", fields: [requesterId], references: [id])
+  targetUserId String
+  targetUser   User @relation("TransferTarget", fields: [targetUserId], references: [id])
+  reviewedById String?
+  reviewedBy   User? @relation("TransferReviewer", fields: [reviewedById], references: [id])
+
+  @@map("task_transfer_requests")
+}
+
+// ===== نظام التفويض =====
+
+model TaskTransferDelegation {
+  id          String   @id @default(cuid())
+  isPermanent Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  fromProviderId String
+  fromProvider   User @relation("DelegationFrom", fields: [fromProviderId], references: [id])
+  toProviderId   String
+  toProvider     User @relation("DelegationTo", fields: [toProviderId], references: [id])
+
+  @@unique([fromProviderId, toProviderId])
+  @@map("task_transfer_delegations")
+}
+
+// ===== نماذج إدارة المشاريع المتقدمة =====
+
+model ProjectMilestone {
+  id          String          @id @default(cuid())
+  title       String
+  description String?         @db.Text
+  type        MilestoneType
+  status      MilestoneStatus @default(LOCKED)
+  order       Int             @default(0)
+  isParallel  Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  serviceId String?  @unique
+  service   Service? @relation(fields: [serviceId], references: [id])
+
+  invoiceId String?  @unique
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+
+  dependsOnId String?
+  dependsOn   ProjectMilestone?  @relation("MilestoneDependencies", fields: [dependsOnId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  dependents  ProjectMilestone[] @relation("MilestoneDependencies")
+
+  @@map("project_milestones")
+}
+
+// ===== طلبات الخدمات =====
+
+model ServiceRequest {
+  id          String               @id @default(cuid())
+  status      ServiceRequestStatus @default(PENDING)
+  notes       String?              @db.Text
+  adminNotes  String?              @db.Text
+  clientReply     String?              @db.Text
+  startDate   DateTime?
+  endDate     DateTime?
+  totalPrice  Float?
+  workflowType WorkflowType        @default(SEQUENTIAL)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  clientId    String
+  client      User                 @relation("ClientServiceRequests", fields: [clientId], references: [id])
+
+  assignedToId String?
+  assignedTo   User?               @relation("AssignedServiceRequests", fields: [assignedToId], references: [id])
+
+  projectId   String?              @unique
+  project     Project?             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  items       ServiceRequestItem[]
+
+  @@map("service_requests")
+}
+
+model ServiceRequestItem {
+  id         String  @id @default(cuid())
+  name       String
+  description String? @db.Text
+  price      Float?
+  duration   Int?
+  category   String?
+
+  requestId  String
+  request    ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  templateId String?
+
+  @@map("service_request_items")
+}
+
+// ===== إعدادات النظام =====
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+enum ContractStatus {
+  DRAFT
+  PENDING_APPROVAL
+  SENT_TO_CLIENT
+  CONTRACT_REVISION
+  SIGNED
+  ACTIVE
+  REJECTED
+  CANCELLED
+}
+
+// ===== العقود =====
+
+model ContractTemplate {
+  id              String   @id @default(cuid())
+  title           String
+  content         String   @db.LongText
+  description     String?
+  isActive        Boolean  @default(true)
+  marginTop       Float    @default(20)
+  marginBottom    Float    @default(20)
+  marginLeft      Float    @default(20)
+  marginRight     Float    @default(20)
+  fontSize        Int      @default(14)
+  textAlign       String   @default("right")
+  letterheadImage String?  @db.Text
+  createdById     String
+  createdBy       User     @relation("TemplateCreator", fields: [createdById], references: [id])
+  contracts       Contract[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([title])
+  @@map("contract_templates")
+}
+
+model SystemCounter {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("system_counters")
+}
+
+model Contract {
+  id             String           @id @default(cuid())
+  contractNumber Int?             @unique
+  templateId     String
+  template     ContractTemplate @relation(fields: [templateId], references: [id])
+  clientId     String
+  client       User             @relation("ContractClient", fields: [clientId], references: [id])
+  issuedById   String
+  issuedBy     User             @relation("ContractIssuer", fields: [issuedById], references: [id])
+  projectId    String?
+  project      Project?         @relation(fields: [projectId], references: [id])
+  variables    String           @db.LongText
+  finalContent String           @db.LongText
+  status       ContractStatus   @default(DRAFT)
+  managerNote  String?          @db.Text
+  clientNote   String?          @db.Text
+  approvedById String?
+  approvedBy   User?            @relation("ContractApprover", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+  sentAt       DateTime?
+  signedAt              DateTime?
+  managerSignatureImage String?          @db.Text
+  managerStampImage     String?          @db.Text
+  managerSignedAt       DateTime?
+  managerName           String?
+  clientSignature       String?          @db.LongText
+  clientSignedAt        DateTime?
+  clientSignedIP        String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  linkedProjects Project[]      @relation("ProjectContract")
+  installments   ContractPaymentInstallment[]
+  tickets        Ticket[]
+  addenda        ContractAddendum[]
+
+  @@map("contracts")
+}
+
+model ContractPaymentInstallment {
+  id           String   @id @default(cuid())
+  contractId   String
+  contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  title        String
+  amount       Float
+  percentage   Float?
+  dueAfterDays Int?
+  order        Int      @default(0)
+  linkedTaskId   String?   @unique
+  linkedTask     Task?    @relation("InstallmentTask", fields: [linkedTaskId], references: [id])
+  isLocked       Boolean  @default(false)
+  paidAmount     Float    @default(0)
+  paymentStatus  String   @default("UNPAID")
+  paidAt         DateTime?
+  approvedById   String?
+  rolloverToId   String?
+  tickets        Ticket[]
+  createdAt    DateTime @default(now())
+
+  @@map("contract_payment_installments")
+}
+
+model ContractAddendum {
+  id          String   @id @default(cuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  title       String
+  content     String   @db.LongText
+  reason      String?  @db.Text
+  createdById String
+  createdBy   User     @relation("AddendumCreator", fields: [createdById], references: [id])
+  approvedById String?
+  approvedBy   User?   @relation("AddendumApprover", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
+  order        Int     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("contract_addenda")
+}
+
+model Ticket {
+  id            String         @id @default(cuid())
+  ticketNumber  String         @unique
+  subject       String
+  category      String
+  priority      TicketPriority @default(MEDIUM)
+  status        TicketStatus   @default(NEW)
+  description   String         @db.Text
+  clientId      String
+  client        User           @relation("ClientTickets", fields: [clientId], references: [id])
+  agentId       String?
+  agent         User?          @relation("AgentTickets", fields: [agentId], references: [id])
+  contractId    String?
+  contract      Contract?      @relation(fields: [contractId], references: [id])
+  installmentId String?
+  installment   ContractPaymentInstallment? @relation(fields: [installmentId], references: [id])
+  messages      TicketMessage[]
+  attachments   TicketAttachment[]
+  resolvedAt    DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id          String   @id @default(cuid())
+  ticketId    String
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      User     @relation("TicketMessageSender", fields: [senderId], references: [id])
+  body        String   @db.Text
+  isInternal  Boolean  @default(false)
+  attachments TicketAttachment[]
+  createdAt   DateTime @default(now())
+
+  @@map("ticket_messages")
+}
+
+model TicketAttachment {
+  id        String         @id @default(cuid())
+  ticketId  String
+  ticket    Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  messageId String?
+  message   TicketMessage? @relation(fields: [messageId], references: [id])
+  url       String
+  filename  String
+  createdAt DateTime       @default(now())
+
+  @@map("ticket_attachments")
+}
+
+// ===== تتبع الوقت =====
+
+model TaskTimeLog {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  event     String   // ASSIGNED, STARTED, COMPLETED, PAUSED, RESUMED
+  timestamp DateTime @default(now())
+  note      String?
+
+  @@index([taskId, event])
+  @@map("task_time_logs")
+}
+
+model TaskTimeSummary {
+  id                String    @id @default(cuid())
+  taskId            String    @unique
+  task              Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assignedAt        DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  waitingDuration   Int?      // minutes from assigned to started
+  executionDuration Int?      // minutes from started to completed
+  totalDuration     Int?      // minutes from assigned to completed
+  isLate            Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("task_time_summaries")
+}
+
+// ===== نظام الصلاحيات =====
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  label       String
+  description String?
+  module      String
+  createdAt   DateTime         @default(now())
+  users       UserPermission[]
+
+  @@map("permissions")
+}
+
+model UserPermission {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation("UserPermissions", fields: [userId], references: [id])
+  permissionId String
+  permission   Permission  @relation(fields: [permissionId], references: [id])
+  grantedById  String
+  grantedBy    User        @relation("PermissionGranter", fields: [grantedById], references: [id])
+  grantedAt    DateTime    @default(now())
+  expiresAt    DateTime?
+
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  userRole   String?
+  userName   String?
+
+  action     String
+  module     String
+  severity   String   @default("INFO")
+
+  entityType String?
+  entityId   String?
+  entityName String?  @db.Text
+
+  before     Json?
+  after      Json?
+  meta       Json?
+  ipAddress  String?
+  notes      String?  @db.Text
+
+  @@index([userId])
+  @@index([module])
+  @@index([action])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model ClientDocument {
+  id           String   @id @default(cuid())
+  clientId     String
+  client       User     @relation("ClientDocuments", fields: [clientId], references: [id], onDelete: Cascade)
+  title        String
+  fileUrl      String   @db.Text
+  fileType     String?
+  uploadedById String
+  uploadedBy   User     @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@map("client_documents")
+}
+
+// ===== نظام انتظار المهام =====
+
+model TaskExternalProvider {
+  id                  String             @id @default(cuid())
+  taskId              String
+  task                Task               @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  providerId          String
+  provider            User               @relation("ProviderLinks", fields: [providerId], references: [id])
+  linkedAt            DateTime           @default(now())
+  linkedById          String
+  linkedBy            User               @relation("ProviderLinkCreator", fields: [linkedById], references: [id])
+  providerStatus      String             @default("PENDING")
+  completedAt         DateTime?
+  completedByProvider Boolean            @default(false)
+  reminders           ProviderReminder[]
+
+  @@map("task_external_providers")
+}
+
+model ProviderReminder {
+  id           String               @id @default(cuid())
+  linkId       String
+  link         TaskExternalProvider  @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  remindedAt   DateTime             @default(now())
+  remindedById String
+  remindedBy   User                 @relation("ReminderSender", fields: [remindedById], references: [id])
+  note         String?
+
+  @@map("provider_reminders")
+}
+
+model TaskGovernmentHold {
+  id        String             @id @default(cuid())
+  taskId    String
+  task      Task               @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  heldAt    DateTime           @default(now())
+  heldById  String
+  heldBy    User               @relation("GovernmentHoldCreator", fields: [heldById], references: [id])
+  entity    String?
+  isActive  Boolean            @default(true)
+  updates   GovernmentUpdate[]
+
+  @@map("task_government_holds")
+}
+
+model GovernmentUpdate {
+  id        String             @id @default(cuid())
+  holdId    String
+  hold      TaskGovernmentHold @relation(fields: [holdId], references: [id], onDelete: Cascade)
+  note      String             @db.Text
+  addedAt   DateTime           @default(now())
+  addedById String
+  addedBy   User               @relation("GovUpdateCreator", fields: [addedById], references: [id])
+
+  @@map("government_updates")
+}
+
+// ===== اللوائح والإرشادات =====
+
+model SystemPolicy {
+  id            String               @id @default(cuid())
+  title         String
+  slug          String               @unique
+  content       String               @db.LongText
+  isPublished   Boolean              @default(true)
+  order         Int                  @default(0)
+  icon          String?
+  updatedAt     DateTime             @updatedAt
+  updatedById   String?
+  updatedBy     User?                @relation("PolicyEditor", fields: [updatedById], references: [id])
+  createdAt     DateTime             @default(now())
+  notifications PolicyNotification[]
+
+  @@map("system_policies")
+}
+
+model PolicyNotification {
+  id        String       @id @default(cuid())
+  policyId  String
+  policy    SystemPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation("PolicyNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  readAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@unique([policyId, userId])
+  @@map("policy_notifications")
+}
