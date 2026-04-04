@@ -50,6 +50,7 @@ export const ar = {
     myAuthorization: "التفويض",
     departments: "الأقسام",
     recycleBin: "سلة المحذوفات",
+    opportunities: "الفرص",
   },
 
   groups: {

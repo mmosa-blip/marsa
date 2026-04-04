@@ -50,6 +50,7 @@ export const en = {
     myAuthorization: "Authorization",
     departments: "Departments",
     recycleBin: "Recycle Bin",
+    opportunities: "Opportunities",
   },
 
   groups: {

@@ -92,6 +92,7 @@ const adminGroups: NavGroup[] = [
     tGroupKey: "projectsAndContracts",
     icon: FolderOpen,
     children: [
+      { href: "/dashboard/opportunities", label: "الفرص", tKey: "opportunities", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/projects", label: "المشاريع", tKey: "projects" },
       { href: "/dashboard/quick-service", label: "طلب خدمة سريع", tKey: "quickService" },
       { href: "/dashboard/projects/templates", label: "قوالب المشاريع", tKey: "projectTemplates" },

@@ -376,6 +376,8 @@ model User {
   editedPolicies       SystemPolicy[]       @relation("PolicyEditor")
   policyNotifications  PolicyNotification[] @relation("PolicyNotifications")
   departments          UserDepartment[]     @relation("UserDepartments")
+  assignedOpportunities Opportunity[]       @relation("OpportunityAssignee")
+  clientOpportunities   Opportunity[]       @relation("OpportunityClient")
 
   @@map("users")
 }
@@ -1572,6 +1574,7 @@ model Department {
   serviceTemplates ServiceTemplate[]
   tasks            Task[]
   employees        UserDepartment[]  @relation("DepartmentUsers")
+  opportunities    Opportunity[]
 
   @@map("departments")
 }
@@ -1586,4 +1589,66 @@ model UserDepartment {
 
   @@unique([userId, departmentId])
   @@map("user_departments")
+}
+
+// ===== Opportunities (CRM) =====
+
+enum OpportunityType {
+  INVESTMENT
+  REAL_ESTATE
+  PREMIUM_RESIDENCY
+  SERVICES
+}
+
+enum OpportunityStage {
+  CONTACT
+  INTEREST
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+model Opportunity {
+  id                String            @id @default(cuid())
+  title             String
+  description       String?           @db.Text
+  type              OpportunityType
+  stage             OpportunityStage  @default(CONTACT)
+  value             Float?
+  probability       Int               @default(0)
+  contactName       String?
+  contactPhone      String?
+  contactEmail      String?
+  notes             String?           @db.Text
+  expectedCloseDate DateTime?
+  closedAt          DateTime?
+  convertedProjectId String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  assigneeId   String?
+  assignee     User?       @relation("OpportunityAssignee", fields: [assigneeId], references: [id])
+
+  clientId     String?
+  client       User?       @relation("OpportunityClient", fields: [clientId], references: [id])
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  activities   OpportunityActivity[]
+
+  @@map("opportunities")
+}
+
+model OpportunityActivity {
+  id            String      @id @default(cuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  userId        String?
+  userName      String?
+  action        String
+  details       String?     @db.Text
+  createdAt     DateTime    @default(now())
+
+  @@map("opportunity_activities")
 }
