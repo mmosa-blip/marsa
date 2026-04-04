@@ -2,26 +2,33 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { normalizeSaudiPhone } from "@/lib/validations";
 
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
+        phone: { label: "Phone", type: "tel" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("البريد الإلكتروني وكلمة المرور مطلوبان");
+        if (!credentials?.phone || !credentials?.password) {
+          throw new Error("رقم الجوال وكلمة المرور مطلوبان");
         }
 
+        const phone = normalizeSaudiPhone(credentials.phone);
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { phone },
         });
 
         if (!user) {
           throw new Error("بيانات الدخول غير صحيحة");
+        }
+
+        if (!user.isActive || user.deletedAt) {
+          throw new Error("الحساب معطل أو محذوف");
         }
 
         const isValid = await bcrypt.compare(credentials.password, user.password);
@@ -81,9 +88,10 @@ export const authOptions: NextAuthOptions = {
 
         return {
           id: user.id,
-          email: user.email,
+          email: user.email || user.phone,
           name: user.name,
           role: user.role,
+          phone: user.phone,
         };
       },
     }),
@@ -94,6 +102,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as unknown as { role: string }).role;
+        token.phone = (user as unknown as { phone: string }).phone;
       }
       // Check impersonation cookie
       if (typeof window === "undefined") {
@@ -105,13 +114,13 @@ export const authOptions: NextAuthOptions = {
             const { prisma } = await import("./prisma");
             const impUser = await prisma.user.findUnique({
               where: { id: impersonateId },
-              select: { id: true, name: true, email: true, role: true },
+              select: { id: true, name: true, email: true, phone: true, role: true },
             });
             if (impUser) {
               token.impersonateId = impUser.id;
               token.impersonateRole = impUser.role;
               token.impersonateName = impUser.name;
-              token.impersonateEmail = impUser.email;
+              token.impersonateEmail = impUser.email || impUser.phone;
             }
           } else {
             delete token.impersonateId;

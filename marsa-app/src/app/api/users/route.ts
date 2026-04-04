@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
       where.OR = [
         { name: { contains: search } },
         { email: { contains: search } },
+        { phone: { contains: search } },
       ];
     }
 
@@ -107,8 +108,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "ليس لديك صلاحية لإنشاء عملاء" }, { status: 403 });
       }
 
-      const { name, phone, company } = body;
-      const email = body.email?.trim() || `client_${Date.now()}@marsa.placeholder`;
+      const { name, company } = body;
+      let { phone } = body;
+      const email = body.email?.trim() || null;
       if (!name) {
         return NextResponse.json({ error: "اسم العميل مطلوب" }, { status: 400 });
       }
@@ -116,9 +118,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "رقم الجوال مطلوب" }, { status: 400 });
       }
 
-      const existingUser = await prisma.user.findUnique({ where: { email } });
+      // Normalize phone number
+      const normalizedPhone = phone.replace(/[\s\-]/g, "");
+      if (normalizedPhone.startsWith("+966")) phone = "0" + normalizedPhone.slice(4);
+      else if (normalizedPhone.startsWith("966")) phone = "0" + normalizedPhone.slice(3);
+      else phone = normalizedPhone;
+
+      const existingUser = await prisma.user.findUnique({ where: { phone } });
       if (existingUser) {
-        return NextResponse.json({ error: "البريد الإلكتروني مستخدم بالفعل" }, { status: 400 });
+        return NextResponse.json({ error: "رقم الجوال مسجل مسبقاً" }, { status: 400 });
       }
 
       const tempPassword = Math.random().toString(36).slice(-8);
@@ -126,10 +134,10 @@ export async function POST(request: NextRequest) {
 
       const user = await prisma.user.create({
         data: {
-          email,
+          phone,
           password: hashedPassword,
           name,
-          phone: phone || null,
+          email,
           role: "CLIENT",
         },
       });
@@ -163,7 +171,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: errors }, { status: 400 });
     }
 
-    const {
+    let {
       email,
       password,
       name,
@@ -179,10 +187,16 @@ export async function POST(request: NextRequest) {
 
     const authorizationType = body.authorizationType;
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    // Normalize phone number
+    const normalizedPhone = phone.replace(/[\s\-]/g, "");
+    if (normalizedPhone.startsWith("+966")) phone = "0" + normalizedPhone.slice(4);
+    else if (normalizedPhone.startsWith("966")) phone = "0" + normalizedPhone.slice(3);
+    else phone = normalizedPhone;
+
+    const existingUser = await prisma.user.findUnique({ where: { phone } });
     if (existingUser) {
       return NextResponse.json(
-        { error: "البريد الإلكتروني مستخدم بالفعل" },
+        { error: "رقم الجوال مسجل مسبقاً" },
         { status: 400 }
       );
     }
@@ -191,10 +205,10 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.create({
       data: {
-        email,
+        phone,
         password: hashedPassword,
         name,
-        phone: phone || null,
+        email: email || null,
         role: role || "EMPLOYEE",
         ...(authorizationType ? { authorizationType } : {}),
         specialization: specialization || null,

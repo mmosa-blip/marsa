@@ -66,8 +66,9 @@ export default function NewUserPage() {
 
   const validate = (): string | null => {
     if (!form.name.trim()) return "الاسم مطلوب";
-    if (!form.email.trim()) return "البريد الإلكتروني مطلوب";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "البريد الإلكتروني غير صالح";
+    if (!form.phone.trim()) return "رقم الجوال مطلوب";
+    if (!/^05\d{8}$/.test(form.phone.trim())) return "رقم الجوال غير صالح (05xxxxxxxx)";
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "البريد الإلكتروني غير صالح";
     if (!form.password) return "كلمة المرور مطلوبة";
     if (form.password.length < 8) return "كلمة المرور يجب أن تكون 8 أحرف على الأقل";
     if (!form.role) return "الدور مطلوب";
@@ -88,9 +89,9 @@ export default function NewUserPage() {
     try {
       const body: Record<string, unknown> = {
         name: form.name.trim(),
-        email: form.email.trim(),
+        phone: form.phone.trim(),
         password: form.password,
-        phone: form.phone.trim() || undefined,
+        email: form.email.trim() || undefined,
         role: form.role,
       };
 
@@ -200,11 +201,31 @@ export default function NewUserPage() {
               />
             </div>
 
+            {/* Phone */}
+            <div>
+              <label className="flex items-center gap-1.5 text-sm font-medium mb-2" style={{ color: "#2D3748" }}>
+                <Phone size={14} style={{ color: "#C9A84C" }} />
+                رقم الجوال <span style={{ color: "#DC2626" }}>*</span>
+              </label>
+              <input
+                type="tel"
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+                placeholder="05xxxxxxxx"
+                dir="ltr"
+                className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none text-left"
+                style={inputStyle}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+              />
+            </div>
+
             {/* Email */}
             <div>
               <label className="flex items-center gap-1.5 text-sm font-medium mb-2" style={{ color: "#2D3748" }}>
                 <Mail size={14} style={{ color: "#C9A84C" }} />
-                البريد الإلكتروني <span style={{ color: "#DC2626" }}>*</span>
+                البريد الإلكتروني
               </label>
               <input
                 type="email"
@@ -232,26 +253,6 @@ export default function NewUserPage() {
                 value={form.password}
                 onChange={handleChange}
                 placeholder="8 أحرف على الأقل"
-                dir="ltr"
-                className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none text-left"
-                style={inputStyle}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
-              />
-            </div>
-
-            {/* Phone */}
-            <div>
-              <label className="flex items-center gap-1.5 text-sm font-medium mb-2" style={{ color: "#2D3748" }}>
-                <Phone size={14} style={{ color: "#C9A84C" }} />
-                رقم الجوال
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                value={form.phone}
-                onChange={handleChange}
-                placeholder="05xxxxxxxx"
                 dir="ltr"
                 className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none text-left"
                 style={inputStyle}

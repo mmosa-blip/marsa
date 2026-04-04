@@ -96,10 +96,23 @@ export async function PATCH(
       );
     }
 
-    // Check email uniqueness if changed
+    // Check phone uniqueness if changed
+    if (body.phone && body.phone !== existingUser.phone) {
+      const phoneTaken = await prisma.user.findUnique({
+        where: { phone: body.phone },
+      });
+      if (phoneTaken) {
+        return NextResponse.json(
+          { error: "رقم الجوال مسجل مسبقاً" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Check email uniqueness if changed (email is optional)
     if (body.email && body.email !== existingUser.email) {
-      const emailTaken = await prisma.user.findUnique({
-        where: { email: body.email },
+      const emailTaken = await prisma.user.findFirst({
+        where: { email: body.email, id: { not: id } },
       });
       if (emailTaken) {
         return NextResponse.json(
@@ -193,7 +206,7 @@ export async function DELETE(
     }
 
     // Protect critical accounts from deletion
-    if (isProtectedUser(user.email)) {
+    if (isProtectedUser(user.phone) || (user.email && isProtectedUser(user.email))) {
       return NextResponse.json(
         { error: "لا يمكن حذف هذا الحساب - حساب محمي" },
         { status: 403 }

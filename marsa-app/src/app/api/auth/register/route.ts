@@ -1,24 +1,27 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { emailSchema, passwordSchema } from "@/lib/validations";
+import { passwordSchema, normalizeSaudiPhone, isValidSaudiPhone } from "@/lib/validations";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, name, phone, role } = body;
+    const { password, name, phone, email, role } = body;
 
     if (!name) {
-      return NextResponse.json(
-        { error: "الاسم مطلوب" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "الاسم مطلوب" }, { status: 400 });
     }
 
-    const emailResult = emailSchema.safeParse(email);
-    if (!emailResult.success) {
-      const errors = emailResult.error.issues.map((e: { message: string }) => e.message).join(", ");
-      return NextResponse.json({ error: errors }, { status: 400 });
+    if (!phone) {
+      return NextResponse.json({ error: "رقم الجوال مطلوب" }, { status: 400 });
+    }
+
+    const normalizedPhone = normalizeSaudiPhone(phone);
+    if (!isValidSaudiPhone(normalizedPhone)) {
+      return NextResponse.json(
+        { error: "رقم الجوال غير صحيح — يجب أن يبدأ بـ 05 ويتكون من 10 أرقام" },
+        { status: 400 }
+      );
     }
 
     const passwordResult = passwordSchema.safeParse(password);
@@ -28,12 +31,12 @@ export async function POST(request: Request) {
     }
 
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { phone: normalizedPhone },
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { error: "البريد الإلكتروني مسجل مسبقاً" },
+        { error: "رقم الجوال مسجل مسبقاً" },
         { status: 409 }
       );
     }
@@ -42,15 +45,15 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.create({
       data: {
-        email,
+        phone: normalizedPhone,
         password: hashedPassword,
         name,
-        phone: phone || null,
+        email: email?.trim() || null,
         role: role || "CLIENT",
       },
       select: {
         id: true,
-        email: true,
+        phone: true,
         name: true,
         role: true,
         createdAt: true,

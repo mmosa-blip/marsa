@@ -138,6 +138,8 @@ export const ar = {
     login: "تسجيل الدخول",
     loginTitle: "أهلاً بك في مرسى",
     loginSubtitle: "منصة إدارة أعمالك الاحترافية",
+    phone: "رقم الجوال",
+    phonePlaceholder: "05xxxxxxxx",
     email: "البريد الإلكتروني",
     emailPlaceholder: "أدخل بريدك الإلكتروني",
     password: "كلمة المرور",

@@ -30,8 +30,8 @@ export default function NewClientPage() {
 
   const validate = (): string | null => {
     if (!form.name.trim()) return "الاسم مطلوب";
-    if (!form.email.trim()) return "البريد الإلكتروني مطلوب";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "البريد الإلكتروني غير صالح";
+    if (!form.phone.trim()) return "رقم الجوال مطلوب";
+    if (!/^05\d{8}$/.test(form.phone.trim())) return "رقم الجوال غير صحيح (05xxxxxxxx)";
     if (!form.password) return "كلمة المرور مطلوبة";
     if (form.password.length < 8) return "كلمة المرور يجب أن تكون 8 أحرف على الأقل";
     return null;
@@ -54,9 +54,9 @@ export default function NewClientPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name.trim(),
-          email: form.email.trim(),
+          phone: form.phone.trim(),
           password: form.password,
-          phone: form.phone.trim() || undefined,
+          email: form.email.trim() || undefined,
           role: "CLIENT",
         }),
       });
@@ -137,18 +137,18 @@ export default function NewClientPage() {
               />
             </div>
 
-            {/* البريد الإلكتروني */}
+            {/* الجوال */}
             <div>
               <label className="flex items-center gap-1.5 text-sm font-medium mb-2" style={{ color: "#2D3748" }}>
-                <Mail size={14} style={{ color: "#C9A84C" }} />
-                البريد الإلكتروني <span style={{ color: "#DC2626" }}>*</span>
+                <Phone size={14} style={{ color: "#C9A84C" }} />
+                رقم الجوال <span style={{ color: "#DC2626" }}>*</span>
               </label>
               <input
-                type="email"
-                name="email"
-                value={form.email}
+                type="tel"
+                name="phone"
+                value={form.phone}
                 onChange={handleChange}
-                placeholder="example@email.com"
+                placeholder="05xxxxxxxx"
                 dir="ltr"
                 className={`${inputClass} text-left`}
                 style={{ borderColor: "#E8E6F0", color: "#2D3748" }}
@@ -157,18 +157,18 @@ export default function NewClientPage() {
               />
             </div>
 
-            {/* الجوال */}
+            {/* البريد الإلكتروني (اختياري) */}
             <div>
               <label className="flex items-center gap-1.5 text-sm font-medium mb-2" style={{ color: "#2D3748" }}>
-                <Phone size={14} style={{ color: "#C9A84C" }} />
-                الجوال
+                <Mail size={14} style={{ color: "#C9A84C" }} />
+                البريد الإلكتروني <span className="text-xs opacity-50">(اختياري)</span>
               </label>
               <input
-                type="tel"
-                name="phone"
-                value={form.phone}
+                type="email"
+                name="email"
+                value={form.email}
                 onChange={handleChange}
-                placeholder="05xxxxxxxx"
+                placeholder="example@email.com"
                 dir="ltr"
                 className={`${inputClass} text-left`}
                 style={{ borderColor: "#E8E6F0", color: "#2D3748" }}

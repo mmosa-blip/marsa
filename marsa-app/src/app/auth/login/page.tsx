@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Mail, Lock, Eye, EyeOff, TrendingUp, Shield, Home, Wrench } from "lucide-react";
+import { Phone, Lock, Eye, EyeOff, TrendingUp, Shield, Home, Wrench } from "lucide-react";
 import MarsaLogo from "@/components/MarsaLogo";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import { useLang } from "@/contexts/LanguageContext";
@@ -19,7 +19,7 @@ const departments = [
 export default function LoginPage() {
   const router = useRouter();
   const { t, isRTL } = useLang();
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -31,7 +31,7 @@ export default function LoginPage() {
     setLoading(true);
 
     const result = await signIn("credentials", {
-      email,
+      phone,
       password,
       redirect: false,
     });
@@ -151,20 +151,20 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: "rgba(255,255,255,0.7)" }}>
-                {t.auth.email}
+                {t.auth.phone}
               </label>
               <div className="relative">
-                <Mail size={16} className={`absolute ${isRTL ? "right-3" : "left-3"} top-1/2 -translate-y-1/2`} style={{ color: "rgba(255,255,255,0.3)" }} />
+                <Phone size={16} className={`absolute ${isRTL ? "right-3" : "left-3"} top-1/2 -translate-y-1/2`} style={{ color: "rgba(255,255,255,0.3)" }} />
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
                   required
                   className={`w-full ${isRTL ? "pr-10 pl-4" : "pl-10 pr-4"} py-3 rounded-xl text-sm text-white placeholder:text-white/30 outline-none transition-all`}
                   style={{ backgroundColor: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
                   onFocus={(e) => (e.target.style.borderColor = "rgba(201,168,76,0.4)")}
                   onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
-                  placeholder={t.auth.emailPlaceholder}
+                  placeholder={t.auth.phonePlaceholder}
                   dir="ltr"
                 />
               </div>

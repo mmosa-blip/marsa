@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Mail, Lock, User, Phone } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone, Smartphone } from "lucide-react";
 import MarsaLogo from "@/components/MarsaLogo";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 
@@ -46,8 +46,8 @@ export default function RegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: formData.name,
-          email: formData.email,
-          phone: formData.phone || undefined,
+          phone: formData.phone,
+          email: formData.email || undefined,
           password: formData.password,
         }),
       });
@@ -146,7 +146,37 @@ export default function RegisterPage() {
                 className="block text-sm font-medium mb-2"
                 style={{ color: "#2D3748" }}
               >
-                البريد الإلكتروني
+                رقم الجوال
+              </label>
+              <div className="relative">
+                <Smartphone
+                  size={18}
+                  className="absolute right-4 top-1/2 -translate-y-1/2"
+                  style={{ color: "#C9A84C" }}
+                />
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="05xxxxxxxx"
+                  required
+                  className={inputClass}
+                  style={{ borderColor: "#E8E6F0", color: "#2D3748" }}
+                  onFocus={(e) => (e.target.style.borderColor = "#C9A84C")}
+                  onBlur={(e) => (e.target.style.borderColor = "#E8E6F0")}
+                  dir="ltr"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label
+                className="block text-sm font-medium mb-2"
+                style={{ color: "#2D3748" }}
+              >
+                البريد الإلكتروني{" "}
+                <span className="text-xs opacity-50">(اختياري)</span>
               </label>
               <div className="relative">
                 <Mail
@@ -159,42 +189,12 @@ export default function RegisterPage() {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  placeholder="أدخل بريدك الإلكتروني"
-                  required
+                  placeholder="example@email.com"
                   className={inputClass}
                   style={{ borderColor: "#E8E6F0", color: "#2D3748" }}
                   onFocus={(e) => (e.target.style.borderColor = "#C9A84C")}
                   onBlur={(e) => (e.target.style.borderColor = "#E8E6F0")}
-                  dir="rtl"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                className="block text-sm font-medium mb-2"
-                style={{ color: "#2D3748" }}
-              >
-                رقم الهاتف{" "}
-                <span className="text-xs opacity-50">(اختياري)</span>
-              </label>
-              <div className="relative">
-                <Phone
-                  size={18}
-                  className="absolute right-4 top-1/2 -translate-y-1/2"
-                  style={{ color: "#C9A84C" }}
-                />
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  placeholder="05xxxxxxxx"
-                  className={inputClass}
-                  style={{ borderColor: "#E8E6F0", color: "#2D3748" }}
-                  onFocus={(e) => (e.target.style.borderColor = "#C9A84C")}
-                  onBlur={(e) => (e.target.style.borderColor = "#E8E6F0")}
-                  dir="rtl"
+                  dir="ltr"
                 />
               </div>
             </div>
