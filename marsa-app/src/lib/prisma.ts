@@ -6,7 +6,11 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const url = new URL(process.env.DATABASE_URL!.replace("mysql://", "http://"));
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    throw new Error("DATABASE_URL environment variable is not set");
+  }
+  const url = new URL(dbUrl.replace("mysql://", "http://"));
   const adapter = new PrismaMariaDb({
     host: url.hostname,
     port: parseInt(url.port || "3306"),

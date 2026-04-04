@@ -4,6 +4,12 @@
 
 set -e
 
+# Ensure .env.production exists for build
+if [ ! -f .env.production ] && [ -z "$DATABASE_URL" ]; then
+  echo "ERROR: .env.production file or DATABASE_URL env var required for build"
+  exit 1
+fi
+
 echo "=== Installing dependencies ==="
 npm ci --production=false
 
