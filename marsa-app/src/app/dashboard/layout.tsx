@@ -82,27 +82,27 @@ const adminGroups: NavGroup[] = [
     icon: LayoutDashboard,
     children: [
       { href: "/dashboard", label: "الشاشة الرئيسية", tKey: "home" },
+      { href: "/dashboard/opportunities", label: "الفرص", tKey: "opportunities", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
       { href: "/dashboard/reminders", label: "التذكيرات", tKey: "reminders" },
       { href: "/dashboard/user-preview", label: "شاشات المستخدمين", tKey: "userPreview", roles: ["ADMIN"] },
     ],
   },
+  // ═══ Department groups are injected dynamically — see buildAdminGroups() ═══
   {
-    id: "projects",
-    label: "المشاريع والعقود",
-    tGroupKey: "projectsAndContracts",
+    id: "operations",
+    label: "العمليات",
+    tGroupKey: "operations",
     icon: FolderOpen,
     children: [
-      { href: "/dashboard/opportunities", label: "الفرص", tKey: "opportunities", roles: ["ADMIN", "MANAGER"] },
-      { href: "/dashboard/projects", label: "المشاريع", tKey: "projects" },
       { href: "/dashboard/quick-service", label: "طلب خدمة سريع", tKey: "quickService" },
       { href: "/dashboard/projects/templates", label: "قوالب المشاريع", tKey: "projectTemplates" },
-      { href: "/dashboard/contracts", label: "العقود", tKey: "contracts" },
       { href: "/dashboard/contract-templates", label: "قوالب العقود", tKey: "contractTemplates", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/service-requests", label: "طلبات الخدمات", tKey: "serviceRequests", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/service-catalog", label: "كتالوج الخدمات", tKey: "services" },
-      { href: "/services", label: "سوق الخدمات", tKey: "marketplace" },
+      { href: "/dashboard/service-provider-mappings", label: "ربط المزودين", tKey: "providerMappings", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/task-transfers", label: "طلبات التحويل", tKey: "transfers" },
+      { href: "/services", label: "سوق الخدمات", tKey: "marketplace" },
     ],
   },
   {
@@ -128,8 +128,8 @@ const adminGroups: NavGroup[] = [
       { href: "/dashboard/hr/employees", label: "الموظفين", tKey: "employees" },
       { href: "/dashboard/hr/leaves", label: "الإجازات", tKey: "leaves" },
       { href: "/dashboard/hr/attendance", label: "الحضور", tKey: "attendance" },
-{ href: "/dashboard/users", label: "إدارة المستخدمين", tKey: "users", roles: ["ADMIN"] },
-      { href: "/dashboard/departments", label: "الأقسام", tKey: "departments", roles: ["ADMIN"] },
+      { href: "/dashboard/users", label: "إدارة المستخدمين", tKey: "users", roles: ["ADMIN"] },
+      { href: "/dashboard/departments", label: "إدارة الأقسام", tKey: "departments", roles: ["ADMIN"] },
     ],
   },
   {
@@ -158,6 +158,36 @@ const adminGroups: NavGroup[] = [
     ],
   },
 ];
+
+// Build admin groups with dynamic department sections
+interface DeptInfo { id: string; name: string; nameEn: string | null; color: string | null }
+
+function buildAdminGroupsWithDepts(departments: DeptInfo[]): NavGroup[] {
+  const result: NavGroup[] = [];
+  // Add home group first
+  result.push(adminGroups[0]);
+
+  // Add department groups
+  for (const dept of departments) {
+    result.push({
+      id: `dept_${dept.id}`,
+      label: dept.name,
+      icon: Building2,
+      children: [
+        { href: `/dashboard/projects?departmentId=${dept.id}`, label: "المشاريع" },
+        { href: `/dashboard/service-catalog?departmentId=${dept.id}`, label: "الخدمات" },
+        { href: `/dashboard/contracts?departmentId=${dept.id}`, label: "العقود" },
+      ],
+    });
+  }
+
+  // Add remaining groups (operations, finance, people, support, settings)
+  for (let i = 1; i < adminGroups.length; i++) {
+    result.push(adminGroups[i]);
+  }
+
+  return result;
+}
 
 const executorGroups: NavGroup[] = [
   {
@@ -277,6 +307,17 @@ function DashboardLayoutInner({
   const groupLabel = (group: NavGroup) =>
     group.tGroupKey ? (t.groups as Record<string, string>)[group.tGroupKey] || group.label : group.label;
 
+  // Fetch departments for dynamic sidebar
+  const [sidebarDepts, setSidebarDepts] = useState<DeptInfo[]>([]);
+  useEffect(() => {
+    if (["ADMIN", "MANAGER"].includes(userRole)) {
+      fetch("/api/departments")
+        .then((r) => r.json())
+        .then((data) => { if (Array.isArray(data)) setSidebarDepts(data); })
+        .catch(() => {});
+    }
+  }, [userRole]);
+
   // Fetch user permissions for sidebar filtering
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   useEffect(() => {
@@ -306,7 +347,7 @@ function DashboardLayoutInner({
     userRole === "CLIENT" ? clientGroups :
     userRole === "EXECUTOR" ? executorGroups :
     userRole === "EXTERNAL_PROVIDER" ? providerGroups :
-    adminGroups;
+    sidebarDepts.length > 0 ? buildAdminGroupsWithDepts(sidebarDepts) : adminGroups;
 
   // Filter sidebar items by permission for non-ADMIN users
   const groups = ["ADMIN", "MANAGER"].includes(userRole) ? baseGroups : baseGroups.map((g) => ({
@@ -469,9 +510,10 @@ function DashboardLayoutInner({
 
             if (visibleChildren.length === 0) return null;
 
-            const hasActiveChild = visibleChildren.some(c =>
-              pathname === c.href || (c.href !== "/dashboard" && c.href !== "/dashboard/finance" && pathname.startsWith(c.href))
-            );
+            const hasActiveChild = visibleChildren.some(c => {
+              const hrefPath = c.href.split("?")[0];
+              return pathname === hrefPath || (hrefPath !== "/dashboard" && hrefPath !== "/dashboard/finance" && pathname.startsWith(hrefPath));
+            });
 
             return (
               <div key={group.id} className="mb-0.5">
@@ -485,7 +527,13 @@ function DashboardLayoutInner({
                     backgroundColor: hasActiveChild ? "rgba(94,84,149,0.12)" : "transparent",
                   }}
                 >
-                  <GroupIcon size={18} style={{ opacity: 0.8 }} />
+                  {group.id.startsWith("dept_") ? (
+                    <div className="w-[18px] h-[18px] flex items-center justify-center">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: sidebarDepts.find(d => `dept_${d.id}` === group.id)?.color || "#5E5495" }} />
+                    </div>
+                  ) : (
+                    <GroupIcon size={18} style={{ opacity: 0.8 }} />
+                  )}
                   <span className={`flex-1 ${isRTL ? "text-right" : "text-left"}`}>{groupLabel(group)}</span>
                   <ChevronDown
                     size={14}
@@ -501,12 +549,13 @@ function DashboardLayoutInner({
                 {isOpen && (
                   <div className={`mt-0.5 ${isRTL ? "mr-4" : "ml-4"} space-y-0.5`} style={isRTL ? { borderRight: "2px solid rgba(94,84,149,0.3)", paddingRight: "12px" } : { borderLeft: "2px solid rgba(94,84,149,0.3)", paddingLeft: "12px" }}>
                     {visibleChildren.map((child) => {
+                      const childPath = child.href.split("?")[0];
                       const isActive =
-                        child.href === "/dashboard"
+                        childPath === "/dashboard"
                           ? pathname === "/dashboard"
-                          : child.href === "/dashboard/finance"
+                          : childPath === "/dashboard/finance"
                             ? pathname === "/dashboard/finance"
-                            : pathname === child.href || pathname.startsWith(child.href + "/");
+                            : pathname === childPath || pathname.startsWith(childPath + "/");
 
                       return (
                         <Link

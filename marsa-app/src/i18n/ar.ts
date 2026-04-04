@@ -60,6 +60,7 @@ export const ar = {
     peopleAndResources: "العملاء والموارد",
     supportAndReports: "الدعم والتقارير",
     settings: "الإعدادات",
+    operations: "العمليات",
     contractsAndFinance: "العقود والمالية",
     home: "الرئيسية",
     docsAndFinance: "الوثائق والمالية",

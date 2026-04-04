@@ -60,6 +60,7 @@ export const en = {
     peopleAndResources: "People & Resources",
     supportAndReports: "Support & Reports",
     settings: "Settings",
+    operations: "Operations",
     contractsAndFinance: "Contracts & Finance",
     home: "Home",
     docsAndFinance: "Documents & Finance",
