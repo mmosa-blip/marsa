@@ -10,7 +10,8 @@ build/
 marsa-app/src/generated/prisma
 
 # Environment
-.env*
+.env
+.env.*
 !.env.example
 
 # IDE / OS

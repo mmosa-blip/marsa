@@ -9,11 +9,11 @@ function createPrismaClient() {
   const url = new URL(process.env.DATABASE_URL!.replace("mysql://", "http://"));
   const adapter = new PrismaMariaDb({
     host: url.hostname,
-    port: parseInt(url.port || "4000"),
+    port: parseInt(url.port || "3306"),
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
-    database: url.pathname.slice(1),
-    ssl: true,
+    database: url.pathname.slice(1).split("?")[0],
+    ...(process.env.DATABASE_SSL === "true" ? { ssl: true } : {}),
   });
   return new PrismaClient({ adapter });
 }
