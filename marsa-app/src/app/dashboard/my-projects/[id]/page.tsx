@@ -8,6 +8,7 @@ import {
   Clock, Layers, AlertCircle, ChevronDown, ChevronUp
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
+import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface Task {
   id: string;
@@ -142,12 +143,11 @@ export default function MyProjectDetailPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto" dir="rtl">
       {/* Back */}
-      <button onClick={() => router.push("/dashboard/my-projects")}
-        className="flex items-center gap-2 mb-6 text-sm"
-        style={{ color: "#6B7280" }}>
-        <ArrowRight size={16} />
+      <MarsaButton onClick={() => router.push("/dashboard/my-projects")}
+        variant="ghost" size="sm" icon={<ArrowRight size={16} />}
+        className="mb-6">
         العودة للمشاريع
-      </button>
+      </MarsaButton>
 
       {/* Header Card */}
       <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: "1px solid #E2E0D8" }}>

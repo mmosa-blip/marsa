@@ -404,14 +404,14 @@ export default function ServiceTemplateDetailPage() {
             >
               تعديل
             </MarsaButton>
-            <button
+            <MarsaButton
               onClick={handleToggleActive}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all"
-              style={{ backgroundColor: template.isActive ? "#EF4444" : "#10B981" }}
+              variant={template.isActive ? "danger" : "primary"}
+              icon={template.isActive ? <X size={16} /> : <Check size={16} />}
+              style={{ backgroundColor: template.isActive ? undefined : "#10B981" }}
             >
-              {template.isActive ? <X size={16} /> : <Check size={16} />}
               {template.isActive ? "تعطيل" : "تفعيل"}
-            </button>
+            </MarsaButton>
           </div>
         </div>
 
@@ -634,13 +634,11 @@ export default function ServiceTemplateDetailPage() {
                 <Users size={20} style={{ color: "#C9A84C" }} />
                 <h2 className="text-base font-bold" style={{ color: "#1C1B2E" }}>الموظفين المؤهلين</h2>
               </div>
-              <button
+              <MarsaButton
                 onClick={() => { setShowEmpModal(true); setEmpSearch(""); setEmpResults([]); }}
-                className="p-2 rounded-xl hover:bg-gray-50 transition-colors"
+                variant="ghost" size="sm" iconOnly icon={<UserPlus size={18} />}
                 style={{ color: "#C9A84C" }}
-              >
-                <UserPlus size={18} />
-              </button>
+              />
             </div>
 
             <div className="p-5">
@@ -686,13 +684,11 @@ export default function ServiceTemplateDetailPage() {
                   {escalations.length}
                 </span>
               </div>
-              <button
+              <MarsaButton
                 onClick={() => { setShowEscModal(true); setEscSearch(""); setEscResults([]); }}
-                className="p-2 rounded-xl transition-colors"
+                variant="ghost" size="sm" iconOnly icon={<UserPlus size={18} />}
                 style={{ color: "#EA580C" }}
-              >
-                <UserPlus size={18} />
-              </button>
+              />
             </div>
 
             <div className="p-5">
@@ -920,9 +916,9 @@ export default function ServiceTemplateDetailPage() {
                 <p className="text-center text-gray-400 text-sm py-4">لا توجد نتائج</p>
               )}
             </div>
-            <button onClick={() => setShowEmpModal(false)} className="w-full mt-4 py-2.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50">
+            <MarsaButton onClick={() => setShowEmpModal(false)} variant="secondary" className="w-full mt-4">
               إغلاق
-            </button>
+            </MarsaButton>
           </div>
         </div>
       )}
@@ -969,9 +965,9 @@ export default function ServiceTemplateDetailPage() {
                 <p className="text-center text-gray-400 text-sm py-4">لا توجد نتائج</p>
               )}
             </div>
-            <button onClick={() => setShowEscModal(false)} className="w-full mt-4 py-2.5 rounded-xl text-sm font-medium border text-gray-600 hover:bg-gray-50" style={{ borderColor: "#FED7AA" }}>
+            <MarsaButton onClick={() => setShowEscModal(false)} variant="secondary" className="w-full mt-4" style={{ borderColor: "#FED7AA" }}>
               إغلاق
-            </button>
+            </MarsaButton>
           </div>
         </div>
       )}

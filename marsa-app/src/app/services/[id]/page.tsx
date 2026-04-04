@@ -180,13 +180,15 @@ export default function ServiceDetailPage({
 
         <div className="relative max-w-7xl mx-auto px-6 py-8">
           <nav className="flex items-center justify-between mb-10">
-            <button
+            <MarsaButton
               onClick={() => router.back()}
-              className="flex items-center gap-2 text-white/70 hover:text-white transition-colors text-sm"
+              variant="ghost"
+              size="sm"
+              icon={<ArrowRight size={16} />}
+              style={{ color: "rgba(255,255,255,0.7)" }}
             >
-              <ArrowRight size={16} />
               رجوع
-            </button>
+            </MarsaButton>
             <Link href="/" className="flex items-center gap-2">
               <MarsaLogo size={26} variant="light" />
               <span
@@ -398,22 +400,14 @@ export default function ServiceDetailPage({
                 )}
               </div>
 
-              <button
-                className="w-full py-4 rounded-xl text-white font-semibold transition-all duration-200 flex items-center justify-center gap-2 hover:shadow-lg"
-                style={{
-                  backgroundColor: "#5E5495",
-                  boxShadow: "0 4px 15px rgba(27, 42, 74, 0.3)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#243557";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#1C1B2E";
-                }}
+              <MarsaButton
+                variant="primary"
+                size="lg"
+                icon={<Send size={18} />}
+                className="w-full"
               >
-                <Send size={18} />
                 اطلب الخدمة الآن
-              </button>
+              </MarsaButton>
 
               <p
                 className="text-center text-xs mt-4"
@@ -443,24 +437,13 @@ export default function ServiceDetailPage({
               >
                 تواصل مع فريقنا للحصول على استشارة مجانية حول هذه الخدمة
               </p>
-              <button
-                className="w-full py-3 rounded-xl text-sm font-medium transition-all duration-200"
-                style={{
-                  border: "1.5px solid #C9A84C",
-                  color: "#C9A84C",
-                  backgroundColor: "transparent",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#C9A84C";
-                  e.currentTarget.style.color = "white";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "#C9A84C";
-                }}
+              <MarsaButton
+                variant="outline"
+                className="w-full"
+                style={{ borderColor: "#C9A84C", color: "#C9A84C" }}
               >
                 تواصل معنا
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

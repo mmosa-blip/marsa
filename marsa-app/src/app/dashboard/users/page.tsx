@@ -394,33 +394,36 @@ export default function UsersPage() {
                       {/* Actions */}
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-center gap-1">
-                          <button
+                          <MarsaButton
                             onClick={() => openEdit(user)}
-                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:bg-[#EFF6FF]"
+                            variant="ghost"
+                            size="sm"
                             title="تعديل"
-                          >
-                            <Edit3 size={16} style={{ color: "#2563EB" }} />
-                          </button>
-                          <button
+                            style={{ width: 36, height: 36, padding: 0, minWidth: "auto" }}
+                            icon={<Edit3 size={16} style={{ color: "#2563EB" }} />}
+                          />
+                          <MarsaButton
                             onClick={() => handleToggleStatus(user.id)}
                             disabled={actionLoading === user.id}
-                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:bg-[#FFF7ED] disabled:opacity-50"
+                            variant="ghost"
+                            size="sm"
                             title={user.isActive ? "تعطيل" : "تفعيل"}
-                          >
-                            {user.isActive ? (
+                            style={{ width: 36, height: 36, padding: 0, minWidth: "auto" }}
+                            icon={user.isActive ? (
                               <Ban size={16} style={{ color: "#EA580C" }} />
                             ) : (
                               <CheckCircle size={16} style={{ color: "#059669" }} />
                             )}
-                          </button>
-                          <button
+                          />
+                          <MarsaButton
                             onClick={() => handleDelete(user.id, user.name)}
                             disabled={actionLoading === user.id}
-                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:bg-[#FEF2F2] disabled:opacity-50"
+                            variant="ghost"
+                            size="sm"
                             title="حذف"
-                          >
-                            <Trash2 size={16} style={{ color: "#DC2626" }} />
-                          </button>
+                            style={{ width: 36, height: 36, padding: 0, minWidth: "auto" }}
+                            icon={<Trash2 size={16} style={{ color: "#DC2626" }} />}
+                          />
                         </div>
                       </td>
                     </tr>

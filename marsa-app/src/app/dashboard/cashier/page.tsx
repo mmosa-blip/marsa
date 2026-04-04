@@ -315,7 +315,7 @@ export default function CashierPage() {
                 <div className="rounded-2xl w-full max-w-md p-6" style={{ backgroundColor: "#5E5495" }} onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-5">
                     <h3 className="text-lg font-bold" style={{ color: "white" }}>عميل جديد</h3>
-                    <button onClick={() => setShowNewClient(false)}><X size={20} style={{ color: "rgba(255,255,255,0.4)" }} /></button>
+                    <MarsaButton onClick={() => setShowNewClient(false)} variant="ghost" size="xs" iconOnly icon={<X size={20} />} style={{ color: "rgba(255,255,255,0.4)" }} />
                   </div>
                   <div className="space-y-4">
                     <input type="text" value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} placeholder="اسم العميل *" className="w-full px-4 py-3.5 rounded-xl text-sm outline-none" style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.15)" }} />

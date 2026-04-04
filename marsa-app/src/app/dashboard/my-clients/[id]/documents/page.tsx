@@ -413,9 +413,9 @@ export default function ClientDocumentsPage({ params }: { params: Promise<{ id: 
             </div>
 
             <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid #F0EDE6" }}>
-              <button onClick={resetModal} className="px-4 py-2.5 rounded-xl text-sm font-medium" style={{ color: "#6B7280", border: "1px solid #E2E0D8" }}>
+              <MarsaButton onClick={resetModal} variant="secondary">
                 إلغاء
-              </button>
+              </MarsaButton>
               <MarsaButton onClick={handleSubmit} disabled={saving || !title.trim() || (docType === "PDF" && !fileUrl) || (docType === "LINK" && !url.trim())} variant="primary" loading={saving}>
                 إضافة الوثيقة
               </MarsaButton>

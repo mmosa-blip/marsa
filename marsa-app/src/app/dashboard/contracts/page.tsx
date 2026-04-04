@@ -460,75 +460,75 @@ export default function ContractsPage() {
     // DRAFT → issuer can edit + submit
     if (c.status === "DRAFT" && (c.issuedBy.id === userId || isAdmin)) {
       buttons.push(
-        <button key="edit" onClick={() => { setEditTarget(c); setEditContent(c.finalContent); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-90"
+        <MarsaButton key="edit" onClick={() => { setEditTarget(c); setEditContent(c.finalContent); }}
+          variant="ghost" size="xs" icon={<Pencil size={13} />}
           style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }} title={t.contracts.editContract}>
-          <Pencil size={13} /> {t.common.edit}
-        </button>,
-        <button key="submit" onClick={() => handleAction(c.id, "submit")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
+          {t.common.edit}
+        </MarsaButton>,
+        <MarsaButton key="submit" onClick={() => handleAction(c.id, "submit")}
+          variant="gold" size="xs" icon={<Send size={13} />}
           style={{ backgroundColor: "#CA8A04" }} title={t.contracts.submitForApproval}>
-          <Send size={13} /> {t.contracts.submitForApproval}
-        </button>
+          {t.contracts.submitForApproval}
+        </MarsaButton>
       );
     }
 
     // CONTRACT_REVISION → issuer can edit + resubmit
     if (c.status === "CONTRACT_REVISION" && (c.issuedBy.id === userId || isAdmin)) {
       buttons.push(
-        <button key="edit-rev" onClick={() => { setEditTarget(c); setEditContent(c.finalContent); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
+        <MarsaButton key="edit-rev" onClick={() => { setEditTarget(c); setEditContent(c.finalContent); }}
+          variant="gold" size="xs" icon={<RotateCcw size={13} />}
           style={{ backgroundColor: "#EA580C" }} title={t.contracts.editAndResubmit}>
-          <RotateCcw size={13} /> {t.common.edit}
-        </button>
+          {t.common.edit}
+        </MarsaButton>
       );
     }
 
     // PENDING_APPROVAL → admin/manager can edit, approve, reject
     if (c.status === "PENDING_APPROVAL" && isAdmin) {
       buttons.push(
-        <button key="edit-mgr" onClick={() => { setEditTarget(c); setEditContent(c.finalContent); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-90"
+        <MarsaButton key="edit-mgr" onClick={() => { setEditTarget(c); setEditContent(c.finalContent); }}
+          variant="ghost" size="xs" icon={<Pencil size={13} />}
           style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }} title={t.common.edit}>
-          <Pencil size={13} /> {t.common.edit}
-        </button>,
-        <button key="approve" onClick={() => handleAction(c.id, "approve")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
+          {t.common.edit}
+        </MarsaButton>,
+        <MarsaButton key="approve" onClick={() => handleAction(c.id, "approve")}
+          variant="primary" size="xs" icon={<CheckCircle2 size={13} />}
           style={{ backgroundColor: "#059669" }} title={t.common.approve}>
-          <CheckCircle2 size={13} /> {t.common.approve}
-        </button>,
-        <button key="reject" onClick={() => { setRejectTarget(c); setRejectNote(""); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
-          style={{ backgroundColor: "#DC2626" }} title={t.common.reject}>
-          <XCircle size={13} /> {t.common.reject}
-        </button>
+          {t.common.approve}
+        </MarsaButton>,
+        <MarsaButton key="reject" onClick={() => { setRejectTarget(c); setRejectNote(""); }}
+          variant="danger" size="xs" icon={<XCircle size={13} />}
+          title={t.common.reject}>
+          {t.common.reject}
+        </MarsaButton>
       );
     }
 
     // SENT_TO_CLIENT → client can sign or request revision
     if (c.status === "SENT_TO_CLIENT" && c.client.id === userId) {
       buttons.push(
-        <button key="sign" onClick={() => setSignTarget(c.id)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
+        <MarsaButton key="sign" onClick={() => setSignTarget(c.id)}
+          variant="primary" size="xs" icon={<CheckCircle2 size={13} />}
           style={{ backgroundColor: "#16A34A" }} title={t.contracts.sign}>
-          <CheckCircle2 size={13} /> {t.contracts.sign}
-        </button>,
-        <button key="revision" onClick={() => { setRevisionTarget(c); setRevisionNote(""); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-90"
+          {t.contracts.sign}
+        </MarsaButton>,
+        <MarsaButton key="revision" onClick={() => { setRevisionTarget(c); setRevisionNote(""); }}
+          variant="ghost" size="xs" icon={<RotateCcw size={13} />}
           style={{ backgroundColor: "#FFF7ED", color: "#EA580C" }} title={t.contracts.requestRevision}>
-          <RotateCcw size={13} /> {t.contracts.requestRevision}
-        </button>
+          {t.contracts.requestRevision}
+        </MarsaButton>
       );
     }
 
     // SIGNED → admin can activate
     if (c.status === "SIGNED" && isAdmin) {
       buttons.push(
-        <button key="activate" onClick={() => handleAction(c.id, "activate")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
+        <MarsaButton key="activate" onClick={() => handleAction(c.id, "activate")}
+          variant="primary" size="xs" icon={<CheckCircle2 size={13} />}
           style={{ backgroundColor: "#059669" }} title={t.contracts.activate}>
-          <CheckCircle2 size={13} /> {t.contracts.activate}
-        </button>
+          {t.contracts.activate}
+        </MarsaButton>
       );
     }
 
@@ -618,9 +618,7 @@ export default function ContractsPage() {
                       <td className="px-5 py-4 text-sm" style={{ color: "#6B7280" }}>{formatDate(c.createdAt)}</td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                          <button onClick={() => setPreviewContract(c)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors" title={t.common.view}>
-                            <Eye size={16} style={{ color: "#1C1B2E" }} />
-                          </button>
+                          <MarsaButton onClick={() => setPreviewContract(c)} variant="ghost" size="xs" iconOnly icon={<Eye size={16} />} title={t.common.view} />
                           {getActionButtons(c)}
                         </div>
                       </td>
@@ -641,7 +639,7 @@ export default function ContractsPage() {
               <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>{t.contracts.newContract}</h2>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">{[1,2,3,4].map((s) => (<div key={s} className="w-8 h-1 rounded-full" style={{ backgroundColor: s <= step ? "#C9A84C" : "#E8E6F0" }} />))}</div>
-                <button onClick={() => setShowModal(false)} className="p-1 text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                <MarsaButton onClick={() => setShowModal(false)} variant="ghost" size="xs" iconOnly icon={<X size={20} />} />
               </div>
             </div>
             <div className="p-6" dir="rtl">
@@ -782,10 +780,8 @@ export default function ContractsPage() {
                               onChange={(e) => updateInstallment(inst.id, "title", e.target.value)}
                               placeholder={`${t.contracts.installmentTitle}...`}
                               className="flex-1 text-sm font-semibold bg-transparent outline-none" style={{ color: "#1C1B2E" }} />
-                            <button onClick={() => removeInstallment(inst.id)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
-                              <Trash2 size={14} />
-                            </button>
+                            <MarsaButton onClick={() => removeInstallment(inst.id)}
+                              variant="dangerSoft" size="xs" iconOnly icon={<Trash2 size={14} />} />
                           </div>
                           <div className="grid grid-cols-3 gap-3">
                             <div>
@@ -895,10 +891,8 @@ export default function ContractsPage() {
                   style={{ backgroundColor: (statusConfig[previewContract.status] || statusConfig.DRAFT).bg, color: (statusConfig[previewContract.status] || statusConfig.DRAFT).text }}>
                   {(t.contracts.status as Record<string, string>)[previewContract.status] || (statusConfig[previewContract.status] || statusConfig.DRAFT).label}
                 </span>
-                <button onClick={handlePrint} className="p-2 rounded-lg hover:bg-gray-100 transition-colors" title={t.contracts.printPdf}>
-                  <Printer size={18} style={{ color: "#1C1B2E" }} />
-                </button>
-                <button onClick={() => setPreviewContract(null)} className="p-1 text-gray-400 hover:text-gray-600"><X size={20} /></button>
+                <MarsaButton onClick={handlePrint} variant="ghost" size="xs" iconOnly icon={<Printer size={18} />} title={t.contracts.printPdf} />
+                <MarsaButton onClick={() => setPreviewContract(null)} variant="ghost" size="xs" iconOnly icon={<X size={20} />} />
               </div>
             </div>
             {/* Notes */}
@@ -973,7 +967,7 @@ export default function ContractsPage() {
           <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" style={{ border: "1px solid #E2E0D8" }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #F0EDE6" }}>
               <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>{t.contracts.editContract}</h2>
-              <button onClick={() => setEditTarget(null)} className="p-1 text-gray-400 hover:text-gray-600"><X size={20} /></button>
+              <MarsaButton onClick={() => setEditTarget(null)} variant="ghost" size="xs" iconOnly icon={<X size={20} />} />
             </div>
             {editTarget.clientNote && editTarget.status === "CONTRACT_REVISION" && (
               <div className="mx-6 mt-4 p-3 rounded-lg text-sm" style={{ backgroundColor: "#FFF7ED", color: "#EA580C", border: "1px solid #FDBA74" }}>
@@ -1058,29 +1052,28 @@ export default function ContractsPage() {
             </div>
 
             <div className="flex gap-3">
-              <button
+              <MarsaButton
                 onClick={() => signPadRef.current?.clear()}
-                className="px-4 py-2.5 rounded-xl text-sm font-medium border transition-all hover:bg-gray-50"
-                style={{ borderColor: "#E8E6F0", color: "#6B7280" }}
+                variant="secondary"
               >
                 مسح
-              </button>
+              </MarsaButton>
               <div className="flex-1" />
-              <button
+              <MarsaButton
                 onClick={() => setSignTarget(null)}
-                className="px-4 py-2.5 rounded-xl text-sm font-medium border transition-all hover:bg-gray-50"
-                style={{ borderColor: "#E8E6F0", color: "#2D3748" }}
+                variant="secondary"
               >
                 إلغاء
-              </button>
-              <button
+              </MarsaButton>
+              <MarsaButton
                 onClick={handleSignSubmit}
                 disabled={actionLoading !== null}
-                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50"
+                loading={actionLoading !== null}
+                variant="primary"
                 style={{ backgroundColor: "#16A34A" }}
               >
                 {actionLoading ? "جاري التوقيع..." : "تأكيد التوقيع"}
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

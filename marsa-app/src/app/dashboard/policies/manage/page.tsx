@@ -451,14 +451,9 @@ function ManagePoliciesContent() {
             <p className="text-sm mb-4" style={{ color: "#6B7280" }}>
               أو أنشئ لائحة جديدة
             </p>
-            <button
-              onClick={newPolicy}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
-              style={{ backgroundColor: "#5E5495" }}
-            >
-              <Plus size={16} />
+            <MarsaButton onClick={newPolicy} variant="primary" icon={<Plus size={16} />}>
               إنشاء لائحة جديدة
-            </button>
+            </MarsaButton>
           </div>
         )}
       </div>

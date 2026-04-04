@@ -1101,28 +1101,16 @@ export default function TicketsPage() {
                         button: () => <FileText size={16} style={{ color: "#6B7280" }} />,
                       }}
                     />
-                    <button
+                    <MarsaButton
                       onClick={handleSendReply}
                       disabled={sending || (!replyText.trim() && attachments.length === 0)}
-                      style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "0.5rem",
-                        background: sending || (!replyText.trim() && attachments.length === 0) ? "#E8E6F0" : "#C9A84C",
-                        border: "none",
-                        cursor: sending ? "wait" : "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        transition: "all 0.2s",
-                      }}
-                    >
-                      {sending ? (
-                        <Loader2 size={16} style={{ color: "white", animation: "spin 1s linear infinite" }} />
-                      ) : (
-                        <Send size={16} style={{ color: "white", transform: "scaleX(-1)" }} />
-                      )}
-                    </button>
+                      loading={sending}
+                      variant="gold"
+                      size="sm"
+                      iconOnly
+                      icon={<Send size={16} style={{ transform: "scaleX(-1)" }} />}
+                      style={{ width: "36px", height: "36px", borderRadius: "0.5rem" }}
+                    />
                   </div>
                 </div>
               </div>
@@ -1164,12 +1152,10 @@ export default function TicketsPage() {
             {/* Modal header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
               <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#1C1B2E", margin: 0 }}>{t.tickets.newTicket}</h2>
-              <button
+              <MarsaButton
                 onClick={() => setShowNewModal(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem" }}
-              >
-                <X size={20} style={{ color: "#94A3B8" }} />
-              </button>
+                variant="ghost" size="xs" iconOnly icon={<X size={20} />}
+              />
             </div>
 
             {/* Subject */}
@@ -1334,38 +1320,17 @@ export default function TicketsPage() {
             )}
 
             {/* Submit */}
-            <button
+            <MarsaButton
               onClick={handleCreateTicket}
               disabled={creating || !newTicket.subject.trim() || !newTicket.description.trim()}
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                borderRadius: "0.75rem",
-                background: creating || !newTicket.subject.trim() || !newTicket.description.trim() ? "#E8E6F0" : "#C9A84C",
-                color: "white",
-                border: "none",
-                fontWeight: 600,
-                fontSize: "0.875rem",
-                cursor: creating ? "wait" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "0.5rem",
-                transition: "all 0.2s",
-              }}
+              loading={creating}
+              variant="gold"
+              size="lg"
+              icon={<Plus size={16} />}
+              className="w-full"
             >
-              {creating ? (
-                <>
-                  <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
-                  {t.common.loading}
-                </>
-              ) : (
-                <>
-                  <Plus size={16} />
-                  {t.common.send}
-                </>
-              )}
-            </button>
+              {creating ? t.common.loading : t.common.send}
+            </MarsaButton>
           </div>
         </div>
       )}

@@ -712,13 +712,12 @@ export default function ChatPage() {
             <div className="p-8 text-center flex flex-col items-center gap-3">
               <MessageSquare size={48} style={{ color: "#E8E6F0" }} />
               <p className="text-sm" style={{ color: "#2D3748", opacity: 0.5 }}>لا توجد محادثات بعد</p>
-              <button
+              <MarsaButton
                 onClick={() => setShowNewConvModal(true)}
-                className="text-sm px-4 py-2 rounded-xl font-medium"
-                style={{ backgroundColor: "#C9A84C", color: "#FFFFFF" }}
+                variant="gold" size="sm"
               >
                 ابدأ محادثة جديدة
-              </button>
+              </MarsaButton>
             </div>
           ) : (
             filteredConversations.map((conv) => {
@@ -1104,21 +1103,16 @@ export default function ChatPage() {
               </div>
 
               {/* Send Button */}
-              <button
+              <MarsaButton
                 onClick={handleSend}
                 disabled={!inputText.trim() || sending}
-                className="w-10 h-10 rounded-full flex items-center justify-center transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-                style={{
-                  backgroundColor: "#C9A84C",
-                  color: "#FFFFFF",
-                }}
-              >
-                {sending ? (
-                  <Loader2 size={20} className="animate-spin" />
-                ) : (
-                  <Send size={20} />
-                )}
-              </button>
+                loading={sending}
+                variant="gold"
+                size="sm"
+                iconOnly
+                icon={<Send size={20} />}
+                className="w-10 h-10 rounded-full flex-shrink-0"
+              />
             </div>
           </>
         )}
@@ -1288,28 +1282,20 @@ export default function ChatPage() {
 
             {/* Create Button */}
             <div className="p-4" style={{ borderTop: "1px solid #E2E0D8" }}>
-              <button
+              <MarsaButton
                 onClick={handleCreateConversation}
                 disabled={
                   selectedUsers.length === 0 ||
                   (isGroupMode && !groupName.trim()) ||
                   creatingConv
                 }
-                className="w-full py-2.5 rounded-xl text-sm font-medium transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                style={{ backgroundColor: "#C9A84C", color: "#FFFFFF" }}
+                loading={creatingConv}
+                variant="gold"
+                icon={<MessageSquare size={16} />}
+                className="w-full"
               >
-                {creatingConv ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    جارٍ الإنشاء...
-                  </>
-                ) : (
-                  <>
-                    <MessageSquare size={16} />
-                    {isGroupMode ? "إنشاء مجموعة" : "بدء المحادثة"}
-                  </>
-                )}
-              </button>
+                {creatingConv ? "جارٍ الإنشاء..." : isGroupMode ? "إنشاء مجموعة" : "بدء المحادثة"}
+              </MarsaButton>
             </div>
           </div>
         </div>

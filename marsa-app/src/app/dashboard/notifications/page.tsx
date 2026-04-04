@@ -200,23 +200,17 @@ export default function NotificationsPage() {
             </p>
           </div>
           {(activeTab === "unread" || hasUnread) && (
-            <button
+            <MarsaButton
               onClick={handleMarkAllRead}
               disabled={markingAll}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 hover:opacity-80 disabled:opacity-50"
-              style={{
-                backgroundColor: "rgba(201,168,76,0.1)",
-                color: "#C9A84C",
-                border: "1px solid rgba(201,168,76,0.2)",
-              }}
+              variant="ghost"
+              size="sm"
+              loading={markingAll}
+              icon={!markingAll ? <Check size={16} /> : undefined}
+              style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C", border: "1px solid rgba(201,168,76,0.2)" }}
             >
-              {markingAll ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Check size={16} />
-              )}
               تحديد الكل كمقروء
-            </button>
+            </MarsaButton>
           )}
         </div>
 
@@ -288,13 +282,12 @@ export default function NotificationsPage() {
             <p className="text-sm mb-3" style={{ color: "#DC2626" }}>
               {error}
             </p>
-            <button
+            <MarsaButton
               onClick={() => fetchNotifications(1)}
-              className="text-sm font-medium px-4 py-2 rounded-xl transition-colors hover:opacity-80"
-              style={{ color: "#C9A84C" }}
+              variant="link"
             >
               إعادة المحاولة
-            </button>
+            </MarsaButton>
           </div>
         )}
 
@@ -395,24 +388,15 @@ export default function NotificationsPage() {
             className="px-6 py-4 text-center"
             style={{ borderTop: "1px solid #F3F2EE" }}
           >
-            <button
+            <MarsaButton
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 hover:opacity-80 disabled:opacity-50"
-              style={{
-                backgroundColor: "rgba(201,168,76,0.1)",
-                color: "#C9A84C",
-              }}
+              variant="ghost"
+              loading={loadingMore}
+              style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}
             >
-              {loadingMore ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  جاري التحميل...
-                </>
-              ) : (
-                "تحميل المزيد"
-              )}
-            </button>
+              {loadingMore ? "جاري التحميل..." : "تحميل المزيد"}
+            </MarsaButton>
           </div>
         )}
       </div>

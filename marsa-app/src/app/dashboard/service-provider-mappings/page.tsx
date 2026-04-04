@@ -447,14 +447,15 @@ export default function ServiceProviderMappingsPage() {
                       {/* Actions */}
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-center gap-1">
-                          <button
+                          <MarsaButton
                             onClick={() => handleDelete(mapping)}
                             disabled={actionLoading === mapping.id}
-                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:bg-[#FEF2F2] disabled:opacity-50"
+                            variant="ghost"
+                            size="sm"
                             title="حذف"
-                          >
-                            <Trash2 size={16} style={{ color: "#DC2626" }} />
-                          </button>
+                            style={{ width: 36, height: 36, padding: 0, minWidth: "auto" }}
+                            icon={<Trash2 size={16} style={{ color: "#DC2626" }} />}
+                          />
                         </div>
                       </td>
                     </tr>
@@ -557,26 +558,22 @@ export default function ServiceProviderMappingsPage() {
             </div>
 
             <div className="flex items-center gap-3 mt-6">
-              <button
+              <MarsaButton
                 onClick={handleCreate}
                 disabled={submitting}
-                className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
+                variant="gold"
+                loading={submitting}
+                icon={!submitting ? <Plus size={18} /> : undefined}
+                className="flex-1"
               >
-                {submitting ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Plus size={18} />
-                )}
                 إضافة الربط
-              </button>
-              <button
+              </MarsaButton>
+              <MarsaButton
                 onClick={() => setShowModal(false)}
-                className="px-5 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-[#F0EDE6]"
-                style={{ color: "#2D3748", border: "1px solid #E2E0D8" }}
+                variant="secondary"
               >
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

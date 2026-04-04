@@ -203,12 +203,12 @@ export default function MyEmployeesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowCompanyModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
-            style={{ backgroundColor: "rgba(27,42,74,0.08)", color: "#1C1B2E" }}>
-            <Building2 size={18} />
+          <MarsaButton onClick={() => setShowCompanyModal(true)}
+            variant="secondary"
+            icon={<Building2 size={18} />}
+          >
             {companies.length === 0 ? "إضافة شركة" : "شركاتي"}
-          </button>
+          </MarsaButton>
           {companies.length > 0 && (
             <MarsaButton onClick={() => setShowModal(true)} variant="gold" icon={<Plus size={18} />}>
               إضافة موظف

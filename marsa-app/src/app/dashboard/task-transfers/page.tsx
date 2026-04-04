@@ -450,7 +450,7 @@ export default function TaskTransfersPage() {
                             {actions.length > 0 ? (
                               <div className="flex items-center gap-1 flex-wrap">
                                 {actions.map((a) => (
-                                  <button
+                                  <MarsaButton
                                     key={a.action}
                                     onClick={() => {
                                       if (a.action === "cancel") {
@@ -466,14 +466,12 @@ export default function TaskTransfersPage() {
                                       }
                                     }}
                                     disabled={actionLoading === tr.id}
-                                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:shadow disabled:opacity-50"
+                                    variant="ghost" size="xs"
+                                    icon={a.icon === "check" ? <Check size={14} /> : a.icon === "complete" ? <CheckCircle2 size={14} /> : <X size={14} />}
                                     style={{ backgroundColor: a.bg, color: a.color }}
                                   >
-                                    {a.icon === "check" && <Check size={14} />}
-                                    {a.icon === "x" && <X size={14} />}
-                                    {a.icon === "complete" && <CheckCircle2 size={14} />}
                                     {a.label}
-                                  </button>
+                                  </MarsaButton>
                                 ))}
                               </div>
                             ) : (
@@ -497,14 +495,13 @@ export default function TaskTransfersPage() {
       {activeTab === "delegations" && (
         <>
           <div className="flex justify-end mb-6">
-            <button
+            <MarsaButton
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold hover:shadow-lg transition-all"
-              style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
+              variant="gold"
+              icon={<Plus size={18} />}
             >
-              <Plus size={18} />
               إضافة تفويض
-            </button>
+            </MarsaButton>
           </div>
 
           {delegationsLoading ? (
@@ -625,30 +622,25 @@ export default function TaskTransfersPage() {
             />
 
             <div className="flex gap-3">
-              <button
+              <MarsaButton
                 onClick={handleReviewSubmit}
                 disabled={actionLoading !== null}
-                className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-50"
+                loading={actionLoading !== null}
+                variant={["approve", "accept", "accept_complete"].includes(reviewModal.action) ? "primary" : "danger"}
+                icon={["approve", "accept", "accept_complete"].includes(reviewModal.action) ? <Check size={16} /> : <X size={16} />}
+                className="flex-1"
                 style={{
-                  backgroundColor: ["approve", "accept", "accept_complete"].includes(reviewModal.action) ? "#16A34A" : "#DC2626",
+                  backgroundColor: ["approve", "accept", "accept_complete"].includes(reviewModal.action) ? "#16A34A" : undefined,
                 }}
               >
-                {actionLoading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : ["approve", "accept", "accept_complete"].includes(reviewModal.action) ? (
-                  <Check size={16} />
-                ) : (
-                  <X size={16} />
-                )}
                 تأكيد
-              </button>
-              <button
+              </MarsaButton>
+              <MarsaButton
                 onClick={() => { setReviewModal(null); setReviewNote(""); }}
-                className="px-5 py-3 rounded-xl text-sm font-semibold transition-all"
-                style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
+                variant="secondary"
               >
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>
@@ -703,22 +695,22 @@ export default function TaskTransfersPage() {
             </label>
 
             <div className="flex gap-3">
-              <button
+              <MarsaButton
                 onClick={handleAddDelegation}
                 disabled={!newFromProvider || !newToProvider || addLoading}
-                className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-50"
-                style={{ backgroundColor: "#C9A84C", boxShadow: "0 4px 12px rgba(201,168,76,0.25)" }}
+                loading={addLoading}
+                variant="gold"
+                icon={<Plus size={16} />}
+                className="flex-1"
               >
-                {addLoading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                 إضافة
-              </button>
-              <button
+              </MarsaButton>
+              <MarsaButton
                 onClick={() => { setShowAddModal(false); setNewFromProvider(""); setNewToProvider(""); setNewIsPermanent(false); }}
-                className="px-5 py-3 rounded-xl text-sm font-semibold transition-all"
-                style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
+                variant="secondary"
               >
                 إلغاء
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

@@ -345,14 +345,15 @@ export default function MyDocumentsPage() {
                 {/* Action */}
                 <div>
                   {needsRenewal && (
-                    <button
+                    <MarsaButton
                       onClick={() => handleRenewalRequest(doc)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
+                      variant="ghost"
+                      size="sm"
+                      icon={<RefreshCw size={12} />}
                       style={{ backgroundColor: "#FFF7ED", color: "#EA580C" }}
                     >
-                      <RefreshCw size={12} />
                       طلب تجديد
-                    </button>
+                    </MarsaButton>
                   )}
                 </div>
               </div>

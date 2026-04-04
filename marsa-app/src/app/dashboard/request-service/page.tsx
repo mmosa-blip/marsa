@@ -223,13 +223,15 @@ export default function RequestServicePage() {
                   style={{ border: "1px solid #E2E0D8", color: "#2D3748" }} />
               </div>
 
-              <button onClick={handleSubmit}
+              <MarsaButton onClick={handleSubmit}
                 disabled={selected.length === 0 || submitting}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-opacity hover:opacity-90"
-                style={{ backgroundColor: "#5E5495" }}>
-                <Send size={16} />
+                variant="primary"
+                loading={submitting}
+                icon={!submitting ? <Send size={16} /> : undefined}
+                className="w-full"
+              >
                 {submitting ? "جاري الإرسال..." : "إرسال الطلب"}
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>

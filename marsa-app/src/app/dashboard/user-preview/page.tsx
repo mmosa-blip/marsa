@@ -91,12 +91,13 @@ export default function UserPreviewPage() {
             <Eye size={18} />
             <span className="text-sm font-semibold">تستعرض النظام كـ: {activeName}</span>
           </div>
-          <button onClick={handleStopImpersonating}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-semibold"
-            style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
-            <X size={14} />
+          <MarsaButton onClick={handleStopImpersonating}
+            variant="ghost"
+            size="sm"
+            icon={<X size={14} />}
+            style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}>
             إيقاف الاستعراض
-          </button>
+          </MarsaButton>
         </div>
       )}
 
@@ -172,12 +173,11 @@ export default function UserPreviewPage() {
                         </div>
                       </div>
                       {impersonating === user.id ? (
-                        <button onClick={handleStopImpersonating}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                        <MarsaButton onClick={handleStopImpersonating}
+                          variant="ghost" size="sm" icon={<X size={12} />}
                           style={{ backgroundColor: config.bg, color: config.color }}>
-                          <X size={12} />
                           إيقاف
-                        </button>
+                        </MarsaButton>
                       ) : (
                         <MarsaButton onClick={() => handleImpersonate(user)} variant="primary" size="sm" icon={<Eye size={12} />}>
                           استعراض

@@ -524,30 +524,26 @@ export default function MyTasksPage() {
       if (ti.status === "PENDING_TARGET" && ti.targetUserId === currentUserId) {
         return (
           <div className="flex items-center gap-1">
-            <button
+            <MarsaButton
               onClick={() => handleTransferAction(ti.id, "accept")}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
+              variant="primary" size="xs" icon={<CheckCircle2 size={13} />}
               style={{ backgroundColor: "#059669" }}
             >
-              <CheckCircle2 size={13} />
               قبول
-            </button>
-            <button
+            </MarsaButton>
+            <MarsaButton
               onClick={() => handleTransferAction(ti.id, "accept_complete")}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
+              variant="primary" size="xs" icon={<CheckCircle2 size={13} />}
               style={{ backgroundColor: "#047857" }}
             >
-              <CheckCircle2 size={13} />
               إكمال مباشرة
-            </button>
-            <button
+            </MarsaButton>
+            <MarsaButton
               onClick={() => handleTransferAction(ti.id, "decline")}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
-              style={{ backgroundColor: "#DC2626" }}
+              variant="danger" size="xs" icon={<X size={13} />}
             >
-              <X size={13} />
               رفض
-            </button>
+            </MarsaButton>
           </div>
         );
       }
@@ -577,15 +573,14 @@ export default function MyTasksPage() {
           );
         }
         return (
-          <button
+          <MarsaButton
             onClick={() => handleStatusChange(task.id, "IN_PROGRESS")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
+            variant="primary" size="xs" icon={<Play size={13} />}
             style={{ backgroundColor: "#2563EB" }}
             title={t.tasks.start}
           >
-            <Play size={13} />
             {t.tasks.start}
-          </button>
+          </MarsaButton>
         );
       case "IN_PROGRESS":
         if (startedByOther) {
@@ -597,15 +592,14 @@ export default function MyTasksPage() {
           );
         }
         return (
-          <button
+          <MarsaButton
             onClick={() => handleStatusChange(task.id, "DONE")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:opacity-90"
+            variant="primary" size="xs" icon={<CheckCircle2 size={13} />}
             style={{ backgroundColor: "#059669" }}
             title={t.tasks.complete}
           >
-            <CheckCircle2 size={13} />
             {t.tasks.complete}
-          </button>
+          </MarsaButton>
         );
       default:
         return null;
@@ -967,15 +961,14 @@ export default function MyTasksPage() {
                           <div className="flex items-center justify-center gap-1">
                             {getActionButton(task)}
                             {task.status !== "DONE" && task.status !== "CANCELLED" && !task.isTransferred && (
-                              <button
+                              <MarsaButton
                                 onClick={() => setTransferModal(task.id)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-90"
-                                style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}
+                                variant="outline" size="xs" icon={<ArrowLeftRight size={13} />}
+                                style={{ backgroundColor: "rgba(94,84,149,0.1)", border: "1px solid transparent" }}
                                 title={t.tasks.transfer}
                               >
-                                <ArrowLeftRight size={13} />
                                 {t.tasks.transfer}
-                              </button>
+                              </MarsaButton>
                             )}
                           </div>
                         </td>
@@ -1021,13 +1014,12 @@ export default function MyTasksPage() {
                                       <div className="flex items-center gap-2">
                                         <span className="text-xs font-bold" style={{ color: "#92400E" }}>انتظار مزود خارجي</span>
                                       </div>
-                                      <button
+                                      <MarsaButton
                                         onClick={() => setWaitingMode(task.id, null)}
-                                        className="text-xs px-2 py-0.5 rounded-lg"
-                                        style={{ color: "#6B7280", backgroundColor: "white", border: "1px solid #E2E0D8" }}
+                                        variant="secondary" size="xs"
                                       >
                                         إلغاء
-                                      </button>
+                                      </MarsaButton>
                                     </div>
 
                                     {!link && (
@@ -1045,14 +1037,14 @@ export default function MyTasksPage() {
                                             </option>
                                           ))}
                                         </select>
-                                        <button
+                                        <MarsaButton
                                           onClick={() => setWaitingMode(task.id, "PROVIDER", { providerId: selectedProviderIds[task.id] })}
                                           disabled={!selectedProviderIds[task.id]}
-                                          className="w-full py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-40"
-                                          style={{ backgroundColor: "#C9A84C" }}
+                                          variant="gold" size="sm"
+                                          className="w-full"
                                         >
                                           ربط المزود بالمهمة
-                                        </button>
+                                        </MarsaButton>
                                       </div>
                                     )}
 
@@ -1074,33 +1066,35 @@ export default function MyTasksPage() {
                                         {link.providerStatus === "COMPLETED" && (
                                           <div className="p-2 rounded-lg mb-2" style={{ backgroundColor: "#DCFCE7", color: "#16A34A" }}>
                                             <p className="text-xs font-bold">المزود أنهى المهمة</p>
-                                            <button
+                                            <MarsaButton
                                               onClick={() => markProviderDone(task.id, link.id, "reopen")}
-                                              className="mt-1 text-xs px-2 py-1 rounded-lg"
+                                              variant="ghost" size="xs"
+                                              className="mt-1"
                                               style={{ backgroundColor: "#FEF9C3", color: "#CA8A04" }}
                                             >
                                               إعادة فتح — غير مقبول
-                                            </button>
+                                            </MarsaButton>
                                           </div>
                                         )}
 
                                         {link.providerStatus !== "COMPLETED" && (
                                           <div className="flex gap-2">
-                                            <button
+                                            <MarsaButton
                                               onClick={() => sendProviderReminder(task.id, link.id)}
                                               disabled={waitingLoading[task.id]}
-                                              className="flex-1 py-2 rounded-xl text-xs font-semibold text-white"
-                                              style={{ backgroundColor: "#5E5495" }}
+                                              variant="primary" size="sm"
+                                              className="flex-1"
                                             >
                                               تذكير المزود
-                                            </button>
-                                            <button
+                                            </MarsaButton>
+                                            <MarsaButton
                                               onClick={() => completeTask(task.id)}
-                                              className="flex-1 py-2 rounded-xl text-xs font-semibold text-white"
+                                              variant="primary" size="sm"
+                                              className="flex-1"
                                               style={{ backgroundColor: "#059669" }}
                                             >
                                               إكمال المهمة
-                                            </button>
+                                            </MarsaButton>
                                           </div>
                                         )}
                                       </div>
@@ -1120,13 +1114,12 @@ export default function MyTasksPage() {
                                           معلق — {hold?.entity || "جهة حكومية"}
                                         </span>
                                       </div>
-                                      <button
+                                      <MarsaButton
                                         onClick={() => setWaitingMode(task.id, null)}
-                                        className="text-xs px-2 py-0.5 rounded-lg"
-                                        style={{ color: "#6B7280", backgroundColor: "white", border: "1px solid #E2E0D8" }}
+                                        variant="secondary" size="xs"
                                       >
                                         إلغاء
-                                      </button>
+                                      </MarsaButton>
                                     </div>
 
                                     {!hold && (
@@ -1138,13 +1131,13 @@ export default function MyTasksPage() {
                                           className="w-full px-3 py-2 rounded-lg text-xs outline-none bg-white"
                                           style={{ border: "1px solid #E2E0D8" }}
                                         />
-                                        <button
+                                        <MarsaButton
                                           onClick={() => setWaitingMode(task.id, "GOVERNMENT", { governmentEntity: govEntities[task.id] })}
-                                          className="w-full py-2 rounded-lg text-xs font-semibold text-white"
-                                          style={{ backgroundColor: "#5E5495" }}
+                                          variant="primary" size="sm"
+                                          className="w-full"
                                         >
                                           تعليق المهمة
-                                        </button>
+                                        </MarsaButton>
                                       </div>
                                     )}
 
@@ -1172,22 +1165,22 @@ export default function MyTasksPage() {
                                             style={{ border: "1px solid #E2E0D8" }}
                                             onKeyDown={(e) => e.key === "Enter" && addGovUpdate(task.id, hold.id)}
                                           />
-                                          <button
+                                          <MarsaButton
                                             onClick={() => addGovUpdate(task.id, hold.id)}
-                                            className="px-3 py-2 rounded-lg text-xs font-semibold text-white"
-                                            style={{ backgroundColor: "#5E5495" }}
+                                            variant="primary" size="sm"
                                           >
                                             ↑
-                                          </button>
+                                          </MarsaButton>
                                         </div>
 
-                                        <button
+                                        <MarsaButton
                                           onClick={() => completeTask(task.id)}
-                                          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold text-white"
+                                          variant="primary" size="sm"
+                                          className="w-full"
                                           style={{ backgroundColor: "#059669" }}
                                         >
                                           إكمال المهمة
-                                        </button>
+                                        </MarsaButton>
                                       </div>
                                     )}
                                   </div>
@@ -1215,27 +1208,21 @@ export default function MyTasksPage() {
                 {t.common.showing} {((data.page - 1) * 15 + 1).toLocaleString("en-US")} - {Math.min(data.page * 15, data.total).toLocaleString("en-US")} {t.common.of} {data.total.toLocaleString("en-US")} {t.common.results}
               </p>
               <div className="flex items-center gap-2">
-                <button
+                <MarsaButton
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={data.page <= 1}
-                  className="w-9 h-9 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
-                  style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}
+                  variant="secondary" size="sm" iconOnly icon={<ChevronRight size={16} />}
                   title={t.common.previous}
-                >
-                  <ChevronRight size={16} />
-                </button>
+                />
                 <span className="text-sm font-medium px-3" style={{ color: "#1C1B2E" }}>
                   {data.page.toLocaleString("en-US")} / {data.totalPages.toLocaleString("en-US")}
                 </span>
-                <button
+                <MarsaButton
                   onClick={() => setPage((p) => Math.min(data.totalPages, p + 1))}
                   disabled={data.page >= data.totalPages}
-                  className="w-9 h-9 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
-                  style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}
+                  variant="secondary" size="sm" iconOnly icon={<ChevronLeft size={16} />}
                   title={t.common.next}
-                >
-                  <ChevronLeft size={16} />
-                </button>
+                />
               </div>
             </div>
           )}
@@ -1386,25 +1373,19 @@ export default function MyTasksPage() {
                         {((completedData.page - 1) * 15 + 1).toLocaleString("en-US")} - {Math.min(completedData.page * 15, completedData.total).toLocaleString("en-US")} {t.common.of} {completedData.total.toLocaleString("en-US")}
                       </p>
                       <div className="flex items-center gap-2">
-                        <button
+                        <MarsaButton
                           onClick={() => setCompletedPage((p) => Math.max(1, p - 1))}
                           disabled={completedData.page <= 1}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
-                          style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}
-                        >
-                          <ChevronRight size={14} />
-                        </button>
+                          variant="secondary" size="xs" iconOnly icon={<ChevronRight size={14} />}
+                        />
                         <span className="text-xs font-medium px-2" style={{ color: "#1C1B2E" }}>
                           {completedData.page} / {completedData.totalPages}
                         </span>
-                        <button
+                        <MarsaButton
                           onClick={() => setCompletedPage((p) => Math.min(completedData.totalPages, p + 1))}
                           disabled={completedData.page >= completedData.totalPages}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
-                          style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}
-                        >
-                          <ChevronLeft size={14} />
-                        </button>
+                          variant="secondary" size="xs" iconOnly icon={<ChevronLeft size={14} />}
+                        />
                       </div>
                     </div>
                   )}
@@ -1496,31 +1477,27 @@ export default function MyTasksPage() {
             />
 
             <div className="flex gap-3">
-              <button
+              <MarsaButton
                 onClick={handleTransferSubmit}
                 disabled={!transferTargetId || !transferReason || transferLoading}
-                className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-50"
-                style={{ backgroundColor: "#5E5495" }}
+                loading={transferLoading}
+                variant="primary"
+                icon={<ArrowLeftRight size={16} />}
+                className="flex-1"
               >
-                {transferLoading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <ArrowLeftRight size={16} />
-                )}
                 {t.common.confirm}
-              </button>
-              <button
+              </MarsaButton>
+              <MarsaButton
                 onClick={() => {
                   setTransferModal(null);
                   setTransferTargetId("");
                   setTransferReason("");
                   setTransferUrgency("NORMAL");
                 }}
-                className="px-5 py-3 rounded-xl text-sm font-semibold transition-all"
-                style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
+                variant="secondary"
               >
                 {t.common.cancel}
-              </button>
+              </MarsaButton>
             </div>
           </div>
         </div>
@@ -1539,15 +1516,16 @@ export default function MyTasksPage() {
           <div className="w-px h-6 bg-white/20" />
 
           <div className="relative group">
-            <button
+            <MarsaButton
               onClick={() => handleBulkAction("IN_PROGRESS")}
               disabled={bulkDisabled}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all disabled:opacity-40"
+              loading={bulkLoading}
+              variant="primary" size="sm"
+              icon={<Play size={14} />}
               style={{ backgroundColor: bulkDisabled ? "#4B5563" : "#2563EB" }}
             >
-              {bulkLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
               {t.tasks.startAll}
-            </button>
+            </MarsaButton>
             {hasWaitingSelected && (
               <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                 {t.tasks.cannotStart}
@@ -1556,15 +1534,16 @@ export default function MyTasksPage() {
           </div>
 
           <div className="relative group">
-            <button
+            <MarsaButton
               onClick={() => handleBulkAction("DONE")}
               disabled={bulkDisabled}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all disabled:opacity-40"
+              loading={bulkLoading}
+              variant="primary" size="sm"
+              icon={<CheckCircle2 size={14} />}
               style={{ backgroundColor: bulkDisabled ? "#4B5563" : "#059669" }}
             >
-              {bulkLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
               {t.tasks.completeAll}
-            </button>
+            </MarsaButton>
             {hasWaitingSelected && (
               <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-gray-800 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                 {t.tasks.cannotStart}
@@ -1574,13 +1553,14 @@ export default function MyTasksPage() {
 
           <div className="w-px h-6 bg-white/20" />
 
-          <button
+          <MarsaButton
             onClick={() => setSelectedTasks(new Set())}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium text-white/60 hover:text-white transition-colors"
+            variant="ghost" size="sm"
+            icon={<X size={14} />}
+            style={{ color: "rgba(255,255,255,0.6)" }}
           >
-            <X size={14} />
             {t.tasks.cancelSelection}
-          </button>
+          </MarsaButton>
         </div>
       )}
     </div>

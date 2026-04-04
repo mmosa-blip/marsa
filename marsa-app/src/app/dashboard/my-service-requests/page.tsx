@@ -383,11 +383,13 @@ export default function MyServiceRequestsPage() {
               }} />
 
               {["PENDING", "REVIEWING"].includes(selected.status) && (
-                <button onClick={() => handleCancel(selected.id)} disabled={cancelling}
-                  className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
-                  style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}>
+                <MarsaButton onClick={() => handleCancel(selected.id)} disabled={cancelling}
+                  variant="dangerSoft"
+                  loading={cancelling}
+                  className="w-full"
+                >
                   {cancelling ? "جاري الإلغاء..." : "إلغاء الطلب"}
-                </button>
+                </MarsaButton>
               )}
             </div>
           </div>

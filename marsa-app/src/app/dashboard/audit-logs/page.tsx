@@ -233,26 +233,22 @@ export default function AuditLogsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <MarsaButton
             onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={{ backgroundColor: "#F0EEF5", color: "#5E5495" }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#E8E6F0"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#F0EEF5"; }}
+            variant="outline"
+            size="sm"
+            icon={<Download size={16} />}
           >
-            <Download size={16} />
             تصدير CSV
-          </button>
-          <button
+          </MarsaButton>
+          <MarsaButton
             onClick={fetchLogs}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={{ backgroundColor: "#5E5495", color: "white" }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#4A4178"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#5E5495"; }}
+            variant="primary"
+            size="sm"
+            icon={<RefreshCw size={16} />}
           >
-            <RefreshCw size={16} />
             تحديث
-          </button>
+          </MarsaButton>
         </div>
       </div>
 
@@ -403,13 +399,13 @@ export default function AuditLogsPage() {
               </div>
             </div>
             <div className="flex justify-end">
-              <button
+              <MarsaButton
                 onClick={resetFilters}
-                className="text-sm px-3 py-1 rounded-lg"
-                style={{ color: "#5E5495" }}
+                variant="ghost"
+                size="sm"
               >
                 إعادة تعيين
-              </button>
+              </MarsaButton>
             </div>
           </div>
         )}

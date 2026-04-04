@@ -364,13 +364,14 @@ export default function ProfilePage() {
                   <div className="rounded-xl p-4 flex items-center justify-center" style={{ backgroundColor: "#FAFAFE", border: "1px solid #E2E0D8" }}>
                     <img src={signatureImage} alt="التوقيع" className="max-h-32 object-contain" />
                   </div>
-                  <button
+                  <MarsaButton
                     onClick={() => { setSignatureImage(null); }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-90"
-                    style={{ color: "#DC2626", border: "1px solid #FECACA", backgroundColor: "#FEF2F2" }}
+                    variant="dangerSoft"
+                    size="sm"
+                    icon={<Trash2 size={14} />}
                   >
-                    <Trash2 size={14} /> حذف التوقيع
-                  </button>
+                    حذف التوقيع
+                  </MarsaButton>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -405,13 +406,14 @@ export default function ProfilePage() {
                   <div className="rounded-xl p-4 flex items-center justify-center" style={{ backgroundColor: "#FAFAFE", border: "1px solid #E2E0D8" }}>
                     <img src={stampImage} alt="الختم" className="max-h-32 object-contain" />
                   </div>
-                  <button
+                  <MarsaButton
                     onClick={() => setStampImage(null)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all hover:opacity-90"
-                    style={{ color: "#DC2626", border: "1px solid #FECACA", backgroundColor: "#FEF2F2" }}
+                    variant="dangerSoft"
+                    size="sm"
+                    icon={<Trash2 size={14} />}
                   >
-                    <Trash2 size={14} /> حذف الختم
-                  </button>
+                    حذف الختم
+                  </MarsaButton>
                 </div>
               ) : (
                 <div>

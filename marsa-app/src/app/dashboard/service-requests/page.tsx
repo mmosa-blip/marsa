@@ -437,7 +437,7 @@ export default function ServiceRequestsPage() {
 
             <div className="p-6 flex gap-3" style={{ borderTop: "1px solid #E2E0D8" }}>
               {["APPROVED", "REVIEWING"].includes(form.status) && (
-                <button
+                <MarsaButton
                   onClick={() => {
                     setConvertForm({
                       name: `مشروع - ${selected.client.name}`,
@@ -449,11 +449,12 @@ export default function ServiceRequestsPage() {
                     });
                     setShowConvertModal(true);
                   }}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
-                  style={{ backgroundColor: "rgba(124,58,237,0.1)", color: "#7C3AED" }}>
-                  <FolderKanban size={16} />
+                  variant="ghost"
+                  icon={<FolderKanban size={16} />}
+                  style={{ backgroundColor: "rgba(124,58,237,0.1)", color: "#7C3AED" }}
+                >
                   تحويل إلى مشروع
-                </button>
+                </MarsaButton>
               )}
               <MarsaButton onClick={handleSave} disabled={saving} variant="primary" loading={saving} icon={!saving ? <Check size={16} /> : undefined} className="flex-1">
                 {saving ? "جاري الحفظ..." : "حفظ التغييرات"}
