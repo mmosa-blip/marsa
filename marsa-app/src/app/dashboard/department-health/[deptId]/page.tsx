@@ -60,11 +60,26 @@ export default function DepartmentHealthPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
 
+  const [errorMsg, setErrorMsg] = useState("");
+
   useEffect(() => {
     fetch(`/api/departments/${deptId}/health`)
-      .then((r) => r.json())
-      .then((d) => { if (d.department) setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => {
+        if (d.department) {
+          setData(d);
+        } else {
+          setErrorMsg(d.error || "بيانات غير صالحة");
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        setErrorMsg(`خطأ في تحميل البيانات: ${err.message}`);
+        setLoading(false);
+      });
   }, [deptId]);
 
   if (loading) {
@@ -78,7 +93,15 @@ export default function DepartmentHealthPage() {
   if (!data) {
     return (
       <div className="p-8 text-center" dir="rtl">
-        <p style={{ color: "#DC2626" }}>القسم غير موجود</p>
+        <p className="text-lg font-bold mb-2" style={{ color: "#DC2626" }}>
+          {errorMsg || "القسم غير موجود"}
+        </p>
+        <p className="text-sm mb-4" style={{ color: "#6B7280" }}>
+          معرف القسم: {deptId}
+        </p>
+        <MarsaButton href="/dashboard/departments" variant="primary" size="md">
+          العودة للأقسام
+        </MarsaButton>
       </div>
     );
   }
