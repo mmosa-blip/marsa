@@ -27,6 +27,17 @@ enum ProjectStatus {
   CANCELLED
 }
 
+enum ProjectPhase {
+  CONTRACT
+  PAYMENTS
+  CONTRACT_APPROVAL
+  SERVICES
+  PROVIDERS
+  MANAGER
+  EXECUTION
+  COMPLETED
+}
+
 enum ProjectPriority {
   LOW
   MEDIUM
@@ -417,6 +428,7 @@ model Service {
   serviceTemplateId   String?
   serviceTemplate     ServiceTemplate? @relation("ServiceInstances", fields: [serviceTemplateId], references: [id])
   status              String?  @default("PENDING")
+  serviceOrder        Int      @default(0)
   createdAt           DateTime @default(now())
   deletedAt           DateTime?
 
@@ -443,6 +455,7 @@ model Project {
   name         String
   description  String?         @db.Text
   status       ProjectStatus   @default(DRAFT)
+  phase        ProjectPhase    @default(CONTRACT)
   priority     ProjectPriority @default(MEDIUM)
   workflowType WorkflowType    @default(SEQUENTIAL)
   totalPrice   Float?
@@ -491,8 +504,32 @@ model Project {
   serviceRequest     ServiceRequest?
   contracts          Contract[]
   deptPayments       DepartmentPayment[] @relation("ProjectDeptPayments")
+  paymentSchedule    ProjectPaymentSchedule[]
 
   @@map("projects")
+}
+
+enum PaymentScheduleStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+model ProjectPaymentSchedule {
+  id        String                @id @default(cuid())
+  amount    Float
+  dueDate   DateTime
+  paidDate  DateTime?
+  status    PaymentScheduleStatus @default(PENDING)
+  label     String?
+  notes     String?               @db.Text
+  gateForServiceOrder Int?
+  createdAt DateTime              @default(now())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_payment_schedules")
 }
 
 model Task {

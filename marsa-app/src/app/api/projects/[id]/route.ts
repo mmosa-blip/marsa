@@ -31,6 +31,7 @@ export async function GET(
               orderBy: [{ order: "asc" }],
             },
           },
+          orderBy: [{ serviceOrder: "asc" }],
         },
         tasks: {
           include: {
@@ -38,6 +39,9 @@ export async function GET(
             assignee: { select: { id: true, name: true, avatar: true } },
           },
           orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+        },
+        paymentSchedule: {
+          orderBy: { dueDate: "asc" },
         },
       },
     });
