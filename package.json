@@ -1,0 +1,11 @@
+{
+  "name": "marsa",
+  "private": true,
+  "scripts": {
+    "dev": "cd marsa-app && npm run dev",
+    "build": "cd marsa-app && npm run build",
+    "start": "cd marsa-app && npm run start",
+    "install": "cd marsa-app && npm install",
+    "postinstall": "cd marsa-app && npx prisma generate"
+  }
+}
