@@ -78,8 +78,13 @@ export default function PrayerTimesCard() {
         // Try to get city name
         const meta = data.data.meta;
         if (meta?.timezone) {
+          const cityMap: Record<string, string> = {
+            Riyadh: "الرياض", Medina: "المدينة المنورة", Madinah: "المدينة المنورة",
+            Mecca: "مكة المكرمة", Jeddah: "جدة", Dammam: "الدمام", Tabuk: "تبوك",
+          };
           const parts = meta.timezone.split("/");
-          setLocationName(parts[parts.length - 1].replace(/_/g, " "));
+          const city = parts[parts.length - 1].replace(/_/g, " ");
+          setLocationName(cityMap[city] || city);
         }
       }
     } catch {}
