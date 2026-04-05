@@ -178,6 +178,7 @@ function buildAdminGroupsWithDepts(departments: DeptInfo[]): NavGroup[] {
         { href: `/dashboard/projects?departmentId=${dept.id}`, label: "المشاريع" },
         { href: `/dashboard/service-catalog?departmentId=${dept.id}`, label: "الخدمات" },
         { href: `/dashboard/contracts?departmentId=${dept.id}`, label: "العقود" },
+        { href: `/dashboard/department-payments/${dept.id}`, label: "المدفوعات" },
       ],
     });
   }
@@ -205,6 +206,7 @@ function buildExecutorGroupsWithDepts(departments: DeptInfo[]): NavGroup[] {
         { href: `/dashboard/projects?departmentId=${dept.id}`, label: "المشاريع" },
         { href: `/dashboard/service-catalog?departmentId=${dept.id}`, label: "الخدمات" },
         { href: `/dashboard/contracts?departmentId=${dept.id}`, label: "العقود" },
+        { href: `/dashboard/department-payments/${dept.id}`, label: "المدفوعات" },
       ],
     });
   }

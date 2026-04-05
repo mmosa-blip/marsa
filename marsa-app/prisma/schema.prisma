@@ -378,6 +378,8 @@ model User {
   departments          UserDepartment[]     @relation("UserDepartments")
   assignedOpportunities Opportunity[]       @relation("OpportunityAssignee")
   clientOpportunities   Opportunity[]       @relation("OpportunityClient")
+  clientDeptPayments    DepartmentPayment[] @relation("ClientDeptPayments")
+  createdDeptPayments   DepartmentPayment[] @relation("CreatedDeptPayments")
 
   @@map("users")
 }
@@ -431,6 +433,7 @@ model Service {
   tasks              Task[]
   projectMilestones  ProjectMilestone[]
   executors          UserService[]  @relation("ServiceExecutors")
+  deptPayments       DepartmentPayment[] @relation("ServiceDeptPayments")
 
   @@map("services")
 }
@@ -487,6 +490,7 @@ model Project {
   milestones         ProjectMilestone[]
   serviceRequest     ServiceRequest?
   contracts          Contract[]
+  deptPayments       DepartmentPayment[] @relation("ProjectDeptPayments")
 
   @@map("projects")
 }
@@ -1575,6 +1579,7 @@ model Department {
   tasks            Task[]
   employees        UserDepartment[]  @relation("DepartmentUsers")
   opportunities    Opportunity[]
+  deptPayments     DepartmentPayment[] @relation("DepartmentPayments")
 
   @@map("departments")
 }
@@ -1651,4 +1656,81 @@ model OpportunityActivity {
   createdAt     DateTime    @default(now())
 
   @@map("opportunity_activities")
+}
+
+// ===== Department Payments =====
+
+enum DeptPaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+enum DeptPaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CREDIT_CARD
+  CHEQUE
+  OTHER
+}
+
+enum DeptPaymentType {
+  FULL
+  INSTALLMENTS
+}
+
+enum DeptInstallmentStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+model DepartmentPayment {
+  id              String             @id @default(cuid())
+  amount          Float
+  paidAmount      Float              @default(0)
+  status          DeptPaymentStatus  @default(PENDING)
+  paymentMethod   DeptPaymentMethod  @default(BANK_TRANSFER)
+  paymentType     DeptPaymentType    @default(FULL)
+  installmentCount Int               @default(1)
+  dueDate         DateTime?
+  notes           String?            @db.Text
+  receiptUrl      String?            @db.Text
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  departmentId String
+  department   Department @relation("DepartmentPayments", fields: [departmentId], references: [id])
+
+  clientId String
+  client   User   @relation("ClientDeptPayments", fields: [clientId], references: [id])
+
+  projectId String?
+  project   Project? @relation("ProjectDeptPayments", fields: [projectId], references: [id])
+
+  serviceId String?
+  service   Service? @relation("ServiceDeptPayments", fields: [serviceId], references: [id])
+
+  createdById String?
+  createdBy   User?  @relation("CreatedDeptPayments", fields: [createdById], references: [id])
+
+  installments DeptPaymentInstallment[]
+
+  @@map("department_payments")
+}
+
+model DeptPaymentInstallment {
+  id        String                @id @default(cuid())
+  amount    Float
+  dueDate   DateTime
+  paidDate  DateTime?
+  status    DeptInstallmentStatus @default(PENDING)
+  notes     String?               @db.Text
+  createdAt DateTime              @default(now())
+
+  paymentId String
+  payment   DepartmentPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("dept_payment_installments")
 }
