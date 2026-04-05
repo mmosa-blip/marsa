@@ -23,7 +23,19 @@ export async function GET(
 
     const now = new Date();
 
-    let projects;
+    interface HealthProject {
+      id: string;
+      name: string;
+      status: string;
+      endDate: Date | null;
+      createdAt: Date;
+      client: { id: string; name: string } | null;
+      tasks: { id: string; status: string; dueDate: Date | null }[];
+      services: { id: string; status: string | null }[];
+      paymentSchedule: { amount: number; status: string }[];
+    }
+
+    let projects: HealthProject[];
     try {
       projects = await prisma.project.findMany({
         where: { departmentId: id, deletedAt: null },
@@ -33,10 +45,10 @@ export async function GET(
           paymentSchedule: { select: { amount: true, status: true } },
           services: { select: { id: true, status: true } },
         },
-      });
+      }) as unknown as HealthProject[];
     } catch {
       // Fallback if paymentSchedule table doesn't exist yet
-      projects = await prisma.project.findMany({
+      const raw = await prisma.project.findMany({
         where: { departmentId: id, deletedAt: null },
         include: {
           client: { select: { id: true, name: true } },
@@ -44,8 +56,7 @@ export async function GET(
           services: { select: { id: true, status: true } },
         },
       });
-      // Add empty paymentSchedule to each project
-      projects = projects.map((p: Record<string, unknown>) => ({ ...p, paymentSchedule: [] }));
+      projects = raw.map((p) => ({ ...p, paymentSchedule: [] as { amount: number; status: string }[] })) as unknown as HealthProject[];
     }
 
     // Calculate per-project health
