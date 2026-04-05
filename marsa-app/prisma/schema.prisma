@@ -1661,6 +1661,7 @@ model Opportunity {
   contactName       String?
   contactPhone      String?
   contactEmail      String?
+  marketerName      String?
   notes             String?           @db.Text
   expectedCloseDate DateTime?
   closedAt          DateTime?

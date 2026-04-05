@@ -52,12 +52,11 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      title, description, type, stage, value, probability,
-      contactName, contactPhone, contactEmail, notes,
-      expectedCloseDate, assigneeId, clientId, departmentId,
+      contactName, contactPhone, departmentId, value, assigneeId,
+      probability, marketerName, notes, stage, clientId,
     } = body;
 
-    if (!contactName?.trim() && !title?.trim()) {
+    if (!contactName?.trim()) {
       return NextResponse.json({ error: "اسم العميل المحتمل مطلوب" }, { status: 400 });
     }
     if (!contactPhone?.trim()) {
@@ -66,26 +65,36 @@ export async function POST(request: NextRequest) {
     if (!departmentId) {
       return NextResponse.json({ error: "القسم مطلوب" }, { status: 400 });
     }
+    if (!value && value !== 0) {
+      return NextResponse.json({ error: "القيمة المتوقعة مطلوبة" }, { status: 400 });
+    }
+    if (!assigneeId) {
+      return NextResponse.json({ error: "المسؤول مطلوب" }, { status: 400 });
+    }
+    if (probability == null || probability === "") {
+      return NextResponse.json({ error: "احتمالية الإغلاق مطلوبة" }, { status: 400 });
+    }
+    if (!marketerName?.trim()) {
+      return NextResponse.json({ error: "اسم المسوق مطلوب" }, { status: 400 });
+    }
 
-    const parsedValue = value != null && value !== "" && value !== undefined ? parseFloat(String(value)) : null;
-    const parsedProb = probability != null && probability !== "" && probability !== undefined ? parseInt(String(probability)) : 0;
+    const parsedValue = parseFloat(String(value));
+    const parsedProb = parseInt(String(probability));
 
     const opportunity = await prisma.opportunity.create({
       data: {
-        title: (title?.trim?.() || contactName?.trim?.()) ?? "فرصة جديدة",
-        description: description?.trim?.() || null,
-        type: type || "SERVICES",
+        title: contactName.trim(),
+        type: "SERVICES",
         stage: stage || "CONTACT",
-        value: parsedValue && !isNaN(parsedValue) ? parsedValue : null,
-        probability: parsedProb && !isNaN(parsedProb) ? parsedProb : 0,
-        contactName: contactName?.trim?.() || null,
-        contactPhone: contactPhone?.trim?.() || null,
-        contactEmail: contactEmail?.trim?.() || null,
+        value: !isNaN(parsedValue) ? parsedValue : 0,
+        probability: !isNaN(parsedProb) ? parsedProb : 0,
+        contactName: contactName.trim(),
+        contactPhone: contactPhone.trim(),
+        marketerName: marketerName.trim(),
         notes: notes?.trim?.() || null,
-        expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : null,
-        assigneeId: assigneeId || null,
+        assigneeId,
         clientId: clientId || null,
-        departmentId: departmentId,
+        departmentId,
       },
     });
 
