@@ -264,15 +264,24 @@ async function getAdminStats() {
   // Sort delayed projects by maxDelayDays desc, take top 5
   delayedProjects.sort((a, b) => b.maxDelayDays - a.maxDelayDays);
 
-  // بيانات الإيرادات الشهرية (تجريبية)
-  const monthlyRevenue = [
-    { month: "يناير", revenue: 45000 },
-    { month: "فبراير", revenue: 52000 },
-    { month: "مارس", revenue: 48000 },
-    { month: "أبريل", revenue: 61000 },
-    { month: "مايو", revenue: 55000 },
-    { month: "يونيو", revenue: 67000 },
-  ];
+  // بيانات الإيرادات الشهرية (من المدفوعات الفعلية)
+  const paidPayments = await prisma.payment.findMany({
+    select: { amount: true, paymentDate: true },
+  });
+
+  const monthNames = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+  const currentYear = now.getFullYear();
+  const monthlyRevenue = Array.from({ length: 12 }, (_, i) => {
+    const monthPayments = paidPayments.filter((p) => {
+      const d = new Date(p.paymentDate);
+      return d.getFullYear() === currentYear && d.getMonth() === i;
+    });
+    return {
+      month: monthNames[i],
+      revenue: monthPayments.reduce((sum, p) => sum + p.amount, 0),
+    };
+  }).filter((m) => m.revenue > 0 || new Date().getMonth() >= monthNames.indexOf(m.month))
+    .slice(0, 6);
 
   // آخر الطلبات
   const recentOrders = recentProjects.map((p) => {
@@ -309,10 +318,8 @@ async function getAdminStats() {
     prisma.project.count({ where: { isQuickService: true, status: "COMPLETED", deletedAt: null } }),
   ]);
 
-  // حساب الإيرادات التقديرية
-  const totalRevenue = services.reduce((sum, s) => {
-    return sum + (s.tasks.length * (services.find((sv) => sv.id === s.id) ? 3500 : 0));
-  }, 0);
+  // حساب الإيرادات الفعلية من المدفوعات المؤكدة
+  const totalRevenue = paidPayments.reduce((sum, p) => sum + p.amount, 0);
 
   return {
     type: "admin",
@@ -320,7 +327,7 @@ async function getAdminStats() {
       totalClients,
       totalProjects,
       activeProjects,
-      totalRevenue: totalRevenue || 328000,
+      totalRevenue,
       pendingTasks,
       completedTasks,
       totalTasks: allTasks.length,
