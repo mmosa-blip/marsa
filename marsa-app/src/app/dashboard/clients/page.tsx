@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Users2, Search, Filter, Building2, FolderKanban,
   Briefcase, DollarSign, UserPlus, TrendingUp,
-  Shield, ShieldAlert, ShieldOff, FileWarning, Download, Trash2,
+  Shield, ShieldAlert, ShieldOff, FileWarning, Download, Trash2, Upload,
 } from "lucide-react";
 import { exportToExcel } from "@/lib/export-utils";
 import SarSymbol from "@/components/SarSymbol";
@@ -78,9 +78,14 @@ export default function ClientsPage() {
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>العملاء</h1>
           <p className="text-sm mt-1" style={{ color: "#2D3748", opacity: 0.6 }}>إدارة العملاء ومتابعة مشاريعهم وخدماتهم</p>
         </div>
-        <MarsaButton href="/dashboard/clients/new" variant="primary" size="lg" icon={<UserPlus size={18} />}>
-          عميل جديد
-        </MarsaButton>
+        <div className="flex items-center gap-2">
+          <MarsaButton href="/dashboard/clients/import" variant="outline" size="md" icon={<Upload size={16} />}>
+            استيراد Excel
+          </MarsaButton>
+          <MarsaButton href="/dashboard/clients/new" variant="primary" size="lg" icon={<UserPlus size={18} />}>
+            عميل جديد
+          </MarsaButton>
+        </div>
       </div>
 
       {/* الإحصائيات */}
