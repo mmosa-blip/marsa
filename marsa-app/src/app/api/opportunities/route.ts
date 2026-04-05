@@ -66,22 +66,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "القسم مطلوب" }, { status: 400 });
     }
 
+    const parsedValue = value != null && value !== "" && value !== undefined ? parseFloat(String(value)) : null;
+    const parsedProb = probability != null && probability !== "" && probability !== undefined ? parseInt(String(probability)) : 0;
+
     const opportunity = await prisma.opportunity.create({
       data: {
-        title: title?.trim() || contactName?.trim() || "فرصة جديدة",
-        description: description?.trim() || null,
+        title: (title?.trim?.() || contactName?.trim?.()) ?? "فرصة جديدة",
+        description: description?.trim?.() || null,
         type: type || "SERVICES",
         stage: stage || "CONTACT",
-        value: value ? parseFloat(value) : null,
-        probability: probability ? parseInt(probability) : 0,
-        contactName: contactName?.trim() || null,
-        contactPhone: contactPhone?.trim() || null,
-        contactEmail: contactEmail?.trim() || null,
-        notes: notes?.trim() || null,
+        value: parsedValue && !isNaN(parsedValue) ? parsedValue : null,
+        probability: parsedProb && !isNaN(parsedProb) ? parsedProb : 0,
+        contactName: contactName?.trim?.() || null,
+        contactPhone: contactPhone?.trim?.() || null,
+        contactEmail: contactEmail?.trim?.() || null,
+        notes: notes?.trim?.() || null,
         expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : null,
         assigneeId: assigneeId || null,
         clientId: clientId || null,
-        departmentId: departmentId || null,
+        departmentId: departmentId,
       },
     });
 
@@ -92,7 +95,7 @@ export async function POST(request: NextRequest) {
         userId: session.user.id,
         userName: session.user.name || "",
         action: "CREATE",
-        details: `تم إنشاء الفرصة`,
+        details: `تم إنشاء الفرصة: ${opportunity.title}`,
       },
     });
 

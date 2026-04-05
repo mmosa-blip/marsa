@@ -1,32 +1,34 @@
-import { createScriptPrisma } from "./db";
+import "dotenv/config";
+import { createPool } from "mariadb";
 
 async function main() {
-  const prisma = createScriptPrisma();
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error("DATABASE_URL required");
 
-  // Use raw query since the generated client now expects phone as non-null
-  const nullUsers: { id: string; name: string; email: string | null }[] =
-    await prisma.$queryRaw`SELECT id, name, email FROM users WHERE phone IS NULL OR phone = ''`;
+  const url = new URL(dbUrl.replace("mysql://", "http://"));
+  const pool = createPool({
+    host: url.hostname,
+    port: parseInt(url.port || "3306"),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.slice(1).split("?")[0],
+    connectionLimit: 1,
+  });
 
-  console.log(`Found ${nullUsers.length} users with null/empty phone:`);
-  for (const u of nullUsers) {
-    console.log(`  - ${u.name} (${u.email || "no email"})`);
-  }
+  const conn = await pool.getConnection();
 
-  if (nullUsers.length === 0) {
-    console.log("No fix needed.");
-    await prisma.$disconnect();
-    return;
-  }
+  const rows = await conn.query("SELECT id, name, email FROM users WHERE phone IS NULL OR phone = ''");
+  console.log(`Found ${rows.length} users with null phone`);
 
-  // Assign temporary unique phone numbers
-  for (let i = 0; i < nullUsers.length; i++) {
+  for (let i = 0; i < rows.length; i++) {
     const tempPhone = `050000000${i + 1}`;
-    await prisma.$executeRaw`UPDATE users SET phone = ${tempPhone} WHERE id = ${nullUsers[i].id}`;
-    console.log(`  ✓ ${nullUsers[i].name} → ${tempPhone}`);
+    await conn.query("UPDATE users SET phone = ? WHERE id = ?", [tempPhone, rows[i].id]);
+    console.log(`  ✓ ${rows[i].name} (${rows[i].email}) → ${tempPhone}`);
   }
 
-  console.log("Done. Update these to real phone numbers later.");
-  await prisma.$disconnect();
+  console.log("Done.");
+  conn.release();
+  await pool.end();
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
