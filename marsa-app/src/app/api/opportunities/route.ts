@@ -56,18 +56,21 @@ export async function POST(request: NextRequest) {
       expectedCloseDate, assigneeId, clientId, departmentId,
     } = body;
 
-    if (!title?.trim()) {
-      return NextResponse.json({ error: "عنوان الفرصة مطلوب" }, { status: 400 });
+    if (!contactName?.trim() && !title?.trim()) {
+      return NextResponse.json({ error: "اسم العميل المحتمل مطلوب" }, { status: 400 });
     }
-    if (!type) {
-      return NextResponse.json({ error: "نوع الفرصة مطلوب" }, { status: 400 });
+    if (!contactPhone?.trim()) {
+      return NextResponse.json({ error: "رقم الجوال مطلوب" }, { status: 400 });
+    }
+    if (!departmentId) {
+      return NextResponse.json({ error: "القسم مطلوب" }, { status: 400 });
     }
 
     const opportunity = await prisma.opportunity.create({
       data: {
-        title: title.trim(),
+        title: title?.trim() || contactName?.trim() || "فرصة جديدة",
         description: description?.trim() || null,
-        type,
+        type: type || "SERVICES",
         stage: stage || "CONTACT",
         value: value ? parseFloat(value) : null,
         probability: probability ? parseInt(probability) : 0,
