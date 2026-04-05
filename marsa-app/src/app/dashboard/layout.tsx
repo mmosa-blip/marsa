@@ -235,23 +235,10 @@ const executorGroups: NavGroup[] = [
       { href: "/dashboard/my-projects", label: "مشاريعي", tKey: "myProjects" },
       { href: "/dashboard/my-health", label: "صحة مشاريعي", tKey: "myHealth" },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
-    ],
-  },
-  // ═══ Department groups are injected dynamically for executors too ═══
-  {
-    id: "contracts",
-    label: "العقود والمالية",
-    tGroupKey: "contractsAndFinance",
-    icon: FilePlus,
-    children: [
-      { href: "/dashboard/contracts", label: "العقود", tKey: "contracts", permissionKey: "contracts.view" },
-      { href: "/dashboard/cashier", label: "الكاشير", tKey: "cashier", permissionKey: "finance.cashier" },
-      { href: "/dashboard/my-payments", label: "مدفوعاتي", tKey: "myPayments" },
-      { href: "/dashboard/tickets", label: "التذاكر", tKey: "tickets", permissionKey: "tickets.view" },
-      { href: "/dashboard/payment-requests", label: "طلبات الصرف", tKey: "paymentRequests", permissionKey: "finance.expenses" },
       { href: "/dashboard/policies", label: "اللوائح والإرشادات", tKey: "policies" },
     ],
   },
+  // ═══ Department groups are injected dynamically for executors too ═══
 ];
 
 const providerGroups: NavGroup[] = [
@@ -262,7 +249,6 @@ const providerGroups: NavGroup[] = [
     icon: LayoutDashboard,
     children: [
       { href: "/dashboard/my-tasks", label: "مهامي", tKey: "myTasks" },
-      { href: "/dashboard/my-payments", label: "مدفوعاتي", tKey: "myPayments" },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
       { href: "/dashboard/policies", label: "اللوائح والإرشادات", tKey: "policies" },
     ],
