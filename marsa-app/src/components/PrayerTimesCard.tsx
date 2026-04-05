@@ -23,8 +23,8 @@ const PRAYER_NAMES: Record<string, string> = {
 
 const PRAYER_ORDER = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
 
-const DEFAULT_LAT = 24.4672;
-const DEFAULT_LNG = 39.6024;
+const DEFAULT_LAT = 24.5247;
+const DEFAULT_LNG = 39.5692;
 
 function parseTime(timeStr: string): { hours: number; minutes: number } {
   const [h, m] = timeStr.split(":").map(Number);
