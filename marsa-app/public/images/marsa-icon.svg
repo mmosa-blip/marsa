@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="102" fill="#1C1B2E"/>
+  <rect x="41" y="41" width="430" height="430" rx="77" fill="#2A2542"/>
+  <rect x="41" y="41" width="430" height="430" rx="77" fill="none" stroke="#C9A84C" stroke-width="8" opacity="0.4"/>
+  <!-- M letterform -->
+  <path d="M 178 372 L 178 160 L 256 210 L 334 160 L 334 372"
+    fill="none" stroke="#C9A84C" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Dot accent -->
+  <circle cx="256" cy="320" r="18" fill="#C9A84C"/>
+  <!-- Diamond accent -->
+  <path d="M 256 120 l 20 20 l -20 20 l -20 -20 z" fill="#C9A84C" opacity="0.6"/>
+</svg>

@@ -25,8 +25,8 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: "/images/marsa-icon.svg", type: "image/svg+xml" },
       { url: "/favicon.ico", sizes: "32x32" },
-      { url: "/icon.png", sizes: "192x192", type: "image/png" },
     ],
     apple: "/apple-icon.png",
   },
