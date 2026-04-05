@@ -97,35 +97,45 @@ export default function NewOpportunityPage() {
 
     setSaving(true);
     try {
+      const payload = {
+        title: form.contactName.trim(),
+        contactName: form.contactName.trim(),
+        contactPhone: form.contactPhone.trim(),
+        departmentId: form.departmentId,
+        type: form.type || "SERVICES",
+        stage: "CONTACT",
+        probability: form.probability ? parseInt(form.probability) : 0,
+      } as Record<string, unknown>;
+
+      // Only add optional fields if they have values
+      if (form.description.trim()) payload.description = form.description.trim();
+      if (form.value) payload.value = parseFloat(form.value);
+      if (form.contactEmail.trim()) payload.contactEmail = form.contactEmail.trim();
+      if (form.assigneeId) payload.assigneeId = form.assigneeId;
+      if (form.expectedCloseDate) payload.expectedCloseDate = form.expectedCloseDate;
+      if (form.notes.trim()) payload.notes = form.notes.trim();
+
       const res = await fetch("/api/opportunities", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: form.title.trim() || form.contactName.trim(),
-          contactName: form.contactName.trim(),
-          contactPhone: form.contactPhone.trim(),
-          departmentId: form.departmentId,
-          type: form.type,
-          description: form.description.trim() || undefined,
-          value: form.value ? parseFloat(form.value) : undefined,
-          probability: parseInt(form.probability),
-          contactEmail: form.contactEmail.trim() || undefined,
-          assigneeId: form.assigneeId || undefined,
-          expectedCloseDate: form.expectedCloseDate || undefined,
-          notes: form.notes.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        data = { error: `خطأ من الخادم (${res.status})` };
+      }
 
       if (res.ok) {
         router.push("/dashboard/opportunities");
       } else {
-        setError(data.error || "حدث خطأ في إنشاء الفرصة");
+        setError(data.error || `خطأ (${res.status})`);
         setSaving(false);
       }
-    } catch {
-      setError("حدث خطأ في الاتصال بالخادم");
+    } catch (err) {
+      setError(`خطأ في الاتصال: ${err instanceof Error ? err.message : "غير معروف"}`);
       setSaving(false);
     }
   };

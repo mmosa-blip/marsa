@@ -101,7 +101,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(opportunity, { status: 201 });
   } catch (error) {
-    console.error("Error:", error);
-    return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
+    console.error("Opportunity CREATE error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: `خطأ في إنشاء الفرصة: ${msg}` }, { status: 500 });
   }
 }
