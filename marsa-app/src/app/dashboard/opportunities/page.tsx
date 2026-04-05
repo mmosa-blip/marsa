@@ -3,13 +3,24 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
+import {
   Target, TrendingUp, DollarSign, BarChart3,
-  ChevronLeft, ChevronRight, Plus, Filter,
-  Phone, User, Building2, Percent,
+  Plus, Phone, User, Building2, Trash2, X,
+  Loader2,
 } from "lucide-react";
-import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
-import { useLang } from "@/contexts/LanguageContext";
 
 // ─── Types ───────────────────────────────────────
 
@@ -23,15 +34,8 @@ interface Opportunity {
   contactName: string | null;
   contactPhone: string | null;
   assignee: { id: string; name: string } | null;
-  client: { id: string; name: string } | null;
   department: { id: string; name: string; color: string | null } | null;
   updatedAt: string;
-}
-
-interface StageStats {
-  stage: string;
-  count: number;
-  totalValue: number;
 }
 
 interface Stats {
@@ -41,17 +45,7 @@ interface Stats {
   conversionRate: number;
   totalValue: number;
   wonValue: number;
-  byStage: StageStats[];
-}
-
-interface Department {
-  id: string;
-  name: string;
-}
-
-interface UserOption {
-  id: string;
-  name: string;
+  byStage: { stage: string; count: number; totalValue: number }[];
 }
 
 // ─── Constants ───────────────────────────────────
@@ -62,559 +56,336 @@ const STAGES = [
   { key: "NEGOTIATION", label: "تفاوض", color: "#C9A84C" },
   { key: "CLOSED_WON", label: "فوز", color: "#059669" },
   { key: "CLOSED_LOST", label: "خسارة", color: "#DC2626" },
-] as const;
-
-const TYPE_OPTIONS = [
-  { value: "", label: "جميع الأنواع" },
-  { value: "NEW_BUSINESS", label: "عمل جديد" },
-  { value: "UPSELL", label: "بيع إضافي" },
-  { value: "RENEWAL", label: "تجديد" },
-  { value: "REFERRAL", label: "إحالة" },
 ];
 
-// ─── Component ───────────────────────────────────
+// ─── Draggable Card ──────────────────────────────
+
+function OpportunityCard({
+  opp,
+  onDelete,
+  isDragging,
+}: {
+  opp: Opportunity;
+  onDelete: (id: string) => void;
+  isDragging?: boolean;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: opp.id, data: { stage: opp.stage } });
+
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="rounded-xl p-4 mb-2.5 cursor-grab active:cursor-grabbing transition-all hover:shadow-lg"
+      dir="rtl"
+      role="button"
+      tabIndex={0}
+      onKeyDown={() => {}}
+      aria-label={opp.title}
+    >
+      <div style={{ backgroundColor: "#2A2542", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: 16 }}>
+        {/* Title + Delete */}
+        <div className="flex items-start justify-between mb-2">
+          <Link href={`/dashboard/opportunities/${opp.id}`} className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm font-bold truncate" style={{ color: "#FFFFFF" }}>{opp.title}</p>
+          </Link>
+          {confirmDelete ? (
+            <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+              <button onClick={() => { onDelete(opp.id); setConfirmDelete(false); }} className="px-2 py-0.5 rounded text-[10px] font-bold" style={{ backgroundColor: "#DC2626", color: "#fff" }}>
+                حذف
+              </button>
+              <button onClick={() => setConfirmDelete(false)} className="px-2 py-0.5 rounded text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                <X size={12} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="p-1 rounded-lg transition-colors shrink-0"
+              style={{ color: "rgba(255,255,255,0.2)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#DC2626"; e.currentTarget.style.backgroundColor = "rgba(220,38,38,0.1)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.2)"; e.currentTarget.style.backgroundColor = "transparent"; }}
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
+
+        {/* Contact */}
+        {opp.contactName && (
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <User size={11} style={{ color: "rgba(255,255,255,0.3)" }} />
+            <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.5)" }}>{opp.contactName}</span>
+          </div>
+        )}
+        {opp.contactPhone && (
+          <div className="flex items-center gap-1.5 mb-2">
+            <Phone size={11} style={{ color: "rgba(255,255,255,0.3)" }} />
+            <span className="text-[11px] tabular-nums" dir="ltr" style={{ color: "rgba(255,255,255,0.5)" }}>{opp.contactPhone}</span>
+          </div>
+        )}
+
+        {/* Value + Probability */}
+        <div className="flex items-center justify-between">
+          {opp.value ? (
+            <span className="text-xs font-bold" style={{ color: "#C9A84C" }}>
+              {opp.value.toLocaleString()} ر.س
+            </span>
+          ) : (
+            <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>—</span>
+          )}
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(201,168,76,0.15)", color: "#C9A84C" }}>
+            {opp.probability}%
+          </span>
+        </div>
+
+        {/* Department badge */}
+        {opp.department && (
+          <div className="mt-2">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium" style={{ backgroundColor: `${opp.department.color}20`, color: opp.department.color || "#5E5495" }}>
+              <Building2 size={9} />
+              {opp.department.name}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Droppable Column ────────────────────────────
+
+function StageColumn({
+  stage,
+  opportunities,
+  stageStats,
+  onDelete,
+  draggedId,
+}: {
+  stage: { key: string; label: string; color: string };
+  opportunities: Opportunity[];
+  stageStats: { count: number; totalValue: number } | undefined;
+  onDelete: (id: string) => void;
+  draggedId: string | null;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: stage.key });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="flex-shrink-0 w-[280px] lg:w-auto lg:flex-1 flex flex-col rounded-2xl transition-all"
+      style={{
+        backgroundColor: isOver ? "rgba(201,168,76,0.06)" : "rgba(255,255,255,0.02)",
+        border: isOver ? "2px dashed rgba(201,168,76,0.4)" : "2px solid transparent",
+        minHeight: 400,
+      }}
+    >
+      {/* Column header */}
+      <div className="px-4 pt-4 pb-2" dir="rtl">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stage.color }} />
+            <span className="text-sm font-bold" style={{ color: "#FFFFFF" }}>{stage.label}</span>
+          </div>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: `${stage.color}25`, color: stage.color }}>
+            {stageStats?.count || 0}
+          </span>
+        </div>
+        {stageStats && stageStats.totalValue > 0 && (
+          <p className="text-[10px] tabular-nums" style={{ color: "rgba(255,255,255,0.3)" }}>
+            {stageStats.totalValue.toLocaleString()} ر.س
+          </p>
+        )}
+      </div>
+
+      {/* Cards */}
+      <div className="flex-1 px-2 pb-3 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}>
+        {opportunities.map((opp) => (
+          <OpportunityCard key={opp.id} opp={opp} onDelete={onDelete} isDragging={draggedId === opp.id} />
+        ))}
+        {opportunities.length === 0 && (
+          <div className="text-center py-8">
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.15)" }}>لا توجد فرص</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ───────────────────────────────────
 
 export default function OpportunitiesPage() {
-  const { isRTL } = useLang();
-
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [movingId, setMovingId] = useState<string | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
 
-  // Filters
-  const [typeFilter, setTypeFilter] = useState("");
-  const [deptFilter, setDeptFilter] = useState("");
-  const [assigneeFilter, setAssigneeFilter] = useState("");
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
 
-  useEffect(() => {
-    document.title = "إدارة الفرص | مرسى";
+  const fetchData = useCallback(() => {
+    Promise.all([
+      fetch("/api/opportunities").then((r) => r.json()),
+      fetch("/api/opportunities/stats").then((r) => r.json()),
+    ]).then(([opps, st]) => {
+      if (Array.isArray(opps)) setOpportunities(opps);
+      if (st.total !== undefined) setStats(st);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, []);
 
-  // Fetch filter options on mount
-  useEffect(() => {
-    fetch("/api/departments")
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setDepartments(d); })
-      .catch(() => {});
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-    fetch("/api/users/search?roles=ADMIN,MANAGER,EXECUTOR")
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setUsers(d); })
-      .catch(() => {});
-  }, []);
+  const handleDragStart = (event: DragStartEvent) => {
+    setDraggedId(event.active.id as string);
+  };
 
-  // Fetch stats
-  useEffect(() => {
-    fetch("/api/opportunities/stats")
-      .then((r) => r.json())
-      .then((d) => setStats(d))
-      .catch(() => {});
-  }, [opportunities]);
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setDraggedId(null);
+    const { active, over } = event;
+    if (!over) return;
 
-  // Fetch opportunities with filters
-  const fetchOpportunities = useCallback(() => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (typeFilter) params.set("type", typeFilter);
-    if (deptFilter) params.set("departmentId", deptFilter);
-    if (assigneeFilter) params.set("assigneeId", assigneeFilter);
+    const oppId = active.id as string;
+    const newStage = over.id as string;
 
-    fetch(`/api/opportunities?${params}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d)) setOpportunities(d);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [typeFilter, deptFilter, assigneeFilter]);
+    // Find the opportunity
+    const opp = opportunities.find((o) => o.id === oppId);
+    if (!opp || opp.stage === newStage) return;
 
-  useEffect(() => {
-    fetchOpportunities();
-  }, [fetchOpportunities]);
-
-  // Move opportunity to a different stage
-  const moveStage = async (opp: Opportunity, direction: "prev" | "next") => {
-    const stageKeys = STAGES.map((s) => s.key);
-    const idx = stageKeys.indexOf(opp.stage as typeof stageKeys[number]);
-    if (idx === -1) return;
-
-    const newIdx = direction === "next" ? idx + 1 : idx - 1;
-    if (newIdx < 0 || newIdx >= stageKeys.length) return;
-
-    const newStage = stageKeys[newIdx];
-    setMovingId(opp.id);
+    // Optimistic update
+    setOpportunities((prev) => prev.map((o) => o.id === oppId ? { ...o, stage: newStage } : o));
 
     try {
-      const res = await fetch(`/api/opportunities/${opp.id}`, {
+      const res = await fetch(`/api/opportunities/${oppId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage: newStage }),
       });
-      if (res.ok) {
-        setOpportunities((prev) =>
-          prev.map((o) => (o.id === opp.id ? { ...o, stage: newStage } : o))
-        );
+      if (!res.ok) {
+        // Revert on failure
+        setOpportunities((prev) => prev.map((o) => o.id === oppId ? { ...o, stage: opp.stage } : o));
+      } else {
+        // Refresh stats
+        fetch("/api/opportunities/stats").then((r) => r.json()).then((st) => { if (st.total !== undefined) setStats(st); });
       }
     } catch {
-      // silently fail
-    } finally {
-      setMovingId(null);
+      setOpportunities((prev) => prev.map((o) => o.id === oppId ? { ...o, stage: opp.stage } : o));
     }
   };
 
-  // Group opportunities by stage
-  const grouped = STAGES.map((stage) => ({
-    ...stage,
-    items: opportunities.filter((o) => o.stage === stage.key),
-    totalValue: opportunities
-      .filter((o) => o.stage === stage.key)
-      .reduce((sum, o) => sum + (o.value || 0), 0),
-  }));
+  const handleDelete = async (id: string) => {
+    // Optimistic remove
+    setOpportunities((prev) => prev.filter((o) => o.id !== id));
+    try {
+      await fetch(`/api/opportunities/${id}`, { method: "DELETE" });
+      fetch("/api/opportunities/stats").then((r) => r.json()).then((st) => { if (st.total !== undefined) setStats(st); });
+    } catch {
+      fetchData(); // Revert by refetching
+    }
+  };
 
-  const formatValue = (v: number) => v.toLocaleString("en-US");
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <Loader2 size={40} className="animate-spin" style={{ color: "#C9A84C" }} />
+      </div>
+    );
+  }
 
-  // ─── Stats cards ───────────────────────────────
-
-  const statCards = stats
-    ? [
-        {
-          label: "إجمالي الفرص",
-          value: stats.total.toString(),
-          icon: Target,
-          color: "#1C1B2E",
-          bg: "rgba(27,42,74,0.06)",
-          isCurrency: false,
-        },
-        {
-          label: "القيمة الإجمالية",
-          value: formatValue(stats.totalValue),
-          icon: DollarSign,
-          color: "#2563EB",
-          bg: "rgba(37,99,235,0.08)",
-          isCurrency: true,
-        },
-        {
-          label: "قيمة المكتسبة",
-          value: formatValue(stats.wonValue),
-          icon: TrendingUp,
-          color: "#059669",
-          bg: "rgba(5,150,105,0.08)",
-          isCurrency: true,
-        },
-        {
-          label: "معدل التحويل",
-          value: `${stats.conversionRate}%`,
-          icon: BarChart3,
-          color: "#C9A84C",
-          bg: "rgba(201,168,76,0.1)",
-          isCurrency: false,
-        },
-      ]
-    : [];
-
-  // ─── Render ────────────────────────────────────
+  const draggedOpp = draggedId ? opportunities.find((o) => o.id === draggedId) : null;
 
   return (
-    <div className="p-8" dir="rtl">
+    <div className="p-6" style={{ backgroundColor: "#1C1B2E", minHeight: "100vh" }} dir="rtl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>
-            إدارة الفرص
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "#2D3748", opacity: 0.6 }}>
-            متابعة وإدارة فرص المبيعات عبر مراحل التأهيل
-          </p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "rgba(201,168,76,0.15)" }}>
+            <Target size={22} style={{ color: "#C9A84C" }} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold" style={{ color: "#FFFFFF" }}>إدارة الفرص</h1>
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>اسحب البطاقات بين المراحل</p>
+          </div>
         </div>
-        <MarsaButton
-          href="/dashboard/opportunities/new"
-          variant="primary"
-          size="lg"
-          icon={<Plus size={18} />}
-        >
+        <MarsaButton href="/dashboard/opportunities/new" variant="gold" size="md" icon={<Plus size={16} />}>
           فرصة جديدة
         </MarsaButton>
       </div>
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {statCards.map((s, i) => (
-            <div
-              key={i}
-              className="bg-white rounded-2xl p-5 transition-all hover:-translate-y-0.5"
-              style={{ border: "1px solid #E2E0D8" }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span
-                  className="text-xs font-medium"
-                  style={{ color: "#2D3748", opacity: 0.6 }}
-                >
-                  {s.label}
-                </span>
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{ backgroundColor: s.bg }}
-                >
-                  <s.icon size={20} style={{ color: s.color }} />
-                </div>
-              </div>
-              <p className="text-2xl font-bold" style={{ color: s.color }}>
-                {s.value}
-                {s.isCurrency && (
-                  <span className="mr-1">
-                    <SarSymbol size={12} />
-                  </span>
-                )}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Filters */}
-      <div
-        className="flex flex-wrap items-center gap-3 mb-6 p-4 rounded-2xl bg-white"
-        style={{ border: "1px solid #E2E0D8" }}
-      >
-        <div
-          className="flex items-center gap-2 text-sm font-medium"
-          style={{ color: "#6B7280" }}
-        >
-          <Filter size={16} />
-          <span>تصفية</span>
-        </div>
-
-        {/* Type filter */}
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="rounded-xl px-3 py-2 text-sm outline-none"
-          style={{
-            border: "1px solid #E2E0D8",
-            color: "#1C1B2E",
-            backgroundColor: "#FFFFFF",
-            minWidth: 140,
-          }}
-        >
-          {TYPE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-
-        {/* Department filter */}
-        <select
-          value={deptFilter}
-          onChange={(e) => setDeptFilter(e.target.value)}
-          className="rounded-xl px-3 py-2 text-sm outline-none"
-          style={{
-            border: "1px solid #E2E0D8",
-            color: "#1C1B2E",
-            backgroundColor: "#FFFFFF",
-            minWidth: 140,
-          }}
-        >
-          <option value="">جميع الأقسام</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-
-        {/* Assignee filter */}
-        <select
-          value={assigneeFilter}
-          onChange={(e) => setAssigneeFilter(e.target.value)}
-          className="rounded-xl px-3 py-2 text-sm outline-none"
-          style={{
-            border: "1px solid #E2E0D8",
-            color: "#1C1B2E",
-            backgroundColor: "#FFFFFF",
-            minWidth: 140,
-          }}
-        >
-          <option value="">جميع المسؤولين</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
-
-        {(typeFilter || deptFilter || assigneeFilter) && (
-          <MarsaButton
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setTypeFilter("");
-              setDeptFilter("");
-              setAssigneeFilter("");
-            }}
-          >
-            مسح الفلاتر
-          </MarsaButton>
-        )}
-      </div>
-
-      {/* Kanban Board */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div
-            className="w-10 h-10 rounded-full border-4 border-t-transparent animate-spin"
-            style={{ borderColor: "#E2E0D8", borderTopColor: "transparent" }}
-          />
-        </div>
-      ) : (
-        <div
-          className="flex gap-4 pb-4"
-          style={{ overflowX: "auto", minHeight: 500 }}
-        >
-          {grouped.map((col) => {
-            const stageIdx = STAGES.findIndex((s) => s.key === col.key);
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {[
+            { label: "الإجمالي", value: stats.total, icon: Target, color: "#5E5495" },
+            { label: "القيمة الكلية", value: `${(stats.totalValue / 1000).toFixed(0)}K`, icon: DollarSign, color: "#C9A84C" },
+            { label: "الفوز", value: stats.won, icon: TrendingUp, color: "#059669" },
+            { label: "نسبة التحويل", value: `${stats.conversionRate}%`, icon: BarChart3, color: "#2563EB" },
+          ].map((s) => {
+            const Icon = s.icon;
             return (
-              <div
-                key={col.key}
-                className="flex-shrink-0 flex flex-col"
-                style={{ width: 300, minWidth: 280 }}
-              >
-                {/* Column header */}
-                <div
-                  className="rounded-t-2xl p-4"
-                  style={{
-                    backgroundColor: col.color + "0F",
-                    borderTop: `3px solid ${col.color}`,
-                  }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: col.color }}
-                      />
-                      <span
-                        className="text-sm font-bold"
-                        style={{ color: col.color }}
-                      >
-                        {col.label}
-                      </span>
-                    </div>
-                    <span
-                      className="text-xs font-bold px-2 py-0.5 rounded-full"
-                      style={{
-                        backgroundColor: col.color + "20",
-                        color: col.color,
-                      }}
-                    >
-                      {col.items.length}
-                    </span>
-                  </div>
-                  <p className="text-xs" style={{ color: "#6B7280" }}>
-                    {formatValue(col.totalValue)}{" "}
-                    <SarSymbol size={10} />
-                  </p>
-                </div>
-
-                {/* Column body */}
-                <div
-                  className="flex-1 rounded-b-2xl p-3 flex flex-col gap-3"
-                  style={{
-                    backgroundColor: "#F9FAFB",
-                    border: "1px solid #E2E0D8",
-                    borderTop: "none",
-                    overflowY: "auto",
-                    maxHeight: 600,
-                  }}
-                >
-                  {col.items.length === 0 && (
-                    <div
-                      className="flex items-center justify-center py-10 text-xs"
-                      style={{ color: "#94A3B8" }}
-                    >
-                      لا توجد فرص
-                    </div>
-                  )}
-
-                  {col.items.map((opp) => (
-                    <div
-                      key={opp.id}
-                      className="rounded-2xl p-4 transition-all hover:shadow-md"
-                      style={{
-                        backgroundColor: "#FFFFFF",
-                        border: "1px solid #E2E0D8",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {/* Card top — clickable area */}
-                      <Link
-                        href={`/dashboard/opportunities/${opp.id}`}
-                        style={{ textDecoration: "none", color: "inherit" }}
-                      >
-                        <h3
-                          className="text-sm font-bold mb-2 line-clamp-2"
-                          style={{ color: "#1C1B2E" }}
-                        >
-                          {opp.title}
-                        </h3>
-
-                        {/* Contact name */}
-                        {opp.contactName && (
-                          <div
-                            className="flex items-center gap-1.5 mb-1.5 text-xs"
-                            style={{ color: "#6B7280" }}
-                          >
-                            <Phone size={12} />
-                            <span>{opp.contactName}</span>
-                          </div>
-                        )}
-
-                        {/* Value */}
-                        <div
-                          className="flex items-center gap-1.5 mb-1.5 text-xs font-bold"
-                          style={{ color: "#1C1B2E" }}
-                        >
-                          <DollarSign size={12} />
-                          <span>
-                            {opp.value != null
-                              ? formatValue(opp.value)
-                              : "—"}
-                          </span>
-                          {opp.value != null && <SarSymbol size={10} />}
-                        </div>
-
-                        {/* Probability */}
-                        <div className="mb-2">
-                          <div
-                            className="flex items-center justify-between text-xs mb-1"
-                            style={{ color: "#6B7280" }}
-                          >
-                            <div className="flex items-center gap-1">
-                              <Percent size={11} />
-                              <span>احتمالية</span>
-                            </div>
-                            <span className="font-bold">{opp.probability}%</span>
-                          </div>
-                          <div
-                            className="w-full h-1.5 rounded-full"
-                            style={{ backgroundColor: "#E2E0D8" }}
-                          >
-                            <div
-                              className="h-full rounded-full transition-all"
-                              style={{
-                                width: `${opp.probability}%`,
-                                backgroundColor: col.color,
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Department badge */}
-                        {opp.department && (
-                          <span
-                            className="inline-block text-xs px-2 py-0.5 rounded-full mb-2"
-                            style={{
-                              backgroundColor:
-                                (opp.department.color || "#6B7280") + "15",
-                              color: opp.department.color || "#6B7280",
-                              fontWeight: 600,
-                            }}
-                          >
-                            {opp.department.name}
-                          </span>
-                        )}
-
-                        {/* Assignee */}
-                        {opp.assignee && (
-                          <div
-                            className="flex items-center gap-1.5 text-xs"
-                            style={{ color: "#6B7280" }}
-                          >
-                            <User size={12} />
-                            <span>{opp.assignee.name}</span>
-                          </div>
-                        )}
-                      </Link>
-
-                      {/* Stage move buttons */}
-                      <div
-                        className="flex items-center justify-between mt-3 pt-3"
-                        style={{ borderTop: "1px solid #F1F0EC" }}
-                      >
-                        <button
-                          onClick={() => moveStage(opp, isRTL ? "next" : "prev")}
-                          disabled={
-                            movingId === opp.id || stageIdx === 0
-                          }
-                          className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
-                          style={{
-                            backgroundColor:
-                              stageIdx === 0
-                                ? "#F9FAFB"
-                                : "#F1F0EC",
-                            color:
-                              stageIdx === 0
-                                ? "#D1D5DB"
-                                : "#6B7280",
-                            border: "none",
-                            cursor:
-                              stageIdx === 0
-                                ? "not-allowed"
-                                : "pointer",
-                            opacity: movingId === opp.id ? 0.5 : 1,
-                          }}
-                          title="المرحلة السابقة"
-                        >
-                          <ChevronRight size={16} />
-                        </button>
-
-                        <span
-                          className="text-xs"
-                          style={{ color: "#94A3B8" }}
-                        >
-                          {col.label}
-                        </span>
-
-                        <button
-                          onClick={() => moveStage(opp, isRTL ? "prev" : "next")}
-                          disabled={
-                            movingId === opp.id ||
-                            stageIdx === STAGES.length - 1
-                          }
-                          className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
-                          style={{
-                            backgroundColor:
-                              stageIdx === STAGES.length - 1
-                                ? "#F9FAFB"
-                                : "#F1F0EC",
-                            color:
-                              stageIdx === STAGES.length - 1
-                                ? "#D1D5DB"
-                                : "#6B7280",
-                            border: "none",
-                            cursor:
-                              stageIdx === STAGES.length - 1
-                                ? "not-allowed"
-                                : "pointer",
-                            opacity: movingId === opp.id ? 0.5 : 1,
-                          }}
-                          title="المرحلة التالية"
-                        >
-                          <ChevronLeft size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div key={s.label} className="rounded-xl p-4" style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                <Icon size={16} className="mb-2" style={{ color: s.color }} />
+                <p className="text-lg font-bold" style={{ color: "#FFFFFF" }}>{s.value}</p>
+                <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>{s.label}</p>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Kanban Board */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex gap-3 overflow-x-auto pb-4" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}>
+          {STAGES.map((stage) => {
+            const stageOpps = opportunities.filter((o) => o.stage === stage.key);
+            const stageStats = stats?.byStage.find((s) => s.stage === stage.key);
+            return (
+              <StageColumn
+                key={stage.key}
+                stage={stage}
+                opportunities={stageOpps}
+                stageStats={stageStats}
+                onDelete={handleDelete}
+                draggedId={draggedId}
+              />
+            );
+          })}
+        </div>
+
+        {/* Drag overlay */}
+        <DragOverlay>
+          {draggedOpp && (
+            <div className="rounded-xl p-4 w-[260px]" style={{ backgroundColor: "#2A2542", border: "2px solid #C9A84C", boxShadow: "0 20px 40px rgba(0,0,0,0.5)", opacity: 0.95 }}>
+              <p className="text-sm font-bold truncate" style={{ color: "#FFFFFF" }}>{draggedOpp.title}</p>
+              {draggedOpp.value && <p className="text-xs mt-1" style={{ color: "#C9A84C" }}>{draggedOpp.value.toLocaleString()} ر.س</p>}
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }
