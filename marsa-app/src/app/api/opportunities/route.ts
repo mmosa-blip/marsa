@@ -7,7 +7,8 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+    // All staff can view opportunities (not just admin/manager)
+    if (session.user.role === "CLIENT") {
       return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
     }
 
