@@ -35,7 +35,6 @@ import {
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
-import ContractPromptDialog from "@/components/ContractPromptDialog";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -187,9 +186,37 @@ export default function NewProjectPage() {
   const [clientContracts, setClientContracts] = useState<ContractOption[]>([]);
   const [loadingContracts, setLoadingContracts] = useState(false);
   const [selectedContractId, setSelectedContractId] = useState("");
-  const [showContractPrompt, setShowContractPrompt] = useState(false);
   const [contractAmount, setContractAmount] = useState<number | null>(null);
   const [contractInstallments, setContractInstallments] = useState<ContractInstallment[]>([]);
+
+  // ─── Inline contract form (created together with the project) ───
+  // mode: "" = no choice yet, "existing" = upload signed PDF, "new" = create new
+  const [contractMode, setContractMode] = useState<"" | "existing" | "new">("");
+  const [contractForm, setContractForm] = useState({
+    contractNumber: "",
+    startDate: "",
+    endDate: "",
+    durationDays: "",
+    contractValue: "",
+    uploadedFileUrl: "",
+  });
+  const [contractError, setContractError] = useState("");
+  const handleContractFormChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const next = { ...contractForm, [e.target.name]: e.target.value };
+    if (
+      (e.target.name === "startDate" || e.target.name === "endDate") &&
+      next.startDate &&
+      next.endDate
+    ) {
+      const s = new Date(next.startDate).getTime();
+      const ed = new Date(next.endDate).getTime();
+      const days = Math.ceil((ed - s) / (1000 * 60 * 60 * 24));
+      if (days > 0) next.durationDays = String(days);
+    }
+    setContractForm(next);
+  };
 
   // ─── Step 2 state ───
   const [categories, setCategories] = useState<Category[]>([]);
@@ -316,6 +343,16 @@ export default function NewProjectPage() {
     setSelectedContractId("");
     setContractAmount(null);
     setContractInstallments([]);
+    setContractMode("");
+    setContractForm({
+      contractNumber: "",
+      startDate: "",
+      endDate: "",
+      durationDays: "",
+      contractValue: "",
+      uploadedFileUrl: "",
+    });
+    setContractError("");
   };
 
   // ─── Contract selection handler ───
@@ -585,13 +622,47 @@ export default function NewProjectPage() {
 
   // ─── Submit ───
   const handleSubmit = async () => {
-    // Every project must have a contract — prompt if none selected
-    if (!selectedContractId && selectedClient) {
-      setShowContractPrompt(true);
-      return;
-    }
     setSubmitting(true);
+    setContractError("");
     try {
+      // Step 0 — if no existing contract picked, create one inline now
+      let contractIdToUse = selectedContractId;
+      if (!contractIdToUse && contractMode !== "" && selectedClient) {
+        if (!contractForm.startDate || !contractForm.endDate) {
+          setContractError("تواريخ العقد مطلوبة");
+          setSubmitting(false);
+          return;
+        }
+        if (contractMode === "existing" && !contractForm.uploadedFileUrl.trim()) {
+          setContractError("رابط ملف العقد مطلوب");
+          setSubmitting(false);
+          return;
+        }
+        const cRes = await fetch("/api/contracts/standalone", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: selectedClient.id,
+            startDate: contractForm.startDate,
+            endDate: contractForm.endDate,
+            durationDays: contractForm.durationDays ? parseInt(contractForm.durationDays) : undefined,
+            contractValue: contractForm.contractValue ? parseFloat(contractForm.contractValue) : undefined,
+            contractNumber: contractForm.contractNumber ? parseInt(contractForm.contractNumber) : undefined,
+            uploadedFileUrl: contractForm.uploadedFileUrl || undefined,
+          }),
+        });
+        if (!cRes.ok) {
+          const err = await cRes.json().catch(() => ({}));
+          setContractError(err.error || "تعذر إنشاء العقد");
+          setSubmitting(false);
+          return;
+        }
+        const cData = await cRes.json();
+        contractIdToUse = cData.id;
+        setSelectedContractId(cData.id);
+        if (cData.contractValue) setContractAmount(cData.contractValue);
+      }
+
       const useTemplateGenerate = selectedTemplateId && templateApplied;
 
       let projectId: string | null = null;
@@ -605,7 +676,7 @@ export default function NewProjectPage() {
             clientId: selectedClient!.id,
             name: projectName,
             departmentId: departmentId || undefined,
-            contractId: selectedContractId || undefined,
+            contractId: contractIdToUse || undefined,
             contractStartDate: contractStartDate || undefined,
             contractDurationDays: contractDurationDays ? parseInt(contractDurationDays) : undefined,
             contractEndDate: contractEndDate || undefined,
@@ -631,7 +702,7 @@ export default function NewProjectPage() {
             workflowType,
             totalPrice: finalTotal,
             departmentId: departmentId || undefined,
-            contractId: selectedContractId || undefined,
+            contractId: contractIdToUse || undefined,
             contractStartDate: contractStartDate || undefined,
             contractDurationDays: contractDurationDays ? parseInt(contractDurationDays) : undefined,
             contractEndDate: contractEndDate || undefined,
@@ -714,7 +785,15 @@ export default function NewProjectPage() {
   };
 
   // ─── Validation ───
-  const step1Valid = !!selectedClient && !!projectName.trim() && !!selectedContractId;
+  // Contract is valid when EITHER an existing signed contract is picked,
+  // OR the user has chosen a mode and filled the required fields for that mode.
+  const inlineContractValid =
+    contractMode !== "" &&
+    !!contractForm.startDate &&
+    !!contractForm.endDate &&
+    (contractMode === "new" || !!contractForm.uploadedFileUrl.trim());
+  const contractValid = !!selectedContractId || inlineContractValid;
+  const step1Valid = !!selectedClient && !!projectName.trim() && contractValid;
   const step2Valid = selectedServices.length >= 2;
   const step3Valid = !saveAsTemplate || templateName.trim().length > 0;
 
@@ -924,39 +1003,195 @@ export default function NewProjectPage() {
             )}
           </div>
 
-          {/* Contract Selection - shown after client is selected */}
+          {/* Contract — created together with the project */}
           {selectedClient && (
             <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
-              <div className="flex items-center gap-2 mb-5">
+              <div className="flex items-center gap-2 mb-2">
                 <FileText size={20} style={{ color: "#C9A84C" }} />
-                <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>
-                  {t.projects.linkedContract} *
-                </h2>
+                <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>عقد المشروع *</h2>
               </div>
+              <p className="text-xs mb-5" style={{ color: "#6B7280" }}>
+                سيتم إنشاء العقد وربطه بالمشروع تلقائياً عند الحفظ
+              </p>
 
-              {loadingContracts ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 size={20} className="animate-spin" style={{ color: "#C9A84C" }} />
+              {/* If user already picked an existing signed contract from the list, show it */}
+              {selectedContractId && clientContracts.find((c) => c.id === selectedContractId) && (
+                <div className="mb-4 p-3 rounded-xl flex items-center justify-between" style={{ backgroundColor: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)" }}>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={16} style={{ color: "#059669" }} />
+                    <span className="text-sm font-semibold" style={{ color: "#059669" }}>
+                      عقد موقع مرتبط
+                      {contractAmount ? ` — ${contractAmount.toLocaleString("en-US")} ر.س` : ""}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedContractId(""); setContractAmount(null); setContractInstallments([]); }}
+                    className="text-xs"
+                    style={{ color: "#6B7280" }}
+                  >
+                    تغيير
+                  </button>
                 </div>
-              ) : clientContracts.length === 0 ? (
-                <div className="text-center py-6">
-                  <FileText size={32} className="mx-auto mb-2 text-gray-300" />
-                  <p className="text-sm text-gray-400">
-                    لا توجد عقود موقعة لهذا العميل
-                  </p>
-                  <p className="text-xs text-gray-300 mt-1">
-                    يجب وجود عقد موقع لإنشاء المشروع
-                  </p>
+              )}
+
+              {/* Mode selector */}
+              {!selectedContractId && contractMode === "" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setContractMode("existing")}
+                    className="p-4 rounded-xl text-right transition-all hover:shadow-md"
+                    style={{ border: "2px solid #E2E0D8" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C9A84C"; e.currentTarget.style.backgroundColor = "rgba(201,168,76,0.04)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E2E0D8"; e.currentTarget.style.backgroundColor = "transparent"; }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "rgba(5,150,105,0.1)" }}>
+                        <FileText size={20} style={{ color: "#059669" }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>رفع عقد قائم</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: "#6B7280" }}>ارفع PDF + حدد التواريخ</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setContractMode("new")}
+                    className="p-4 rounded-xl text-right transition-all hover:shadow-md"
+                    style={{ border: "2px solid #E2E0D8" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C9A84C"; e.currentTarget.style.backgroundColor = "rgba(201,168,76,0.04)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E2E0D8"; e.currentTarget.style.backgroundColor = "transparent"; }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "rgba(94,84,149,0.1)" }}>
+                        <Plus size={20} style={{ color: "#5E5495" }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>إنشاء عقد جديد</p>
+                        <p className="text-[11px] mt-0.5" style={{ color: "#6B7280" }}>رقم + تواريخ + قيمة</p>
+                      </div>
+                    </div>
+                  </button>
                 </div>
-              ) : (
+              )}
+
+              {/* Inline form */}
+              {!selectedContractId && contractMode !== "" && (
                 <>
+                  <div className="mb-4 flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: "rgba(201,168,76,0.06)" }}>
+                    <p className="text-xs font-semibold" style={{ color: "#C9A84C" }}>
+                      {contractMode === "existing" ? "رفع عقد قائم" : "إنشاء عقد جديد"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { setContractMode(""); setContractError(""); }}
+                      className="text-xs"
+                      style={{ color: "#6B7280" }}
+                    >
+                      تغيير الخيار
+                    </button>
+                  </div>
+
+                  {contractError && (
+                    <div className="mb-3 p-2.5 rounded-lg text-xs" style={{ backgroundColor: "rgba(220,38,38,0.06)", color: "#DC2626" }}>
+                      {contractError}
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    {contractMode === "new" && (
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>رقم العقد</label>
+                        <input
+                          type="number" name="contractNumber" value={contractForm.contractNumber}
+                          onChange={handleContractFormChange}
+                          placeholder="مثال: 1001" dir="ltr"
+                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ border: "1px solid #E2E0D8" }}
+                        />
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>تاريخ البداية *</label>
+                        <input
+                          type="date" name="startDate" value={contractForm.startDate}
+                          onChange={handleContractFormChange}
+                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ border: "1px solid #E2E0D8" }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>تاريخ الانتهاء *</label>
+                        <input
+                          type="date" name="endDate" value={contractForm.endDate}
+                          onChange={handleContractFormChange}
+                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ border: "1px solid #E2E0D8" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>المدة (يوم)</label>
+                      <input
+                        type="number" name="durationDays" value={contractForm.durationDays}
+                        onChange={handleContractFormChange}
+                        placeholder="يُحسب تلقائياً من التواريخ" dir="ltr"
+                        className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                        style={{ border: "1px solid #E2E0D8" }}
+                      />
+                    </div>
+
+                    {contractMode === "new" && (
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>قيمة العقد (ر.س)</label>
+                        <input
+                          type="number" name="contractValue" value={contractForm.contractValue}
+                          onChange={handleContractFormChange}
+                          placeholder="0.00" dir="ltr"
+                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ border: "1px solid #E2E0D8" }}
+                        />
+                      </div>
+                    )}
+
+                    {contractMode === "existing" && (
+                      <div>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>رابط ملف العقد (PDF) *</label>
+                        <input
+                          type="url" name="uploadedFileUrl" value={contractForm.uploadedFileUrl}
+                          onChange={handleContractFormChange}
+                          placeholder="https://..." dir="ltr"
+                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ border: "1px solid #E2E0D8" }}
+                        />
+                        <p className="text-[10px] mt-1" style={{ color: "#9CA3AF" }}>
+                          ارفع الملف لـ UploadThing أولاً ثم الصق الرابط
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Existing signed contracts shortcut (only if any exist) */}
+              {!selectedContractId && contractMode === "" && clientContracts.length > 0 && (
+                <div className="mt-4 pt-4" style={{ borderTop: "1px dashed #E2E0D8" }}>
+                  <p className="text-xs mb-2" style={{ color: "#6B7280" }}>
+                    أو اختر عقداً موقعاً موجوداً مسبقاً للعميل:
+                  </p>
                   <select
                     value={selectedContractId}
                     onChange={(e) => handleContractSelect(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border text-sm outline-none bg-white transition-all"
-                    style={{ borderColor: selectedContractId ? "#C9A84C" : "#E8E6F0", color: "#1C1B2E" }}
+                    className="w-full px-4 py-2.5 rounded-xl border text-sm outline-none bg-white"
+                    style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}
                   >
-                    <option value="">{t.projects.selectContract}...</option>
+                    <option value="">— اختر عقداً موقعاً —</option>
                     {clientContracts.map((c) => {
                       const amount = getContractDisplayAmount(c);
                       const num = c.contractNumber ? `#${c.contractNumber}` : "";
@@ -967,24 +1202,14 @@ export default function NewProjectPage() {
                       );
                     })}
                   </select>
-                  {selectedContractId && contractAmount && (
-                    <div
-                      className="mt-3 flex items-center gap-2 px-4 py-3 rounded-xl"
-                      style={{ backgroundColor: "rgba(5, 150, 105, 0.06)", border: "1px solid rgba(5, 150, 105, 0.2)" }}
-                    >
-                      <DollarSign size={16} style={{ color: "#059669" }} />
-                      <span className="text-sm font-semibold" style={{ color: "#059669" }}>
-                        قيمة العقد: {contractAmount.toLocaleString("en-US")} <SarSymbol size={14} />
-                      </span>
-                    </div>
-                  )}
-                  {!selectedContractId && (
-                    <p className="text-xs mt-2 flex items-center gap-1" style={{ color: "#DC2626" }}>
-                      <AlertCircle size={14} />
-                      يجب اختيار عقد موقع للمتابعة
-                    </p>
-                  )}
-                </>
+                </div>
+              )}
+
+              {loadingContracts && (
+                <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: "#9CA3AF" }}>
+                  <Loader2 size={12} className="animate-spin" />
+                  جاري التحقق من العقود الموجودة...
+                </div>
               )}
             </div>
           )}
@@ -1975,19 +2200,6 @@ export default function NewProjectPage() {
         </div>
       </div>
 
-      {/* Contract prompt dialog — required for every project */}
-      {showContractPrompt && selectedClient && (
-        <ContractPromptDialog
-          clientId={selectedClient.id}
-          onSuccess={(contractId) => {
-            setSelectedContractId(contractId);
-            setShowContractPrompt(false);
-            // Auto-submit after contract is created
-            setTimeout(() => handleSubmit(), 100);
-          }}
-          onCancel={() => setShowContractPrompt(false)}
-        />
-      )}
     </div>
   );
 }
