@@ -51,6 +51,8 @@ export const en = {
     departments: "Departments",
     recycleBin: "Recycle Bin",
     opportunities: "Opportunities",
+    documentTypes: "Document Types",
+    documentGroups: "Document Groups",
   },
 
   groups: {

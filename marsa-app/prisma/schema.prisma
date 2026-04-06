@@ -391,6 +391,8 @@ model User {
   clientOpportunities   Opportunity[]       @relation("OpportunityClient")
   clientDeptPayments    DepartmentPayment[] @relation("ClientDeptPayments")
   createdDeptPayments   DepartmentPayment[] @relation("CreatedDeptPayments")
+  uploadedDocs          ProjectDocument[]   @relation("DocUploader")
+  reviewedDocs          ProjectDocument[]   @relation("DocReviewer")
 
   @@map("users")
 }
@@ -505,6 +507,7 @@ model Project {
   contracts          Contract[]
   deptPayments       DepartmentPayment[] @relation("ProjectDeptPayments")
   paymentSchedule    ProjectPaymentSchedule[]
+  documents          ProjectDocument[]
 
   @@map("projects")
 }
@@ -1624,6 +1627,8 @@ model Department {
   employees        UserDepartment[]  @relation("DepartmentUsers")
   opportunities    Opportunity[]
   deptPayments     DepartmentPayment[] @relation("DepartmentPayments")
+  docTypes         DocType[]         @relation("DepartmentDocTypes")
+  documentGroups   DocumentGroup[]   @relation("DepartmentDocGroups")
 
   @@map("departments")
 }
@@ -1778,4 +1783,105 @@ model DeptPaymentInstallment {
   payment   DepartmentPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@map("dept_payment_installments")
+}
+
+// ═══ Document Management System (Investment Department) ═══
+
+enum DocTypeKind {
+  FILE
+  TEXT
+}
+
+enum DocUploader {
+  CLIENT
+  EXECUTOR
+  BOTH
+}
+
+enum DocVisibility {
+  ALL
+  EXECUTORS_AND_ADMIN
+  ADMIN_ONLY
+  CLIENT_AND_ADMIN
+}
+
+enum DocStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  RE_UPLOAD_REQUIRED
+}
+
+model DocType {
+  id             String        @id @default(cuid())
+  name           String
+  description    String?       @db.Text
+  kind           DocTypeKind   @default(FILE)
+  sampleImageUrl String?       @db.Text
+  instructions   String?       @db.Text
+  fields         String?       @db.Text
+  isConfidential Boolean       @default(false)
+  whoCanUpload   DocUploader   @default(BOTH)
+  whoCanView     DocVisibility @default(EXECUTORS_AND_ADMIN)
+  isRequired     Boolean       @default(false)
+  displayOrder   Int           @default(0)
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  departmentId String
+  department   Department @relation("DepartmentDocTypes", fields: [departmentId], references: [id])
+
+  groupId String?
+  group   DocumentGroup? @relation(fields: [groupId], references: [id])
+
+  projectDocuments ProjectDocument[]
+
+  @@map("document_types")
+}
+
+model DocumentGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  displayOrder Int     @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  departmentId String
+  department   Department @relation("DepartmentDocGroups", fields: [departmentId], references: [id])
+
+  docTypes DocType[]
+
+  @@map("document_groups")
+}
+
+model ProjectDocument {
+  id                       String    @id @default(cuid())
+  kind                     DocTypeKind
+  fileUrl                  String?   @db.Text
+  textData                 String?   @db.LongText
+  uploadedOnBehalfOfClient Boolean   @default(false)
+  status                   DocStatus @default(PENDING_REVIEW)
+  rejectionReason          String?   @db.Text
+  isSharedWithClient       Boolean   @default(false)
+  reviewedAt               DateTime?
+  version                  Int       @default(1)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  documentTypeId String
+  documentType   DocType @relation(fields: [documentTypeId], references: [id])
+
+  uploadedById String?
+  uploadedBy   User?  @relation("DocUploader", fields: [uploadedById], references: [id])
+
+  reviewedById String?
+  reviewedBy   User?  @relation("DocReviewer", fields: [reviewedById], references: [id])
+
+  @@map("project_documents")
 }

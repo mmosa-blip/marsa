@@ -154,6 +154,8 @@ const adminGroups: NavGroup[] = [
     roles: ["ADMIN"],
     children: [
       { href: "/dashboard/settings", label: "الإعدادات", tKey: "settings" },
+      { href: "/dashboard/settings/document-types", label: "أنواع المستندات", tKey: "documentTypes" },
+      { href: "/dashboard/settings/document-groups", label: "مجموعات المستندات", tKey: "documentGroups" },
       { href: "/dashboard/permissions", label: "إدارة الصلاحيات", tKey: "permissions" },
       { href: "/dashboard/recycle-bin", label: "سلة المحذوفات", tKey: "recycleBin" },
     ],

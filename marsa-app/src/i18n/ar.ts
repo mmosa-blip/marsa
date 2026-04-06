@@ -51,6 +51,8 @@ export const ar = {
     departments: "الأقسام",
     recycleBin: "سلة المحذوفات",
     opportunities: "الفرص",
+    documentTypes: "أنواع المستندات",
+    documentGroups: "مجموعات المستندات",
   },
 
   groups: {

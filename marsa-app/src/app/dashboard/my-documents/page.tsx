@@ -10,6 +10,8 @@ import {
   AlertTriangle,
   XCircle,
   RefreshCw,
+  Download,
+  Eye,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import { UploadButton } from "@/lib/uploadthing";
@@ -65,6 +67,29 @@ interface Company {
   name: string;
 }
 
+interface SharedDocField {
+  key?: string;
+  label?: string;
+  name?: string;
+  type?: string;
+}
+
+interface SharedDoc {
+  id: string;
+  kind: "FILE" | "TEXT";
+  fileUrl: string | null;
+  textData: unknown;
+  createdAt: string;
+  documentType: {
+    id: string;
+    name: string;
+    kind: string;
+    description: string | null;
+    fields: string | null;
+  };
+  project: { id: string; name: string };
+}
+
 function formatDate(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", {
@@ -76,6 +101,8 @@ function formatDate(d: string | null) {
 
 export default function MyDocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [sharedDocs, setSharedDocs] = useState<SharedDoc[]>([]);
+  const [viewingShared, setViewingShared] = useState<SharedDoc | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -95,6 +122,11 @@ export default function MyDocumentsPage() {
   useEffect(() => { document.title = "وثائقي | مرسى"; }, []);
 
   useEffect(() => {
+    fetch("/api/my-documents/shared")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setSharedDocs(Array.isArray(data) ? data : []))
+      .catch(() => setSharedDocs([]));
+
     Promise.all([
       fetch("/api/my-documents").then((r) => {
         if (!r.ok) throw new Error("فشل في تحميل الوثائق");
@@ -244,6 +276,78 @@ export default function MyDocumentsPage() {
         ))}
       </div>
 
+      {/* Shared Project Documents */}
+      {sharedDocs.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-lg font-bold mb-4" style={{ color: "#1C1B2E" }}>
+            المستندات المشاركة من المشاريع
+          </h2>
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{ backgroundColor: "white", border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
+          >
+            {sharedDocs.map((doc) => (
+              <div
+                key={doc.id}
+                className="grid grid-cols-1 md:grid-cols-5 gap-4 px-6 py-4 items-center"
+                style={{ borderBottom: "1px solid #F0EDE6" }}
+              >
+                <div>
+                  <p className="font-semibold text-sm" style={{ color: "#2D3748" }}>
+                    {doc.documentType.name}
+                  </p>
+                </div>
+                <div>
+                  <span
+                    className="rounded-full px-2.5 py-1 text-xs font-semibold"
+                    style={
+                      doc.kind === "FILE"
+                        ? { backgroundColor: "#EFF6FF", color: "#2563EB" }
+                        : { backgroundColor: "#F5F3FF", color: "#7C3AED" }
+                    }
+                  >
+                    {doc.kind === "FILE" ? "ملف" : "نصي"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs" style={{ color: "#6B7280" }}>
+                    {doc.project?.name || "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs" style={{ color: "#6B7280" }}>
+                    {formatDate(doc.createdAt)}
+                  </span>
+                </div>
+                <div>
+                  {doc.kind === "FILE" && doc.fileUrl ? (
+                    <MarsaButton
+                      onClick={() => window.open(doc.fileUrl!, "_blank")}
+                      variant="ghost"
+                      size="sm"
+                      icon={<Download size={12} />}
+                      style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }}
+                    >
+                      تحميل
+                    </MarsaButton>
+                  ) : doc.kind === "TEXT" ? (
+                    <MarsaButton
+                      onClick={() => setViewingShared(doc)}
+                      variant="ghost"
+                      size="sm"
+                      icon={<Eye size={12} />}
+                      style={{ backgroundColor: "#F5F3FF", color: "#7C3AED" }}
+                    >
+                      عرض البيانات
+                    </MarsaButton>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Documents List */}
       {documents.length === 0 ? (
         <div
@@ -359,6 +463,87 @@ export default function MyDocumentsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Shared Text Document View Modal */}
+      {viewingShared && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div
+            className="rounded-2xl p-8 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+            style={{ backgroundColor: "white", border: "1px solid #E2E0D8" }}
+            dir="rtl"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold" style={{ color: "#1C1B2E" }}>
+                  {viewingShared.documentType.name}
+                </h2>
+                <p className="text-xs mt-1" style={{ color: "#6B7280" }}>
+                  {viewingShared.project?.name}
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingShared(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100"
+              >
+                <X size={20} style={{ color: "#6B7280" }} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {(() => {
+                let parsedFields: SharedDocField[] = [];
+                try {
+                  if (viewingShared.documentType.fields) {
+                    const p = JSON.parse(viewingShared.documentType.fields);
+                    if (Array.isArray(p)) parsedFields = p;
+                  }
+                } catch {}
+                const data = (viewingShared.textData || {}) as Record<string, unknown>;
+
+                if (parsedFields.length === 0) {
+                  // Fallback: render textData keys directly
+                  const entries = Object.entries(data);
+                  if (entries.length === 0) {
+                    return (
+                      <p className="text-sm text-center py-6" style={{ color: "#6B7280" }}>
+                        لا توجد بيانات
+                      </p>
+                    );
+                  }
+                  return entries.map(([k, v]) => (
+                    <div key={k} className="rounded-xl p-3" style={{ backgroundColor: "#F8F9FA", border: "1px solid #E2E0D8" }}>
+                      <p className="text-xs mb-1" style={{ color: "#6B7280" }}>{k}</p>
+                      <p className="text-sm font-medium" style={{ color: "#2D3748" }}>
+                        {v === null || v === undefined || v === "" ? "—" : String(v)}
+                      </p>
+                    </div>
+                  ));
+                }
+
+                return parsedFields.map((f, idx) => {
+                  const key = f.key || f.name || "";
+                  const label = f.label || f.name || f.key || `حقل ${idx + 1}`;
+                  const v = key ? data[key] : undefined;
+                  return (
+                    <div key={idx} className="rounded-xl p-3" style={{ backgroundColor: "#F8F9FA", border: "1px solid #E2E0D8" }}>
+                      <p className="text-xs mb-1" style={{ color: "#6B7280" }}>{label}</p>
+                      <p className="text-sm font-medium" style={{ color: "#2D3748" }}>
+                        {v === null || v === undefined || v === "" ? "—" : String(v)}
+                      </p>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            <div className="mt-6">
+              <MarsaButton onClick={() => setViewingShared(null)} variant="secondary" className="w-full">
+                إغلاق
+              </MarsaButton>
+            </div>
+          </div>
         </div>
       )}
 
