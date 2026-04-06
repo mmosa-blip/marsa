@@ -359,6 +359,18 @@ function DashboardLayoutInner({
     }
   }, [session?.user?.id]);
 
+  // Contract expiry check — runs once per session for admins
+  useEffect(() => {
+    if (userRole === "ADMIN" && session?.user?.id) {
+      const key = `contract_check_${new Date().toISOString().slice(0, 10)}`;
+      if (!sessionStorage.getItem(key)) {
+        fetch("/api/contracts/check-expiry")
+          .then(() => sessionStorage.setItem(key, "1"))
+          .catch(() => {});
+      }
+    }
+  }, [userRole, session?.user?.id]);
+
   // Sidebar badge counts from context
   const { counts: sidebarCounts } = useSidebarCounts();
 

@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ContractPromptDialog from "@/components/ContractPromptDialog";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -186,6 +187,7 @@ export default function NewProjectPage() {
   const [clientContracts, setClientContracts] = useState<ContractOption[]>([]);
   const [loadingContracts, setLoadingContracts] = useState(false);
   const [selectedContractId, setSelectedContractId] = useState("");
+  const [showContractPrompt, setShowContractPrompt] = useState(false);
   const [contractAmount, setContractAmount] = useState<number | null>(null);
   const [contractInstallments, setContractInstallments] = useState<ContractInstallment[]>([]);
 
@@ -583,6 +585,13 @@ export default function NewProjectPage() {
 
   // ─── Submit ───
   const handleSubmit = async () => {
+    // Investment department requires a contract before project creation
+    const selectedDept = departments.find((d) => d.id === departmentId);
+    const isInvestment = selectedDept?.name?.includes("الاستثمار");
+    if (isInvestment && !selectedContractId && selectedClient) {
+      setShowContractPrompt(true);
+      return;
+    }
     setSubmitting(true);
     try {
       const useTemplateGenerate = selectedTemplateId && templateApplied;
@@ -1967,6 +1976,20 @@ export default function NewProjectPage() {
           )}
         </div>
       </div>
+
+      {/* Contract prompt dialog for Investment department */}
+      {showContractPrompt && selectedClient && (
+        <ContractPromptDialog
+          clientId={selectedClient.id}
+          onSuccess={(contractId) => {
+            setSelectedContractId(contractId);
+            setShowContractPrompt(false);
+            // Auto-submit after contract is created
+            setTimeout(() => handleSubmit(), 100);
+          }}
+          onCancel={() => setShowContractPrompt(false)}
+        />
+      )}
     </div>
   );
 }
