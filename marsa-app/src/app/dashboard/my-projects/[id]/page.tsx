@@ -197,13 +197,13 @@ export default function MyProjectDetailPage() {
           {project.startDate && (
             <div className="flex items-center gap-2 text-xs" style={{ color: "#6B7280" }}>
               <Calendar size={14} style={{ color: "#C9A84C" }} />
-              <span>{new Date(project.startDate).toLocaleDateString("ar-SA-u-nu-latn")}</span>
+              <span>{new Date(project.startDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
             </div>
           )}
           {project.endDate && (
             <div className="flex items-center gap-2 text-xs" style={{ color: "#6B7280" }}>
               <Clock size={14} style={{ color: "#C9A84C" }} />
-              <span>{new Date(project.endDate).toLocaleDateString("ar-SA-u-nu-latn")}</span>
+              <span>{new Date(project.endDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
             </div>
           )}
         </div>
@@ -308,7 +308,7 @@ export default function MyProjectDetailPage() {
                                   )}
                                   {task.dueDate && (
                                     <span className="text-xs" style={{ color: "#94A3B8" }}>
-                                      {new Date(task.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })}
+                                      {new Date(task.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                                     </span>
                                   )}
                                 </div>

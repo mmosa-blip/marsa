@@ -220,7 +220,7 @@ export default function ProjectDocumentsPage() {
                         {doc.uploadedBy && (
                           <span className="flex items-center gap-1"><User size={10} />{doc.uploadedBy.name}</span>
                         )}
-                        <span className="flex items-center gap-1"><Calendar size={10} />{new Date(doc.createdAt).toLocaleDateString("ar-SA")}</span>
+                        <span className="flex items-center gap-1"><Calendar size={10} />{new Date(doc.createdAt).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                       </div>
 
                       {/* Rejection reason */}

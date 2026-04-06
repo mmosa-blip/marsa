@@ -55,10 +55,8 @@ function timeAgo(date: string): string {
   if (diffHours < 24) return `قبل ${diffHours} ساعة`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) return `قبل ${diffDays} يوم`;
-  return new Date(date).toLocaleDateString("ar-SA-u-nu-latn", {
-    month: "short",
-    day: "numeric",
-  });
+  return new Date(date).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short",
+    day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 export default function NotificationBell() {

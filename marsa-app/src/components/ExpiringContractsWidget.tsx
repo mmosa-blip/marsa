@@ -134,7 +134,7 @@ export default function ExpiringContractsWidget({ departmentId, days = 30 }: Pro
                     )}
                     {c.endDate && (
                       <span style={{ color: "#6B7280" }}>
-                        ينتهي: {new Date(c.endDate).toLocaleDateString("ar-SA")}
+                        ينتهي: {new Date(c.endDate).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     )}
                   </div>
@@ -168,7 +168,7 @@ export default function ExpiringContractsWidget({ departmentId, days = 30 }: Pro
                       {c.contractNumber ? `عقد #${c.contractNumber}` : "عقد"} — منتهي
                     </p>
                     <p className="text-xs truncate" style={{ color: "#6B7280" }}>
-                      {c.client?.name} • {c.endDate && new Date(c.endDate).toLocaleDateString("ar-SA")}
+                      {c.client?.name} • {c.endDate && new Date(c.endDate).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
                 </div>

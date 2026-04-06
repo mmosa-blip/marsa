@@ -150,7 +150,7 @@ const employeeStatusConfig: Record<string, { label: string; bg: string; text: st
   TERMINATED: { label: "منتهي", bg: "#FEF2F2", text: "#DC2626" },
 };
 
-function fmt(d: string) { return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric" }); }
+function fmt(d: string) { return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
 function daysUntil(d: string) { return Math.ceil((new Date(d).getTime() - Date.now()) / (1000 * 60 * 60 * 24)); }
 
 // ===== Main Component =====

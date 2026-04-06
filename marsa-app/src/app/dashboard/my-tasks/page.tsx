@@ -118,8 +118,7 @@ const formatDate = (d: string | null) => {
   return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", {
     year: "numeric",
     month: "short",
-    day: "numeric",
-  });
+    day: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
 const formatDuration = (minutes: number): string => {
@@ -1299,7 +1298,7 @@ export default function MyTasksPage() {
                                             {hold.updates.map((u) => (
                                               <div key={u.id} className="flex gap-2 text-xs p-1.5 rounded-lg bg-white">
                                                 <span style={{ color: "#94A3B8", flexShrink: 0 }}>
-                                                  {new Date(u.addedAt).toLocaleDateString("ar-SA")}
+                                                  {new Date(u.addedAt).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                                                 </span>
                                                 <span style={{ color: "#2D3748" }}>{u.note}</span>
                                               </div>

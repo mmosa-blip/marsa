@@ -31,7 +31,7 @@ const methodColors: Record<string, { bg: string; text: string }> = {
   OTHER: { bg: "#F3F4F6", text: "#6B7280" },
 };
 
-function fmt(d: string) { return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric" }); }
+function fmt(d: string) { return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);

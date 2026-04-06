@@ -63,8 +63,7 @@ const formatDate = (d: string) =>
   new Date(d).toLocaleDateString("ar-SA-u-nu-latn", {
     year: "numeric",
     month: "short",
-    day: "numeric",
-  });
+    day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
   PENDING_ADMIN: { label: "بانتظار الإدارة", bg: "#FEF9C3", text: "#A16207" },

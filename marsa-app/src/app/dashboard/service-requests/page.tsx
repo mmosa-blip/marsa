@@ -284,7 +284,7 @@ export default function ServiceRequestsPage() {
                   )}
                   <span className="flex items-center gap-1">
                     <Calendar size={12} />
-                    {new Date(req.createdAt).toLocaleDateString("ar-SA-u-nu-latn")}
+                    {new Date(req.createdAt).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </span>
                   {req.assignedTo && (
                     <span className="flex items-center gap-1">
@@ -316,7 +316,7 @@ export default function ServiceRequestsPage() {
                     طلب من: {selected.client.name}
                   </h2>
                   <p className="text-xs mt-1" style={{ color: "#94A3B8" }}>
-                    {new Date(selected.createdAt).toLocaleDateString("ar-SA-u-nu-latn")}
+                    {new Date(selected.createdAt).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </p>
                   {selected.projectId && (
                     <a href={`/dashboard/projects/${selected.projectId}`}

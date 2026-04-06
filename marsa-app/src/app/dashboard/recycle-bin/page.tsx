@@ -192,7 +192,7 @@ export default function RecycleBinPage() {
                     <span className="flex items-center gap-1 text-xs" style={{ color: "#6B7280" }}>
                       <Clock size={12} />
                       {isAr ? "حُذف:" : "Deleted:"}{" "}
-                      {new Date(user.deletedAt).toLocaleDateString(isAr ? "ar-SA" : "en-US")}
+                      {new Date(user.deletedAt).toLocaleDateString(isAr ? "ar-SA" : "en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
                 </div>

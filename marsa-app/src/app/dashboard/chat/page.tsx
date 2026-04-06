@@ -76,10 +76,8 @@ function timeAgo(date: string): string {
   if (diffHours < 24) return `قبل ${diffHours} س`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) return `قبل ${diffDays} ي`;
-  return new Date(date).toLocaleDateString("ar-SA-u-nu-latn", {
-    month: "short",
-    day: "numeric",
-  });
+  return new Date(date).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short",
+    day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDateDivider(date: string): string {
@@ -95,8 +93,7 @@ function formatDateDivider(date: string): string {
   return d.toLocaleDateString("ar-SA-u-nu-latn", {
     year: "numeric",
     month: "long",
-    day: "numeric",
-  });
+    day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatMessageTime(date: string): string {

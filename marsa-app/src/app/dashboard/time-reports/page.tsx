@@ -100,8 +100,7 @@ const formatDate = (d: string | null) => {
   return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", {
     year: "numeric",
     month: "short",
-    day: "numeric",
-  });
+    day: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
 const COLORS = ["#2563EB", "#059669", "#EA580C", "#7C3AED", "#D97706", "#DC2626", "#0D9488", "#6366F1"];

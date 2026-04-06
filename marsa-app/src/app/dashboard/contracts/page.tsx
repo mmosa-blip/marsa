@@ -171,7 +171,7 @@ export default function ContractsPage() {
   const formatDate = (d: string | null) => {
     if (!d) return "";
     const locale = lang === "ar" ? "ar-SA-u-nu-latn" : "en-US";
-    return new Date(d).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
+    return new Date(d).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
   useEffect(() => { document.title = `${t.contracts.title} | ${t.brand.name}`; }, [t]);
   useEffect(() => {

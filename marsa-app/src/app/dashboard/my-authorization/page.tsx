@@ -199,8 +199,7 @@ export default function MyAuthorizationPage() {
               {new Date(grantedAt).toLocaleDateString(isAr ? "ar-SA" : "en-US", {
                 year: "numeric",
                 month: "long",
-                day: "numeric",
-              })}
+                day: "numeric", hour: "2-digit", minute: "2-digit" })}
             </span>
           </div>
         )}

@@ -241,7 +241,7 @@ export default function MyServiceRequestsPage() {
                   {req.startDate && (
                     <span className="flex items-center gap-1">
                       <Calendar size={12} />
-                      يبدأ: {new Date(req.startDate).toLocaleDateString("ar-SA-u-nu-latn")}
+                      يبدأ: {new Date(req.startDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
                   {req.assignedTo && (
@@ -252,7 +252,7 @@ export default function MyServiceRequestsPage() {
                   )}
                   <span className="flex items-center gap-1">
                     <Calendar size={12} />
-                    {new Date(req.createdAt).toLocaleDateString("ar-SA-u-nu-latn")}
+                    {new Date(req.createdAt).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>
                 {req.adminNotes && (
@@ -339,13 +339,13 @@ export default function MyServiceRequestsPage() {
                 {selected.startDate && (
                   <div className="flex justify-between text-sm">
                     <span style={{ color: "#6B7280" }}>تاريخ البدء</span>
-                    <span style={{ color: "#2D3748" }}>{new Date(selected.startDate).toLocaleDateString("ar-SA-u-nu-latn")}</span>
+                    <span style={{ color: "#2D3748" }}>{new Date(selected.startDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                   </div>
                 )}
                 {selected.endDate && (
                   <div className="flex justify-between text-sm">
                     <span style={{ color: "#6B7280" }}>تاريخ الانتهاء</span>
-                    <span style={{ color: "#2D3748" }}>{new Date(selected.endDate).toLocaleDateString("ar-SA-u-nu-latn")}</span>
+                    <span style={{ color: "#2D3748" }}>{new Date(selected.endDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                   </div>
                 )}
                 {selected.assignedTo && (

@@ -46,7 +46,7 @@ function daysUntil(date: string) {
 }
 
 function fmt(d: string) {
-  return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric" });
+  return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 export default function RemindersPage() {

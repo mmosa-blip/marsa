@@ -197,7 +197,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   function formatDate(d: string | null) {
     if (!d) return "—";
-    return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric" });
+    return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   }
 
   if (loading) {
@@ -528,7 +528,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 {task.dueDate && (
                                   <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
                                     <Clock size={10} />
-                                    {new Date(task.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })}
+                                    {new Date(task.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                                   </span>
                                 )}
                               </div>
@@ -619,7 +619,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             {task.dueDate && (
                               <span className="flex items-center gap-1 text-xs text-gray-400">
                                 <Clock size={10} />
-                                {new Date(task.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })}
+                                {new Date(task.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                               </span>
                             )}
                           </div>

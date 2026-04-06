@@ -52,7 +52,7 @@ const typeLabels: Record<string, string> = {
 
 function fmt(d: string | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric" });
+  return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function pct(paid: number, total: number) {

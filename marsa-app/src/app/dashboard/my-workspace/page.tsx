@@ -185,7 +185,7 @@ export default function MyWorkspacePage() {
                         {task.dueDate && (
                           <span className="text-xs flex items-center gap-1" style={{ color: "#94A3B8" }}>
                             <Clock size={10} />
-                            {new Date(task.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })}
+                            {new Date(task.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                           </span>
                         )}
                       </div>

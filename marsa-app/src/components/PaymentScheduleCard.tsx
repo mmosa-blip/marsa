@@ -159,7 +159,7 @@ export default function PaymentScheduleCard({ projectId, schedule, isAdmin, onUp
                       {item.amount.toLocaleString()} ر.س
                     </p>
                     <p className="text-[10px]" style={{ color: "#9CA3AF" }}>
-                      {item.label || `دفعة ${idx + 1}`} — {new Date(item.dueDate).toLocaleDateString("ar-SA")}
+                      {item.label || `دفعة ${idx + 1}`} — {new Date(item.dueDate).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
                 </div>

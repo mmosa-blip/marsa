@@ -86,8 +86,7 @@ function formatDate(dateStr: string | null) {
   return new Date(dateStr).toLocaleDateString("ar-SA", {
     year: "numeric",
     month: "short",
-    day: "numeric",
-  });
+    day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDateTime(dateStr: string) {
