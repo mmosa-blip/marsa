@@ -131,7 +131,7 @@ export async function PATCH(
           data: managers.map((m) => ({
             userId: m.id,
             type: "TASK_UPDATE" as const,
-            message: `عقد جديد بانتظار اعتمادك: ${contract.template.title} - العميل: ${contract.client.name}`,
+            message: `عقد جديد بانتظار اعتمادك: ${contract.template?.title || "عقد"} - العميل: ${contract.client.name}`,
             link: `/dashboard/contracts`,
           })),
         });
@@ -141,7 +141,7 @@ export async function PATCH(
         userId: session.user.id, userName: session.user.name || undefined, userRole: role,
         action: "CONTRACT_SUBMITTED", module: AuditModule.CONTRACTS,
         entityType: "Contract", entityId: id,
-        entityName: contract.template.title,
+        entityName: contract.template?.title || "عقد",
         before: { status: contract.status }, after: { status: "PENDING_APPROVAL" },
       });
 
@@ -175,7 +175,7 @@ export async function PATCH(
           data: managers.map((m) => ({
             userId: m.id,
             type: "TASK_UPDATE" as const,
-            message: `تم إعادة رفع عقد معدّل: ${contract.template.title} - العميل: ${contract.client.name}`,
+            message: `تم إعادة رفع عقد معدّل: ${contract.template?.title || "عقد"} - العميل: ${contract.client.name}`,
             link: `/dashboard/contracts`,
           })),
         });
@@ -185,7 +185,7 @@ export async function PATCH(
         userId: session.user.id, userName: session.user.name || undefined, userRole: role,
         action: "CONTRACT_SUBMITTED", module: AuditModule.CONTRACTS,
         entityType: "Contract", entityId: id,
-        entityName: contract.template.title,
+        entityName: contract.template?.title || "عقد",
         before: { status: contract.status }, after: { status: "PENDING_APPROVAL" },
         notes: "إعادة رفع بعد تعديل",
       });
@@ -227,7 +227,7 @@ export async function PATCH(
         data: {
           userId: contract.clientId,
           type: "TASK_UPDATE" as const,
-          message: `تم إرسال عقد لمراجعتك وتوقيعه: ${contract.template.title}`,
+          message: `تم إرسال عقد لمراجعتك وتوقيعه: ${contract.template?.title || "عقد"}`,
           link: `/dashboard/contracts`,
         },
       });
@@ -237,7 +237,7 @@ export async function PATCH(
         action: "CONTRACT_APPROVED", module: AuditModule.CONTRACTS,
         severity: "WARN",
         entityType: "Contract", entityId: id,
-        entityName: contract.template.title,
+        entityName: contract.template?.title || "عقد",
         before: { status: contract.status }, after: { status: "SENT_TO_CLIENT" },
       });
 
@@ -265,7 +265,7 @@ export async function PATCH(
         data: {
           userId: contract.issuedById,
           type: "TASK_UPDATE" as const,
-          message: `تم رفض العقد: ${contract.template.title}${managerNote ? ` - السبب: ${managerNote}` : ""}`,
+          message: `تم رفض العقد: ${contract.template?.title || "عقد"}${managerNote ? ` - السبب: ${managerNote}` : ""}`,
           link: `/dashboard/contracts`,
         },
       });
@@ -275,7 +275,7 @@ export async function PATCH(
         action: "CONTRACT_REJECTED", module: AuditModule.CONTRACTS,
         severity: "WARN",
         entityType: "Contract", entityId: id,
-        entityName: contract.template.title,
+        entityName: contract.template?.title || "عقد",
         before: { status: contract.status }, after: { status: "REJECTED" },
         notes: managerNote || undefined,
       });
@@ -310,7 +310,7 @@ export async function PATCH(
         data: [...notifyIds].map((uid) => ({
           userId: uid,
           type: "TASK_UPDATE" as const,
-          message: `طلب العميل ${contract.client.name} تعديلات على العقد: ${contract.template.title}`,
+          message: `طلب العميل ${contract.client.name} تعديلات على العقد: ${contract.template?.title || "عقد"}`,
           link: `/dashboard/contracts`,
         })),
       });
@@ -319,7 +319,7 @@ export async function PATCH(
         userId: session.user.id, userName: session.user.name || undefined, userRole: role,
         action: "CONTRACT_REVISION_REQUESTED", module: AuditModule.CONTRACTS,
         entityType: "Contract", entityId: id,
-        entityName: contract.template.title,
+        entityName: contract.template?.title || "عقد",
         before: { status: contract.status }, after: { status: "CONTRACT_REVISION" },
         notes: clientNote || undefined,
       });
@@ -365,7 +365,7 @@ export async function PATCH(
         data: [...notifyIds].map((uid) => ({
           userId: uid,
           type: "TASK_UPDATE" as const,
-          message: `وقّع العميل ${contract.client.name} على العقد: ${contract.template.title}`,
+          message: `وقّع العميل ${contract.client.name} على العقد: ${contract.template?.title || "عقد"}`,
           link: `/dashboard/contracts`,
         })),
       });
@@ -375,7 +375,7 @@ export async function PATCH(
         action: "CONTRACT_SIGNED", module: AuditModule.CONTRACTS,
         severity: "WARN",
         entityType: "Contract", entityId: id,
-        entityName: contract.template.title,
+        entityName: contract.template?.title || "عقد",
         before: { status: contract.status }, after: { status: "SIGNED" },
         meta: { clientIP },
       });
@@ -406,7 +406,7 @@ export async function PATCH(
           clientId: contract.clientId,
           managerId: userId,
           contractId: id,
-          name: `مشروع - ${contract.template.title} - ${contract.client.name}`,
+          name: `مشروع - ${contract.template?.title || "عقد"} - ${contract.client.name}`,
         });
       }
 
@@ -415,7 +415,7 @@ export async function PATCH(
         action: "CONTRACT_ACTIVATED", module: AuditModule.CONTRACTS,
         severity: "CRITICAL",
         entityType: "Contract", entityId: id,
-        entityName: contract.template.title,
+        entityName: contract.template?.title || "عقد",
         before: { status: contract.status }, after: { status: "ACTIVE", projectId },
       });
 
