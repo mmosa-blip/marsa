@@ -8,12 +8,7 @@
  * NOTE: Special features (round-robin, AI verification, warnings, expiry tracking)
  * are NOT implemented here — this is the template structure only.
  */
-import { createPool } from "mariadb";
-import { randomUUID } from "crypto";
-
-function cuid(): string {
-  return "cm" + randomUUID().replace(/-/g, "").slice(0, 22);
-}
+import { createScriptPrisma } from "./db";
 
 // ─── Phase definitions ─────────────────────────────
 const PHASES: { name: string; description: string; tasks: string[] }[] = [
@@ -130,135 +125,129 @@ const PHASES: { name: string; description: string; tasks: string[] }[] = [
 ];
 
 async function main() {
-  const pool = createPool({
-    host: "srv502.hstgr.io",
-    port: 3306,
-    user: "u102183221_mohammed",
-    password: "Marsa2026",
-    database: "u102183221_mrsa",
-    connectionLimit: 1,
-  });
-
-  const conn = await pool.getConnection();
+  const prisma = createScriptPrisma();
 
   // 1) Find Investment department
-  const depts = await conn.query("SELECT id, name FROM departments WHERE name LIKE '%الاستثمار%'");
-  if (depts.length === 0) {
+  const dept = await prisma.department.findFirst({
+    where: { name: { contains: "الاستثمار" } },
+    select: { id: true, name: true },
+  });
+  if (!dept) {
     console.error("❌ قسم الاستثمار غير موجود");
-    conn.release();
-    await pool.end();
+    await prisma.$disconnect();
     return;
   }
-  const deptId = depts[0].id;
-  console.log(`✓ Department: ${depts[0].name} (${deptId})`);
+  console.log(`✓ Department: ${dept.name} (${dept.id})`);
 
   // 2) Find or create "مشاريع الاستحواذ" category
-  const catRows = await conn.query("SELECT id FROM service_categories WHERE name = 'مشاريع الاستحواذ'");
-  let categoryId: string;
-  if (catRows.length === 0) {
-    categoryId = cuid();
-    await conn.query(
-      "INSERT INTO service_categories (id, name, description, sortOrder, isActive, isPublic, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [categoryId, "مشاريع الاستحواذ", "مشاريع الاستحواذ على الشركات الأجنبية", 0, true, true, new Date()]
-    );
+  let category = await prisma.serviceCategory.findFirst({
+    where: { name: "مشاريع الاستحواذ" },
+  });
+  if (!category) {
+    category = await prisma.serviceCategory.create({
+      data: {
+        name: "مشاريع الاستحواذ",
+        description: "مشاريع الاستحواذ على الشركات الأجنبية",
+        sortOrder: 0,
+      },
+    });
     console.log(`✓ Created category: مشاريع الاستحواذ`);
   } else {
-    categoryId = catRows[0].id;
     console.log(`✓ Category exists: مشاريع الاستحواذ`);
   }
 
-  // 3) Delete existing template if present, and any orphan service templates in this category
+  // 3) Delete existing template
   const templateName = "مشروع الاستحواذ على الشركة الأجنبية";
-  const existing = await conn.query("SELECT id FROM project_templates WHERE name = ?", [templateName]);
-  if (existing.length > 0) {
+  const existing = await prisma.projectTemplate.findFirst({
+    where: { name: templateName },
+  });
+  if (existing) {
     console.log(`\n⚠️  Template exists — deleting old version...`);
-    const oldTemplateId = existing[0].id;
-    await conn.query("DELETE FROM project_template_services WHERE projectTemplateId = ?", [oldTemplateId]);
-    await conn.query("DELETE FROM project_templates WHERE id = ?", [oldTemplateId]);
+    await prisma.projectTemplateService.deleteMany({
+      where: { projectTemplateId: existing.id },
+    });
+    await prisma.projectTemplate.delete({ where: { id: existing.id } });
   }
 
-  // Clean up ALL service templates in this category that match our phase names (including orphans)
-  console.log(`🧹 Cleaning up old service templates in category...`);
+  // Clean up orphan service templates with our phase names
+  console.log(`🧹 Cleaning up old service templates...`);
   const phaseNames = PHASES.map((p) => p.name);
   for (const name of phaseNames) {
-    const stRows = await conn.query("SELECT id FROM service_templates WHERE categoryId = ? AND name = ?", [categoryId, name]);
-    for (const st of stRows) {
-      await conn.query("DELETE FROM task_templates WHERE serviceTemplateId = ?", [st.id]);
-      await conn.query("DELETE FROM project_template_services WHERE serviceTemplateId = ?", [st.id]);
-      await conn.query("DELETE FROM service_template_employees WHERE serviceTemplateId = ?", [st.id]).catch(() => {});
-      await conn.query("DELETE FROM service_template_escalations WHERE serviceTemplateId = ?", [st.id]).catch(() => {});
-      await conn.query("DELETE FROM service_templates WHERE id = ?", [st.id]);
+    const stList = await prisma.serviceTemplate.findMany({
+      where: { categoryId: category.id, name },
+      select: { id: true },
+    });
+    for (const st of stList) {
+      await prisma.taskTemplate.deleteMany({ where: { serviceTemplateId: st.id } });
+      await prisma.projectTemplateService.deleteMany({ where: { serviceTemplateId: st.id } });
+      await prisma.serviceTemplateEmployee.deleteMany({ where: { serviceTemplateId: st.id } }).catch(() => {});
+      await prisma.serviceTemplateEscalation.deleteMany({ where: { serviceTemplateId: st.id } }).catch(() => {});
+      await prisma.serviceTemplate.delete({ where: { id: st.id } }).catch(() => {});
     }
   }
   console.log(`   Cleanup done.`);
 
   // 4) Create project template
-  const templateId = cuid();
-  const now = new Date();
-  await conn.query(
-    "INSERT INTO project_templates (id, name, description, workflowType, isSystem, isActive, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    [
-      templateId,
-      templateName,
-      "قالب كامل لمشاريع الاستحواذ على الشركات الأجنبية — 7 مراحل شاملة مع مهام الفرع الاختيارية والمهام الخلفية",
-      "SEQUENTIAL",
-      true,
-      true,
-      now,
-      now,
-    ]
-  );
+  const template = await prisma.projectTemplate.create({
+    data: {
+      name: templateName,
+      description: "قالب كامل لمشاريع الاستحواذ على الشركات الأجنبية — 8 مراحل مع مهام الفرع الاختيارية والمهام الخلفية",
+      workflowType: "SEQUENTIAL",
+      isSystem: true,
+      isActive: true,
+    },
+  });
   console.log(`\n✓ Created template: ${templateName}`);
 
-  // 5) Create each phase as service template with task templates
+  // 5) Create phases and tasks
   let totalTasks = 0;
   for (let phaseIdx = 0; phaseIdx < PHASES.length; phaseIdx++) {
     const phase = PHASES[phaseIdx];
 
-    const serviceTemplateId = cuid();
-    await conn.query(
-      `INSERT INTO service_templates
-       (id, name, description, categoryId, departmentId, workflowType, isActive, sortOrder, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        serviceTemplateId,
-        phase.name,
-        phase.description,
-        categoryId,
-        deptId,
-        "SEQUENTIAL",
-        true,
-        phaseIdx,
-        now,
-        now,
-      ]
-    );
+    const serviceTemplate = await prisma.serviceTemplate.create({
+      data: {
+        name: phase.name,
+        description: phase.description,
+        categoryId: category.id,
+        departmentId: dept.id,
+        workflowType: "SEQUENTIAL",
+        isActive: true,
+        sortOrder: phaseIdx,
+      },
+    });
 
-    // Link service template to project template
-    await conn.query(
-      "INSERT INTO project_template_services (id, projectTemplateId, serviceTemplateId, sortOrder) VALUES (?, ?, ?, ?)",
-      [cuid(), templateId, serviceTemplateId, phaseIdx]
-    );
+    await prisma.projectTemplateService.create({
+      data: {
+        projectTemplateId: template.id,
+        serviceTemplateId: serviceTemplate.id,
+        sortOrder: phaseIdx,
+      },
+    });
 
     console.log(`\n  📋 [${phaseIdx + 1}] ${phase.name}  (${phase.tasks.length} مهمة)`);
 
     for (let i = 0; i < phase.tasks.length; i++) {
-      await conn.query(
-        `INSERT INTO task_templates
-         (id, name, description, defaultDuration, sortOrder, executionMode, sameDay, isRequired, serviceTemplateId, createdAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [cuid(), phase.tasks[i], null, 1, i, "SEQUENTIAL", false, true, serviceTemplateId, now]
-      );
+      await prisma.taskTemplate.create({
+        data: {
+          name: phase.tasks[i],
+          description: null,
+          defaultDuration: 1,
+          sortOrder: i,
+          executionMode: "SEQUENTIAL",
+          sameDay: false,
+          isRequired: true,
+          serviceTemplateId: serviceTemplate.id,
+        },
+      });
       totalTasks++;
     }
   }
 
   console.log(`\n✅ Template "${templateName}" created successfully.`);
   console.log(`   📊 Total: ${PHASES.length} phases, ${totalTasks} tasks`);
-  console.log(`\n📝 Note: Special features (AI, warnings, expiry tracking, round-robin) must be implemented separately.`);
+  console.log(`\n📝 Note: Special features (AI, warnings, round-robin) must be implemented separately.`);
 
-  conn.release();
-  await pool.end();
+  await prisma.$disconnect();
 }
 
 main().catch((e) => {
