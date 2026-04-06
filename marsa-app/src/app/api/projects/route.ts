@@ -324,17 +324,21 @@ export async function POST(request: Request) {
 
           templateToTaskId.set(tt.id, createdTask.id);
 
-          // Create TaskAssignment for the assignee
-          if (createdTask.assigneeId) {
-            await prisma.taskAssignment.upsert({
-              where: { taskId_userId: { taskId: createdTask.id, userId: createdTask.assigneeId } },
-              create: { taskId: createdTask.id, userId: createdTask.assigneeId },
-              update: {},
+          // Create TaskAssignment for ALL qualified employees (so they all see the task)
+          if (tmpl.qualifiedEmployees && tmpl.qualifiedEmployees.length > 0) {
+            await prisma.taskAssignment.createMany({
+              data: tmpl.qualifiedEmployees.map((e) => ({
+                taskId: createdTask.id,
+                userId: e.userId,
+              })),
+              skipDuplicates: true,
             });
-            await prisma.task.update({
-              where: { id: createdTask.id },
-              data: { assignedAt: new Date() },
-            });
+            if (createdTask.assigneeId) {
+              await prisma.task.update({
+                where: { id: createdTask.id },
+                data: { assignedAt: new Date() },
+              });
+            }
           }
         }
 

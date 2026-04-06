@@ -16,6 +16,11 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
+    // Only ADMIN/MANAGER can change assigneeId
+    if (body.assigneeId !== undefined && !["ADMIN", "MANAGER"].includes(session.user.role)) {
+      delete body.assigneeId;
+    }
+
     // Payment-task locking: block status changes if linked installment is locked
     if (body.status) {
       const existingTask = await prisma.task.findUnique({
@@ -31,6 +36,12 @@ export async function PATCH(
       }
     }
 
+    // If assigneeId is being set manually, also create TaskAssignment record
+    const manualAssign = body.assigneeId !== undefined && body.assigneeId !== null;
+    if (manualAssign) {
+      body.assignedAt = new Date();
+    }
+
     const task = await prisma.task.update({
       where: { id },
       data: body,
@@ -39,6 +50,15 @@ export async function PATCH(
         assignee: { select: { id: true, name: true } },
       },
     });
+
+    // Sync TaskAssignment records with the new primary assignee
+    if (manualAssign && task.assigneeId) {
+      await prisma.taskAssignment.upsert({
+        where: { taskId_userId: { taskId: id, userId: task.assigneeId } },
+        create: { taskId: id, userId: task.assigneeId },
+        update: {},
+      });
+    }
 
     return NextResponse.json(task);
   } catch (error) {

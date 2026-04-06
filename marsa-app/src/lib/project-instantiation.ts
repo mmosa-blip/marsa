@@ -125,7 +125,6 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
 
     const taskTemplates = st.taskTemplates;
     const employees = st.qualifiedEmployees;
-    const tasks = [];
     let currentTaskStart = new Date(
       template.workflowType === "SEQUENTIAL" ? serviceStartDate : now
     );
@@ -144,24 +143,32 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
 
       const assigneeId = employees.length > 0 ? employees[i % employees.length].userId : null;
 
-      tasks.push({
-        title: tt.name,
-        status: "TODO" as const,
-        priority: "MEDIUM" as const,
-        order: tt.sortOrder,
-        dueDate,
-        serviceId: service.id,
-        projectId: project.id,
-        assigneeId,
+      // Create task one-by-one to enable TaskAssignment creation
+      const createdTask = await prisma.task.create({
+        data: {
+          title: tt.name,
+          status: "TODO" as const,
+          priority: "MEDIUM" as const,
+          order: tt.sortOrder,
+          dueDate,
+          serviceId: service.id,
+          projectId: project.id,
+          assigneeId,
+          assignedAt: assigneeId ? new Date() : null,
+        },
       });
+
+      // Create TaskAssignment records for ALL qualified employees
+      if (employees.length > 0) {
+        await prisma.taskAssignment.createMany({
+          data: employees.map((e) => ({ taskId: createdTask.id, userId: e.userId })),
+          skipDuplicates: true,
+        });
+      }
 
       if (st.workflowType === "SEQUENTIAL") {
         currentTaskStart = new Date(dueDate);
       }
-    }
-
-    if (tasks.length > 0) {
-      await prisma.task.createMany({ data: tasks });
     }
 
     if (template.workflowType === "SEQUENTIAL") {

@@ -153,10 +153,9 @@ export async function POST(request: Request) {
         },
       });
 
-      // توليد المهام من قوالب المهام
+      // توليد المهام من قوالب المهام (one-by-one to create TaskAssignment records)
       const taskTemplates = st.taskTemplates;
       const employees = st.qualifiedEmployees;
-      const tasks = [];
       let currentTaskStart = new Date(
         template.workflowType === "SEQUENTIAL" ? serviceStartDate : now
       );
@@ -168,7 +167,6 @@ export async function POST(request: Request) {
         if (st.workflowType === "SEQUENTIAL") {
           startDate = new Date(currentTaskStart);
         } else {
-          // INDEPENDENT - جميع المهام تبدأ في نفس الوقت
           startDate = new Date(
             template.workflowType === "SEQUENTIAL" ? serviceStartDate : now
           );
@@ -193,25 +191,33 @@ export async function POST(request: Request) {
               : null;
         }
 
-        tasks.push({
-          title: tt.name,
-          status: "TODO" as const,
-          priority: "MEDIUM" as const,
-          order: tt.sortOrder,
-          dueDate,
-          serviceId: service.id,
-          projectId: project.id,
-          assigneeId,
+        const createdTask = await prisma.task.create({
+          data: {
+            title: tt.name,
+            status: "TODO" as const,
+            priority: "MEDIUM" as const,
+            order: tt.sortOrder,
+            dueDate,
+            serviceId: service.id,
+            projectId: project.id,
+            assigneeId,
+            assignedAt: assigneeId ? new Date() : null,
+          },
         });
+
+        // Create TaskAssignment records for ALL qualified employees
+        // This ensures my-tasks/all finds these tasks via assignments.some()
+        if (employees.length > 0) {
+          await prisma.taskAssignment.createMany({
+            data: employees.map((e) => ({ taskId: createdTask.id, userId: e.userId })),
+            skipDuplicates: true,
+          });
+        }
 
         // تحديث بداية المهمة التالية في الوضع التسلسلي
         if (st.workflowType === "SEQUENTIAL") {
           currentTaskStart = new Date(dueDate);
         }
-      }
-
-      if (tasks.length > 0) {
-        await prisma.task.createMany({ data: tasks });
       }
 
       // تحديث بداية الخدمة التالية في الوضع التسلسلي على مستوى المشروع
