@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
 }
 
 // ===== Enums =====
@@ -1245,7 +1245,7 @@ enum ContractStatus {
 model ContractTemplate {
   id              String   @id @default(cuid())
   title           String
-  content         String   @db.LongText
+  content         String   @db.Text
   description     String?
   isActive        Boolean  @default(true)
   marginTop       Float    @default(20)
@@ -1283,8 +1283,8 @@ model Contract {
   issuedBy     User             @relation("ContractIssuer", fields: [issuedById], references: [id])
   projectId    String?
   project      Project?         @relation(fields: [projectId], references: [id])
-  variables    String           @db.LongText
-  finalContent String           @db.LongText
+  variables    String           @db.Text
+  finalContent String           @db.Text
   status       ContractStatus   @default(DRAFT)
   // Contract tracking fields
   startDate    DateTime?
@@ -1303,7 +1303,7 @@ model Contract {
   managerStampImage     String?          @db.Text
   managerSignedAt       DateTime?
   managerName           String?
-  clientSignature       String?          @db.LongText
+  clientSignature       String?          @db.Text
   clientSignedAt        DateTime?
   clientSignedIP        String?
   createdAt             DateTime         @default(now())
@@ -1345,7 +1345,7 @@ model ContractAddendum {
   contractId  String
   contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
   title       String
-  content     String   @db.LongText
+  content     String   @db.Text
   reason      String?  @db.Text
   createdById String
   createdBy   User     @relation("AddendumCreator", fields: [createdById], references: [id])
@@ -1582,7 +1582,7 @@ model SystemPolicy {
   id            String               @id @default(cuid())
   title         String
   slug          String               @unique
-  content       String               @db.LongText
+  content       String               @db.Text
   isPublished   Boolean              @default(true)
   order         Int                  @default(0)
   icon          String?
@@ -1861,7 +1861,7 @@ model ProjectDocument {
   id                       String    @id @default(cuid())
   kind                     DocTypeKind
   fileUrl                  String?   @db.Text
-  textData                 String?   @db.LongText
+  textData                 String?   @db.Text
   uploadedOnBehalfOfClient Boolean   @default(false)
   status                   DocStatus @default(PENDING_REVIEW)
   rejectionReason          String?   @db.Text
