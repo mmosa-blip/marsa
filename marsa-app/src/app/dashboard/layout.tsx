@@ -192,35 +192,6 @@ function buildAdminGroupsWithDepts(departments: DeptInfo[]): NavGroup[] {
   return result;
 }
 
-function buildExecutorGroupsWithDepts(departments: DeptInfo[]): NavGroup[] {
-  const result: NavGroup[] = [];
-  // Add home group first
-  result.push(executorGroups[0]);
-
-  // Add department groups (view-only for executors)
-  for (const dept of departments) {
-    result.push({
-      id: `dept_${dept.id}`,
-      label: dept.name,
-      icon: Building2,
-      children: [
-        { href: `/dashboard/projects?departmentId=${dept.id}`, label: "المشاريع" },
-        { href: `/dashboard/service-catalog?departmentId=${dept.id}`, label: "الخدمات" },
-        { href: `/dashboard/contracts?departmentId=${dept.id}`, label: "العقود" },
-        { href: `/dashboard/department-payments/${dept.id}`, label: "المدفوعات" },
-        { href: `/dashboard/department-health/${dept.id}`, label: "صحة المشاريع" },
-      ],
-    });
-  }
-
-  // Add remaining groups (contracts & finance)
-  for (let i = 1; i < executorGroups.length; i++) {
-    result.push(executorGroups[i]);
-  }
-
-  return result;
-}
-
 const executorGroups: NavGroup[] = [
   {
     id: "home",
@@ -329,7 +300,7 @@ function DashboardLayoutInner({
   // Fetch departments for dynamic sidebar
   const [sidebarDepts, setSidebarDepts] = useState<DeptInfo[]>([]);
   useEffect(() => {
-    if (["ADMIN", "MANAGER", "EXECUTOR", "EXTERNAL_PROVIDER"].includes(userRole)) {
+    if (["ADMIN", "MANAGER"].includes(userRole)) {
       fetch("/api/departments")
         .then((r) => r.json())
         .then((data) => { if (Array.isArray(data)) setSidebarDepts(data); })
@@ -376,7 +347,7 @@ function DashboardLayoutInner({
 
   const baseGroups =
     userRole === "CLIENT" ? clientGroups :
-    userRole === "EXECUTOR" ? (sidebarDepts.length > 0 ? buildExecutorGroupsWithDepts(sidebarDepts) : executorGroups) :
+    userRole === "EXECUTOR" ? executorGroups :
     userRole === "EXTERNAL_PROVIDER" ? providerGroups :
     sidebarDepts.length > 0 ? buildAdminGroupsWithDepts(sidebarDepts) : adminGroups;
 
