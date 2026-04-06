@@ -38,6 +38,16 @@ export async function GET(request: NextRequest) {
               some: { userId: session.user.id }
             }
           }
+        },
+        // Tasks from services where user is a qualified employee for the service template
+        {
+          service: {
+            serviceTemplate: {
+              qualifiedEmployees: {
+                some: { userId: session.user.id }
+              }
+            }
+          }
         }
       ],
       project: {

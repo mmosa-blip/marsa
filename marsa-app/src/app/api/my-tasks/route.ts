@@ -36,7 +36,12 @@ export async function GET() {
 
     const baseFindArgs = {
       where: {
-        assigneeId: userId,
+        OR: [
+          { assigneeId: userId },
+          { assignments: { some: { userId } } },
+          { service: { executors: { some: { userId } } } },
+          { service: { serviceTemplate: { qualifiedEmployees: { some: { userId } } } } },
+        ],
         status: { notIn: ["DONE" as const, "CANCELLED" as const] },
       },
       include: includeRelations,
