@@ -21,6 +21,19 @@ export async function GET(
         client: { select: { id: true, name: true, email: true } },
         manager: { select: { id: true, name: true, email: true } },
         department: { select: { id: true, name: true, nameEn: true, color: true } },
+        contract: {
+          select: {
+            id: true,
+            contractNumber: true,
+            startDate: true,
+            endDate: true,
+            durationDays: true,
+            contractValue: true,
+            uploadedFileUrl: true,
+            templateId: true,
+            status: true,
+          },
+        },
         services: {
           include: {
             tasks: {

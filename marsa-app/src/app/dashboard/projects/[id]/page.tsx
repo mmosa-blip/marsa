@@ -21,9 +21,14 @@ import {
   DollarSign,
   Save,
   X,
+  FileText,
+  FileWarning,
+  ExternalLink,
+  Hash,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ContractPromptDialog from "@/components/ContractPromptDialog";
 
 interface TaskType {
   id: string;
@@ -62,6 +67,17 @@ interface ProjectType {
   client: { id: string; name: string; email: string };
   manager: { id: string; name: string; email: string } | null;
   department?: { id: string; name: string; nameEn?: string; color: string | null } | null;
+  contract?: {
+    id: string;
+    contractNumber: number | null;
+    startDate: string | null;
+    endDate: string | null;
+    durationDays: number | null;
+    contractValue: number | null;
+    uploadedFileUrl: string | null;
+    templateId: string | null;
+    status: string;
+  } | null;
   tasks: TaskType[];
   services: ServiceType[];
 }
@@ -108,6 +124,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showContractPrompt, setShowContractPrompt] = useState(false);
   const dragItem = useRef<string | null>(null);
   const dragOverColumn = useRef<string | null>(null);
 
@@ -273,6 +290,120 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      {/* Contract status card */}
+      {(() => {
+        const c = project.contract;
+        if (!c) {
+          return (
+            <div
+              className="bg-white rounded-2xl p-5 mb-6 flex items-center gap-4"
+              style={{ border: "2px dashed #FECACA", backgroundColor: "rgba(220,38,38,0.03)" }}
+              dir="rtl"
+            >
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: "rgba(220,38,38,0.1)" }}>
+                <FileWarning size={22} style={{ color: "#DC2626" }} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>لا يوجد عقد مرتبط بهذا المشروع</p>
+                <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>أضف عقداً قائماً أو أنشئ عقداً جديداً لتفعيل تتبع الانتهاء</p>
+              </div>
+              {isAdmin && (
+                <MarsaButton variant="gold" size="sm" icon={<FileText size={14} />} onClick={() => setShowContractPrompt(true)}>
+                  إضافة عقد
+                </MarsaButton>
+              )}
+            </div>
+          );
+        }
+
+        const now = Date.now();
+        const endMs = c.endDate ? new Date(c.endDate).getTime() : null;
+        const daysRemaining = endMs ? Math.ceil((endMs - now) / (1000 * 60 * 60 * 24)) : null;
+        let urgency: "expired" | "critical" | "warning" | "normal" = "normal";
+        let urgencyColor = "#22C55E";
+        let urgencyLabel = "ساري";
+        if (daysRemaining !== null) {
+          if (daysRemaining < 0) { urgency = "expired"; urgencyColor = "#DC2626"; urgencyLabel = "منتهي"; }
+          else if (daysRemaining <= 15) { urgency = "critical"; urgencyColor = "#DC2626"; urgencyLabel = `ينتهي خلال ${daysRemaining} يوم`; }
+          else if (daysRemaining <= 30) { urgency = "warning"; urgencyColor = "#EA580C"; urgencyLabel = `ينتهي خلال ${daysRemaining} يوم`; }
+          else { urgencyLabel = `${daysRemaining} يوم متبقي`; }
+        }
+
+        return (
+          <div
+            className="bg-white rounded-2xl p-5 mb-6"
+            style={{ border: `1px solid ${urgency === "normal" ? "#E2E0D8" : `${urgencyColor}40`}`, backgroundColor: urgency === "normal" ? "white" : `${urgencyColor}05` }}
+            dir="rtl"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${urgencyColor}15` }}>
+                <FileText size={22} style={{ color: urgencyColor }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+                    {c.contractNumber ? `عقد رقم #${c.contractNumber}` : "عقد المشروع"}
+                  </p>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ backgroundColor: `${urgencyColor}15`, color: urgencyColor }}>
+                    {urgencyLabel}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}>
+                    {c.templateId ? "عقد جديد" : "عقد قائم"}
+                  </span>
+                  {(urgency === "critical" || urgency === "expired") && (
+                    <AlertTriangle size={14} style={{ color: urgencyColor }} />
+                  )}
+                </div>
+                <div className="flex items-center gap-5 text-xs mt-2 flex-wrap" style={{ color: "#6B7280" }}>
+                  {c.startDate && (
+                    <span className="flex items-center gap-1">
+                      <Calendar size={12} />
+                      من {formatDate(c.startDate)}
+                    </span>
+                  )}
+                  {c.endDate && (
+                    <span className="flex items-center gap-1">
+                      <Calendar size={12} />
+                      إلى {formatDate(c.endDate)}
+                    </span>
+                  )}
+                  {c.durationDays != null && (
+                    <span className="flex items-center gap-1">
+                      <Clock size={12} />
+                      {c.durationDays} يوم
+                    </span>
+                  )}
+                  {c.contractValue != null && (
+                    <span className="flex items-center gap-1">
+                      <DollarSign size={12} />
+                      {c.contractValue.toLocaleString("en-US")} <SarSymbol size={11} />
+                    </span>
+                  )}
+                  {c.contractNumber != null && (
+                    <span className="flex items-center gap-1">
+                      <Hash size={12} />
+                      {c.contractNumber}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {c.uploadedFileUrl && (
+                  <a href={c.uploadedFileUrl} target="_blank" rel="noopener noreferrer">
+                    <MarsaButton variant="secondary" size="sm" icon={<ExternalLink size={14} />}>
+                      عرض الملف
+                    </MarsaButton>
+                  </a>
+                )}
+                <MarsaButton href={`/dashboard/contracts?id=${c.id}`} variant="link" size="sm">
+                  تفاصيل العقد
+                </MarsaButton>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* View Toggle */}
       <div className="flex items-center gap-3 mb-6">
@@ -501,6 +632,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <Package size={40} className="mx-auto mb-3 text-gray-300" />
           <p className="text-gray-400">لا توجد خدمات في هذا المشروع</p>
         </div>
+      )}
+
+      {/* Add contract dialog */}
+      {showContractPrompt && project && (
+        <ContractPromptDialog
+          clientId={project.client.id}
+          projectId={project.id}
+          onSuccess={() => {
+            setShowContractPrompt(false);
+            fetchProject();
+          }}
+          onCancel={() => setShowContractPrompt(false)}
+        />
       )}
 
       {/* Save as Template Modal */}

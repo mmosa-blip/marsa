@@ -585,10 +585,8 @@ export default function NewProjectPage() {
 
   // ─── Submit ───
   const handleSubmit = async () => {
-    // Investment department requires a contract before project creation
-    const selectedDept = departments.find((d) => d.id === departmentId);
-    const isInvestment = selectedDept?.name?.includes("الاستثمار");
-    if (isInvestment && !selectedContractId && selectedClient) {
+    // Every project must have a contract — prompt if none selected
+    if (!selectedContractId && selectedClient) {
       setShowContractPrompt(true);
       return;
     }
@@ -1977,7 +1975,7 @@ export default function NewProjectPage() {
         </div>
       </div>
 
-      {/* Contract prompt dialog for Investment department */}
+      {/* Contract prompt dialog — required for every project */}
       {showContractPrompt && selectedClient && (
         <ContractPromptDialog
           clientId={selectedClient.id}

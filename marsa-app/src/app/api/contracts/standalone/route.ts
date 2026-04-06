@@ -45,6 +45,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Also link as the project's primary contract (so it shows in linkedProjects/expiring queries)
+    if (projectId) {
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { contractId: contract.id },
+      });
+    }
+
     return NextResponse.json(contract, { status: 201 });
   } catch (error) {
     console.error("Error:", error);

@@ -332,9 +332,12 @@ function DashboardLayoutInner({
     }
   }, [session?.user?.id]);
 
-  // Contract expiry check — runs once per session for admins
+  // Contract expiry check — runs once per day per session for admins, managers, and executors
   useEffect(() => {
-    if (userRole === "ADMIN" && session?.user?.id) {
+    if (
+      session?.user?.id &&
+      ["ADMIN", "MANAGER", "EXECUTOR"].includes(userRole || "")
+    ) {
       const key = `contract_check_${new Date().toISOString().slice(0, 10)}`;
       if (!sessionStorage.getItem(key)) {
         fetch("/api/contracts/check-expiry")
