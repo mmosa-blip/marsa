@@ -76,20 +76,21 @@ export async function PATCH(
       data.rejectionReason = rejectionReason.trim();
       data.reviewedById = session.user.id;
       data.reviewedAt = new Date();
+      const reasonSuffix = ` — السبب: ${rejectionReason.trim()}`;
       if (doc.uploadedById) {
         createNotification({
           userId: doc.uploadedById,
           type: "TASK_REJECTED",
-          message: `تم رفض المستند: ${doc.documentType?.name} — يرجى إعادة الرفع`,
+          message: `تم رفض المستند: ${doc.documentType?.name} — يرجى إعادة الرفع${reasonSuffix}`,
           link: `/dashboard/projects/${doc.projectId}/documents`,
         }).catch(() => {});
       }
-      // Also notify client if they uploaded it
-      if (doc.project.clientId !== doc.uploadedById) {
+      // Also notify client if they didn't upload it themselves
+      if (doc.project.clientId && doc.project.clientId !== doc.uploadedById) {
         createNotification({
           userId: doc.project.clientId,
           type: "TASK_REJECTED",
-          message: `تم رفض مستند: ${doc.documentType?.name} — يرجى إعادة الرفع`,
+          message: `تم رفض مستند: ${doc.documentType?.name} — يرجى إعادة الرفع${reasonSuffix}`,
           link: `/dashboard/my-documents`,
         }).catch(() => {});
       }

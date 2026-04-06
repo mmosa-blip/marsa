@@ -25,6 +25,7 @@ import {
   FileWarning,
   ExternalLink,
   Hash,
+  FolderOpen,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -260,6 +261,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <MarsaButton
+              variant="secondary"
+              icon={<FolderOpen size={16} />}
+              href={`/dashboard/projects/${id}/documents`}
+            >
+              📁 مستندات المشروع
+            </MarsaButton>
             {isAdmin && (
               <MarsaButton variant="secondary" icon={<Save size={16} />}
                 onClick={() => { setTemplateName(project.name); setShowTemplateModal(true); }}
