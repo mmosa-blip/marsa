@@ -9,6 +9,7 @@ import EmployeeDashboard from "./EmployeeDashboard";
 import ProviderDashboard from "./ProviderDashboard";
 import ProjectHealthRadar from "@/components/ProjectHealthRadar";
 import PrayerTimesCard from "@/components/PrayerTimesCard";
+import LeaderboardWidget from "@/components/LeaderboardWidget";
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -74,6 +75,9 @@ export default function DashboardPage() {
           </p>
         </div>
         <ProjectHealthRadar />
+        <div className="mt-6">
+          <LeaderboardWidget />
+        </div>
       </div>
     );
   }

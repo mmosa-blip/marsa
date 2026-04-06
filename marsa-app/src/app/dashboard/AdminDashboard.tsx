@@ -16,6 +16,7 @@ import {
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import ExpiringContractsWidget from "@/components/ExpiringContractsWidget";
+import LeaderboardWidget from "@/components/LeaderboardWidget";
 import {
   AreaChart,
   Area,
@@ -276,6 +277,11 @@ export default function AdminDashboard({ data, userName }: Props) {
       {/* Expiring contracts widget */}
       <div className="mb-8">
         <ExpiringContractsWidget days={30} />
+      </div>
+
+      {/* Performance leaderboard */}
+      <div className="mb-8">
+        <LeaderboardWidget />
       </div>
 
       <div style={{ height: 1, background: "linear-gradient(90deg, transparent, rgba(201,168,76,0.3), transparent)", margin: "8px 0" }} />
