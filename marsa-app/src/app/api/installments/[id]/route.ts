@@ -118,7 +118,7 @@ export async function PATCH(
         data: {
           userId: installment.contract.clientId,
           type: "INVOICE_PAID" as const,
-          message: `تم تأكيد دفع الدفعة: ${installment.title} - عقد: ${installment.contract.template.title}`,
+          message: `تم تأكيد دفع الدفعة: ${installment.title} - عقد: ${installment.contract.template?.title || "عقد"}`,
           link: `/dashboard/contracts`,
         },
       });
@@ -145,7 +145,7 @@ export async function PATCH(
         userId: session.user.id, userName: session.user.name || undefined, userRole: role,
         action: "INSTALLMENT_PAID", module: AuditModule.FINANCE,
         severity: "CRITICAL",
-        entityType: "Installment", entityId: id, entityName: installment.contract.template.title,
+        entityType: "Installment", entityId: id, entityName: installment.contract.template?.title || "عقد",
         after: { amount: installment.amount, paymentStatus: "PAID" },
       });
 
@@ -186,7 +186,7 @@ export async function PATCH(
         userId: session.user.id, userName: session.user.name || undefined, userRole: role,
         action: "INSTALLMENT_PARTIAL", module: AuditModule.FINANCE,
         severity: "WARN",
-        entityType: "Installment", entityId: id, entityName: installment.contract.template.title,
+        entityType: "Installment", entityId: id, entityName: installment.contract.template?.title || "عقد",
         after: { paidAmount, paymentStatus: "PARTIAL" },
       });
 
@@ -256,7 +256,7 @@ export async function PATCH(
         userId: session.user.id, userName: session.user.name || undefined, userRole: role,
         action: "INSTALLMENT_APPROVED", module: AuditModule.FINANCE,
         severity: "WARN",
-        entityType: "Installment", entityId: id, entityName: installment.contract.template.title,
+        entityType: "Installment", entityId: id, entityName: installment.contract.template?.title || "عقد",
       });
 
       return NextResponse.json(updated);
