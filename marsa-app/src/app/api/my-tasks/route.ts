@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { reassignStaleTasks } from "@/lib/task-assignment";
 
 export async function GET() {
   try {
@@ -34,14 +35,13 @@ export async function GET() {
       },
     };
 
+    // Opportunistically check for stale unaccepted tasks (fire-and-forget)
+    reassignStaleTasks().catch(() => {});
+
+    // Single-assignee model: executor sees only tasks assigned to THEM
     const baseFindArgs = {
       where: {
-        OR: [
-          { assigneeId: userId },
-          { assignments: { some: { userId } } },
-          { service: { executors: { some: { userId } } } },
-          { service: { serviceTemplate: { qualifiedEmployees: { some: { userId } } } } },
-        ],
+        assigneeId: userId,
         status: { notIn: ["DONE" as const, "CANCELLED" as const] },
       },
       include: includeRelations,

@@ -610,6 +610,41 @@ export default function MyTasksPage() {
   const currentTask = tasks.find((t) => t.status === "IN_PROGRESS");
   const nextTask = tasks.find((t) => t.status === "TODO" && t.id !== currentTask?.id);
 
+  // Pending acceptance: assigned but not yet accepted
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pendingAcceptance = (tasks as any[]).filter((t) =>
+    !t.acceptedAt && t.assignedAt && (t.status === "TODO" || t.status === "WAITING")
+  );
+
+  const handleAccept = async (taskId: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/accept`, { method: "POST" });
+      if (res.ok) {
+        window.location.reload();
+      }
+    } catch {}
+  };
+
+  const handleReject = async (taskId: string) => {
+    const reason = prompt("سبب رفض المهمة:");
+    if (!reason || !reason.trim()) return;
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const data = await res.json();
+        alert(data.error || "حدث خطأ");
+      }
+    } catch {
+      alert("حدث خطأ");
+    }
+  };
+
   return (
     <div className="p-8" dir="rtl" style={{ backgroundColor: "#F8F9FA", minHeight: "100vh" }}>
       {/* Header */}
@@ -629,6 +664,51 @@ export default function MyTasksPage() {
           {t.tasks.allTasks}
         </p>
       </div>
+
+      {/* Pending Acceptance Alert */}
+      {pendingAcceptance.length > 0 && (
+        <div className="mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "rgba(234,88,12,0.06)", border: "2px solid rgba(234,88,12,0.3)" }}>
+          <div className="px-5 py-3 flex items-center gap-2" style={{ backgroundColor: "rgba(234,88,12,0.1)" }}>
+            <Clock size={18} style={{ color: "#EA580C" }} />
+            <span className="text-sm font-bold" style={{ color: "#EA580C" }}>
+              مهام بانتظار القبول ({pendingAcceptance.length})
+            </span>
+            <span className="text-[10px]" style={{ color: "#EA580C" }}>
+              — يجب القبول خلال ساعتين وإلا تُحوّل تلقائياً
+            </span>
+          </div>
+          <div className="p-3 space-y-2">
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {pendingAcceptance.slice(0, 5).map((task: any) => (
+              <div key={task.id} className="bg-white rounded-xl p-4 flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+                    {task.title}
+                  </p>
+                  {task.service?.name && (
+                    <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+                      {task.service.name}
+                    </p>
+                  )}
+                  {task.project?.name && (
+                    <p className="text-[10px] mt-0.5" style={{ color: "#9CA3AF" }}>
+                      📁 {task.project.name}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <MarsaButton variant="gold" size="sm" onClick={() => handleAccept(task.id)}>
+                    قبول
+                  </MarsaButton>
+                  <MarsaButton variant="dangerSoft" size="sm" onClick={() => handleReject(task.id)}>
+                    رفض
+                  </MarsaButton>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Current + Next Task Panel */}
       {(currentTask || nextTask) && (

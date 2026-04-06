@@ -202,15 +202,16 @@ export async function POST(request: Request) {
             projectId: project.id,
             assigneeId,
             assignedAt: assigneeId ? new Date() : null,
+            acceptedAt: null,
           },
         });
 
-        // Create TaskAssignment records for ALL qualified employees
-        // This ensures my-tasks/all finds these tasks via assignments.some()
-        if (employees.length > 0) {
-          await prisma.taskAssignment.createMany({
-            data: employees.map((e) => ({ taskId: createdTask.id, userId: e.userId })),
-            skipDuplicates: true,
+        // Single-assignee TaskAssignment (for primary assignee only)
+        if (assigneeId) {
+          await prisma.taskAssignment.upsert({
+            where: { taskId_userId: { taskId: createdTask.id, userId: assigneeId } },
+            create: { taskId: createdTask.id, userId: assigneeId },
+            update: {},
           });
         }
 

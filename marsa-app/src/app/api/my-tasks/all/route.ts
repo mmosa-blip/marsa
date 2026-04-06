@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { reassignStaleTasks } from "@/lib/task-assignment";
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,6 +10,9 @@ export async function GET(request: NextRequest) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
     }
+
+    // Fire-and-forget stale task reassignment
+    reassignStaleTasks().catch(() => {});
 
     const { searchParams } = request.nextUrl;
     const status = searchParams.get("status") || "";
@@ -27,29 +31,10 @@ export async function GET(request: NextRequest) {
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
 
+    // Single-assignee model: executor sees only tasks directly assigned to them
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = {
-      OR: [
-        { assigneeId: session.user.id },
-        { assignments: { some: { userId: session.user.id } } },
-        {
-          service: {
-            executors: {
-              some: { userId: session.user.id }
-            }
-          }
-        },
-        // Tasks from services where user is a qualified employee for the service template
-        {
-          service: {
-            serviceTemplate: {
-              qualifiedEmployees: {
-                some: { userId: session.user.id }
-              }
-            }
-          }
-        }
-      ],
+      assigneeId: session.user.id,
       project: {
         deletedAt: null,
         ...(project && { name: { contains: project } }),
@@ -73,15 +58,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      // Wrap existing OR (user assignment) with AND to combine with search OR
-      const userConditions = where.OR;
-      delete where.OR;
-      where.AND = [
-        { OR: userConditions },
-        { OR: [
-          { title: { contains: search } },
-          { project: { name: { contains: search } } },
-        ]},
+      where.OR = [
+        { title: { contains: search } },
+        { project: { name: { contains: search } } },
       ];
     }
 

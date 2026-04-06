@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createNotifications } from "@/lib/notifications";
 import { taskRejectionSchema } from "@/lib/validations";
+import { reassignTask } from "@/lib/task-assignment";
+import { createNotifications } from "@/lib/notifications";
 
 export async function POST(
   request: NextRequest,
@@ -11,9 +12,7 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    if (!session) return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
 
     const { id } = await params;
     const body = await request.json();
@@ -24,63 +23,54 @@ export async function POST(
     }
     const { reason } = parsed.data;
 
-    // Fetch the task
     const task = await prisma.task.findUnique({
       where: { id },
-      include: { project: true },
+      select: { id: true, title: true, assigneeId: true, projectId: true },
     });
 
-    if (!task) {
-      return NextResponse.json({ error: "المهمة غير موجودة" }, { status: 404 });
-    }
+    if (!task) return NextResponse.json({ error: "المهمة غير موجودة" }, { status: 404 });
 
-    // Verify the session user is the current assignee
     if (task.assigneeId !== session.user.id) {
       return NextResponse.json(
-        { error: "يمكن فقط للمزود المعين رفض المهمة" },
+        { error: "يمكن فقط للمنفذ المعيّن رفض المهمة" },
         { status: 403 }
       );
     }
 
-    // Get provider info for notification message
     const provider = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { name: true },
     });
 
-    // Create rejection record and unassign task
-    await prisma.$transaction([
-      prisma.taskRejection.create({
-        data: {
-          taskId: id,
-          providerId: session.user.id,
-          reason,
-        },
-      }),
-      prisma.task.update({
-        where: { id },
-        data: { assigneeId: null },
-      }),
-    ]);
-
-    // Notify all admins
-    const admins = await prisma.user.findMany({
-      where: { role: "ADMIN", isActive: true },
-      select: { id: true },
+    // Record rejection
+    await prisma.taskRejection.create({
+      data: { taskId: id, providerId: session.user.id, reason },
     });
 
+    // Notify admins about the rejection
+    const admins = await prisma.user.findMany({
+      where: { role: "ADMIN", isActive: true, deletedAt: null },
+      select: { id: true },
+    });
     if (admins.length > 0) {
       await createNotifications(
-        admins.map((admin) => ({
-          userId: admin.id,
+        admins.map((a) => ({
+          userId: a.id,
           type: "TASK_REJECTED" as const,
-          message: `رفض المزود ${provider?.name} المهمة: ${task.title}`,
-          link: "/dashboard/projects",
+          message: `رفض ${provider?.name || "المنفذ"} المهمة: ${task.title} — السبب: ${reason}`,
+          link: `/dashboard/projects/${task.projectId}`,
         }))
       );
     }
 
-    return NextResponse.json({ success: true });
+    // Auto-reassign to next qualified executor (or notify admins if none left)
+    const newAssignee = await reassignTask(id);
+
+    return NextResponse.json({
+      success: true,
+      reassigned: !!newAssignee,
+      newAssigneeId: newAssignee,
+    });
   } catch (error) {
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });

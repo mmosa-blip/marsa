@@ -155,14 +155,16 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
           projectId: project.id,
           assigneeId,
           assignedAt: assigneeId ? new Date() : null,
+          acceptedAt: null,
         },
       });
 
-      // Create TaskAssignment records for ALL qualified employees
-      if (employees.length > 0) {
-        await prisma.taskAssignment.createMany({
-          data: employees.map((e) => ({ taskId: createdTask.id, userId: e.userId })),
-          skipDuplicates: true,
+      // Single-assignee TaskAssignment (for primary assignee only)
+      if (assigneeId) {
+        await prisma.taskAssignment.upsert({
+          where: { taskId_userId: { taskId: createdTask.id, userId: assigneeId } },
+          create: { taskId: createdTask.id, userId: assigneeId },
+          update: {},
         });
       }
 
