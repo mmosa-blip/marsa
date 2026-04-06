@@ -1141,7 +1141,7 @@ export default function MyTasksPage() {
                                       className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border-2 transition-all"
                                       style={{ borderColor: "#C9A84C", color: "#C9A84C", backgroundColor: "rgba(201,168,76,0.05)" }}
                                     >
-                                      مزود خارجي
+                                      مورد
                                     </button>
                                     <button
                                       onClick={() => setWaitingMode(task.id, "GOVERNMENT")}
@@ -1155,14 +1155,16 @@ export default function MyTasksPage() {
                                 </div>
                               )}
 
-                              {/* PROVIDER MODE */}
+                              {/* PROVIDER MODE — same shape as government mode (free-text name + updates) */}
                               {task.waitingMode === "PROVIDER" && (() => {
-                                const link = task.externalProviders?.[0];
+                                const hold = task.governmentHolds?.[0];
                                 return (
                                   <div className="rounded-xl p-3 max-w-lg" style={{ backgroundColor: "rgba(201,168,76,0.06)", border: "1px solid rgba(201,168,76,0.2)" }}>
                                     <div className="flex items-center justify-between mb-2">
                                       <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold" style={{ color: "#92400E" }}>انتظار مزود خارجي</span>
+                                        <span className="text-xs font-bold" style={{ color: "#92400E" }}>
+                                          معلق — {hold?.entity || "مورد"}
+                                        </span>
                                       </div>
                                       <MarsaButton
                                         onClick={() => setWaitingMode(task.id, null)}
@@ -1172,81 +1174,65 @@ export default function MyTasksPage() {
                                       </MarsaButton>
                                     </div>
 
-                                    {!link && (
+                                    {!hold && (
                                       <div className="space-y-2">
-                                        <select
-                                          value={selectedProviderIds[task.id] || ""}
-                                          onChange={(e) => setSelectedProviderIds((p) => ({ ...p, [task.id]: e.target.value }))}
+                                        <input
+                                          placeholder="اسم المورد ومعلومات التواصل (اختياري)"
+                                          value={govEntities[task.id] || ""}
+                                          onChange={(e) => setGovEntities((p) => ({ ...p, [task.id]: e.target.value }))}
                                           className="w-full px-3 py-2 rounded-lg text-xs outline-none bg-white"
-                                          style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}
-                                        >
-                                          <option value="">-- اختر مزود الخدمة --</option>
-                                          {providers.map((prov) => (
-                                            <option key={prov.id} value={prov.id}>
-                                              {prov.name}{prov.specialization ? ` — ${prov.specialization}` : ""}
-                                            </option>
-                                          ))}
-                                        </select>
+                                          style={{ border: "1px solid #E2E0D8" }}
+                                        />
                                         <MarsaButton
-                                          onClick={() => setWaitingMode(task.id, "PROVIDER", { providerId: selectedProviderIds[task.id] })}
-                                          disabled={!selectedProviderIds[task.id]}
+                                          onClick={() => setWaitingMode(task.id, "PROVIDER", { governmentEntity: govEntities[task.id] })}
                                           variant="gold" size="sm"
                                           className="w-full"
                                         >
-                                          ربط المزود بالمهمة
+                                          تعليق المهمة
                                         </MarsaButton>
                                       </div>
                                     )}
 
-                                    {link && (
+                                    {hold && (
                                       <div>
-                                        <div className="flex items-center gap-2 mb-2 p-2 rounded-lg bg-white">
-                                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#C9A84C" }}>
-                                            {link.provider.name.charAt(0)}
+                                        {hold.updates?.length > 0 && (
+                                          <div className="mb-2 space-y-1 max-h-24 overflow-y-auto">
+                                            {hold.updates.map((u) => (
+                                              <div key={u.id} className="flex gap-2 text-xs p-1.5 rounded-lg bg-white">
+                                                <span style={{ color: "#94A3B8", flexShrink: 0 }}>
+                                                  {new Date(u.addedAt).toLocaleDateString("ar-SA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                                </span>
+                                                <span style={{ color: "#2D3748" }}>{u.note}</span>
+                                              </div>
+                                            ))}
                                           </div>
-                                          <div className="flex-1">
-                                            <p className="text-xs font-bold" style={{ color: "#1C1B2E" }}>{link.provider.name}</p>
-                                            {link.provider.phone && <p className="text-xs" style={{ color: "#6B7280" }}>{link.provider.phone}</p>}
-                                          </div>
-                                          <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: "#FEF9C3", color: "#CA8A04" }}>
-                                            {link._count?.reminders || 0} تذكير
-                                          </span>
+                                        )}
+
+                                        <div className="flex gap-2 mb-2">
+                                          <input
+                                            placeholder="تحديث معلومات — اكتب ملاحظة..."
+                                            value={govUpdateNotes[task.id] || ""}
+                                            onChange={(e) => setGovUpdateNotes((p) => ({ ...p, [task.id]: e.target.value }))}
+                                            className="flex-1 px-3 py-2 rounded-lg text-xs outline-none bg-white"
+                                            style={{ border: "1px solid #E2E0D8" }}
+                                            onKeyDown={(e) => e.key === "Enter" && addGovUpdate(task.id, hold.id)}
+                                          />
+                                          <MarsaButton
+                                            onClick={() => addGovUpdate(task.id, hold.id)}
+                                            variant="primary" size="sm"
+                                          >
+                                            ↑
+                                          </MarsaButton>
                                         </div>
 
-                                        {link.providerStatus === "COMPLETED" && (
-                                          <div className="p-2 rounded-lg mb-2" style={{ backgroundColor: "#DCFCE7", color: "#16A34A" }}>
-                                            <p className="text-xs font-bold">المزود أنهى المهمة</p>
-                                            <MarsaButton
-                                              onClick={() => markProviderDone(task.id, link.id, "reopen")}
-                                              variant="ghost" size="xs"
-                                              className="mt-1"
-                                              style={{ backgroundColor: "#FEF9C3", color: "#CA8A04" }}
-                                            >
-                                              إعادة فتح — غير مقبول
-                                            </MarsaButton>
-                                          </div>
-                                        )}
-
-                                        {link.providerStatus !== "COMPLETED" && (
-                                          <div className="flex gap-2">
-                                            <MarsaButton
-                                              onClick={() => sendProviderReminder(task.id, link.id)}
-                                              disabled={waitingLoading[task.id]}
-                                              variant="primary" size="sm"
-                                              className="flex-1"
-                                            >
-                                              تذكير المزود
-                                            </MarsaButton>
-                                            <MarsaButton
-                                              onClick={() => completeTask(task.id)}
-                                              variant="primary" size="sm"
-                                              className="flex-1"
-                                              style={{ backgroundColor: "#059669" }}
-                                            >
-                                              إكمال المهمة
-                                            </MarsaButton>
-                                          </div>
-                                        )}
+                                        <MarsaButton
+                                          onClick={() => completeTask(task.id)}
+                                          variant="primary" size="sm"
+                                          className="w-full"
+                                          style={{ backgroundColor: "#059669" }}
+                                        >
+                                          إكمال المهمة
+                                        </MarsaButton>
                                       </div>
                                     )}
                                   </div>

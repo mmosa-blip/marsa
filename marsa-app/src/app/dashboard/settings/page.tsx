@@ -317,7 +317,7 @@ export default function SettingsPage() {
                   فترات تذكير مزودي الخدمة
                 </h3>
                 <p className="text-xs mb-3" style={{ color: "#6B7280" }}>
-                  حدد الفترات الزمنية المتاحة للمنفذين عند تذكير المزود الخارجي
+                  حدد الفترات الزمنية المتاحة للمنفذين عند تذكير المورد
                 </p>
 
                 {reminderIntervals.map((item, i) => (

@@ -122,7 +122,7 @@ const roleLabels: Record<string, string> = {
   MANAGER: "مدير",
   EXECUTOR: "منفذ",
   CLIENT: "عميل",
-  EXTERNAL_PROVIDER: "مزود خارجي",
+  EXTERNAL_PROVIDER: "مورد",
   FINANCE_MANAGER: "مدير مالي",
   TREASURY_MANAGER: "مدير خزينة",
 };

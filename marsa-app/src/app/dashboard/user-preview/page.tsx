@@ -18,7 +18,7 @@ const roleConfig: Record<string, { label: string; color: string; bg: string; ico
   MANAGER:           { label: "مدير",           color: "#7C3AED", bg: "#F5F3FF", icon: Shield },
   CLIENT:            { label: "عميل",           color: "#2563EB", bg: "#EFF6FF", icon: Building2 },
   EXECUTOR:          { label: "منفذ",           color: "#059669", bg: "#ECFDF5", icon: Wrench },
-  EXTERNAL_PROVIDER: { label: "مزود خارجي",     color: "#D97706", bg: "#FFF7ED", icon: Briefcase },
+  EXTERNAL_PROVIDER: { label: "مورد",            color: "#D97706", bg: "#FFF7ED", icon: Briefcase },
   FINANCE_MANAGER:   { label: "مدير مالي",      color: "#0891B2", bg: "#ECFEFF", icon: Shield },
   TREASURY_MANAGER:  { label: "أمين الصندوق",   color: "#0891B2", bg: "#ECFEFF", icon: Shield },
 };

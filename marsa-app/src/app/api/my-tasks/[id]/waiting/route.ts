@@ -14,7 +14,7 @@ export async function POST(
     }
 
     const { id } = await params;
-    const { mode, providerId, governmentEntity } = await request.json();
+    const { mode, governmentEntity } = await request.json();
 
     if (mode === null) {
       // Clear waiting mode — resume task
@@ -30,37 +30,10 @@ export async function POST(
       data: { waitingMode: mode },
     });
 
-    if (mode === "PROVIDER" && providerId) {
-      // Remove old provider links first
-      await prisma.taskExternalProvider.deleteMany({ where: { taskId: id } });
-      await prisma.taskExternalProvider.create({
-        data: {
-          taskId: id,
-          providerId,
-          linkedById: session.user.id,
-        },
-      });
-
-      // Link provider so they see the task in my-tasks
-      await prisma.taskAssignment.upsert({
-        where: { taskId_userId: { taskId: id, userId: providerId } },
-        create: { taskId: id, userId: providerId },
-        update: {},
-      });
-
-      // Notify the provider
-      await prisma.notification.create({
-        data: {
-          userId: providerId,
-          type: "NEW_TASK",
-          message: "تم إسنادك كمزود خدمة خارجي لمهمة جديدة",
-          link: "/dashboard/my-tasks",
-        },
-      }).catch(() => {});
-    }
-
-    if (mode === "GOVERNMENT") {
-      // Deactivate old holds
+    // PROVIDER and GOVERNMENT modes both store as TaskGovernmentHold —
+    // the entity field carries the supplier name or the government body
+    // name. The Task.waitingMode tells the UI which label to show.
+    if (mode === "PROVIDER" || mode === "GOVERNMENT") {
       await prisma.taskGovernmentHold.updateMany({
         where: { taskId: id, isActive: true },
         data: { isActive: false },
