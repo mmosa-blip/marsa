@@ -272,6 +272,10 @@ export default function NewProjectPage() {
   const [pendingDocs, setPendingDocs] = useState<Record<string, { fileUrl?: string; textData?: string; skipped?: boolean }>>({});
   const [currentDocIndex, setCurrentDocIndex] = useState(0);
 
+  // ─── Step 5 — optional company branches (Investment department only) ───
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [branchesExpanded, setBranchesExpanded] = useState(false);
+
   // ─── Step 6 state — assign project manager (optional) ───
   const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [loadingManagers, setLoadingManagers] = useState(false);
@@ -848,6 +852,20 @@ export default function NewProjectPage() {
             // Don't fail the whole flow — executor can re-upload from project page
           }
         }
+
+        // After project creation — instantiate company branch services if any
+        const branchNames = branches.map((b) => b.name.trim()).filter(Boolean);
+        if (branchNames.length > 0) {
+          try {
+            await fetch(`/api/projects/${projectId}/branches`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ branches: branchNames }),
+            });
+          } catch {
+            // Non-fatal — admin can re-add branches later
+          }
+        }
       }
 
       // Save as template if checked
@@ -950,6 +968,22 @@ export default function NewProjectPage() {
     setInstallments((prev) => prev.filter((i) => i.id !== id));
   };
   const installmentsTotal = installments.reduce((sum, i) => sum + (i.amount || 0), 0);
+
+  // ─── Branch helpers ───
+  const addBranch = () => {
+    setBranches((prev) => [...prev, { id: `branch-${Date.now()}-${Math.random()}`, name: "" }]);
+    setBranchesExpanded(true);
+  };
+  const updateBranchName = (id: string, name: string) => {
+    setBranches((prev) => prev.map((b) => (b.id === id ? { ...b, name } : b)));
+  };
+  const removeBranch = (id: string) => {
+    setBranches((prev) => prev.filter((b) => b.id !== id));
+  };
+
+  // Show the branches section only for Investment-department projects
+  const selectedDept = departments.find((d) => d.id === departmentId);
+  const isInvestmentDept = !!selectedDept?.name?.includes("الاستثمار");
 
   // ─── Render ───
   return (
@@ -2335,6 +2369,92 @@ export default function NewProjectPage() {
                 </div>
               )}
             </div>
+
+            {/* ─── Optional Company Branches (Investment department only) ─── */}
+            {isInvestmentDept && (
+              <div className="bg-white rounded-2xl mt-4" style={{ border: "1px solid #E2E0D8" }}>
+                <button
+                  type="button"
+                  onClick={() => setBranchesExpanded((v) => !v)}
+                  className="w-full flex items-center justify-between p-5 text-right"
+                >
+                  <div className="flex items-center gap-2">
+                    <Building2 size={18} style={{ color: "#C9A84C" }} />
+                    <h3 className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+                      فتح فروع الشركة
+                    </h3>
+                    <span className="text-[10px]" style={{ color: "#9CA3AF" }}>(اختياري)</span>
+                    {branches.length > 0 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}>
+                        {branches.length}
+                      </span>
+                    )}
+                  </div>
+                  <ChevronDown
+                    size={16}
+                    className={`transition-transform ${branchesExpanded ? "rotate-180" : ""}`}
+                    style={{ color: "#9CA3AF" }}
+                  />
+                </button>
+
+                {branchesExpanded && (
+                  <div className="px-5 pb-5">
+                    <p className="text-[11px] mb-3" style={{ color: "#6B7280" }}>
+                      أضف فرعاً واحداً لكل دولة. سيتم إنشاء خدمة منفصلة بـ 12 مهمة لكل فرع تلقائياً.
+                    </p>
+
+                    {branches.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        {branches.map((b, idx) => (
+                          <div key={b.id} className="flex items-center gap-2">
+                            <span
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                              style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}
+                            >
+                              {idx + 1}
+                            </span>
+                            <input
+                              type="text"
+                              value={b.name}
+                              onChange={(e) => updateBranchName(b.id, e.target.value)}
+                              placeholder="اسم الفرع (مثل: كندا، بريطانيا)"
+                              className="flex-1 px-3 py-2 text-sm rounded-lg outline-none"
+                              style={{ border: "1px solid #E2E0D8" }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeBranch(b.id)}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors shrink-0"
+                              aria-label="حذف الفرع"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={addBranch}
+                      className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-medium border border-dashed transition-all"
+                      style={{ color: "#5E5495", borderColor: "rgba(94,84,149,0.3)" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(94,84,149,0.04)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                    >
+                      <Plus size={12} />
+                      إضافة فرع جديد
+                    </button>
+
+                    {branches.length === 0 && (
+                      <p className="text-[10px] mt-3 text-center" style={{ color: "#9CA3AF" }}>
+                        لم تُضَف فروع — سيتم تخطي هذه الخدمة عند إنشاء المشروع
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
