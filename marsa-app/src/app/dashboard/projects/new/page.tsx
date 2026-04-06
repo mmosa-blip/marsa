@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import { UploadButton } from "@/lib/uploadthing";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -1162,17 +1163,50 @@ export default function NewProjectPage() {
 
                     {contractMode === "existing" && (
                       <div>
-                        <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>رابط ملف العقد (PDF) *</label>
-                        <input
-                          type="url" name="uploadedFileUrl" value={contractForm.uploadedFileUrl}
-                          onChange={handleContractFormChange}
-                          placeholder="https://..." dir="ltr"
-                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-                          style={{ border: "1px solid #E2E0D8" }}
-                        />
-                        <p className="text-[10px] mt-1" style={{ color: "#9CA3AF" }}>
-                          ارفع الملف لـ UploadThing أولاً ثم الصق الرابط
-                        </p>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>ملف العقد (PDF) *</label>
+                        {contractForm.uploadedFileUrl ? (
+                          <div className="flex items-center justify-between gap-2 p-3 rounded-lg" style={{ backgroundColor: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)" }}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <CheckCircle2 size={16} style={{ color: "#059669" }} />
+                              <a
+                                href={contractForm.uploadedFileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-semibold truncate hover:underline"
+                                style={{ color: "#059669" }}
+                              >
+                                تم رفع الملف — معاينة
+                              </a>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setContractForm((prev) => ({ ...prev, uploadedFileUrl: "" }))}
+                              className="text-xs shrink-0"
+                              style={{ color: "#DC2626" }}
+                            >
+                              حذف
+                            </button>
+                          </div>
+                        ) : (
+                          <UploadButton
+                            endpoint="documentUploader"
+                            onClientUploadComplete={(res) => {
+                              if (res?.[0]) {
+                                setContractForm((prev) => ({ ...prev, uploadedFileUrl: res[0].ufsUrl }));
+                                setContractError("");
+                              }
+                            }}
+                            onUploadError={(error) => setContractError("فشل رفع الملف: " + error.message)}
+                            appearance={{
+                              button: { backgroundColor: "#C9A84C", color: "white", borderRadius: "0.75rem", fontSize: "0.75rem", padding: "0.5rem 1rem" },
+                              allowedContent: { color: "#9CA3AF", fontSize: "0.625rem" },
+                            }}
+                            content={{
+                              button: ({ ready, isUploading }) => isUploading ? "جاري الرفع..." : ready ? "اختر ملف العقد" : "تجهيز...",
+                              allowedContent: () => "PDF (حتى 16MB)",
+                            }}
+                          />
+                        )}
                       </div>
                     )}
                   </div>
