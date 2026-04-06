@@ -143,11 +143,11 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
 
       const assigneeId = employees.length > 0 ? employees[i % employees.length].userId : null;
 
-      // Create task one-by-one to enable TaskAssignment creation
+      // Auto-assigned tasks start immediately (acceptedAt set, status IN_PROGRESS)
       const createdTask = await prisma.task.create({
         data: {
           title: tt.name,
-          status: "TODO" as const,
+          status: assigneeId ? ("IN_PROGRESS" as const) : ("TODO" as const),
           priority: "MEDIUM" as const,
           order: tt.sortOrder,
           dueDate,
@@ -155,7 +155,7 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
           projectId: project.id,
           assigneeId,
           assignedAt: assigneeId ? new Date() : null,
-          acceptedAt: null,
+          acceptedAt: assigneeId ? new Date() : null,
         },
       });
 

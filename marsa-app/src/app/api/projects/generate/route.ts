@@ -192,10 +192,11 @@ export async function POST(request: Request) {
               : null;
         }
 
+        // Auto-assigned tasks start immediately (no acceptance step)
         const createdTask = await prisma.task.create({
           data: {
             title: tt.name,
-            status: "TODO" as const,
+            status: assigneeId ? ("IN_PROGRESS" as const) : ("TODO" as const),
             priority: "MEDIUM" as const,
             order: tt.sortOrder,
             dueDate,
@@ -203,7 +204,7 @@ export async function POST(request: Request) {
             projectId: project.id,
             assigneeId,
             assignedAt: assigneeId ? new Date() : null,
-            acceptedAt: null,
+            acceptedAt: assigneeId ? new Date() : null,
           },
         });
 

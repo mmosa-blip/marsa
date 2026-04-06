@@ -62,20 +62,45 @@ export async function PATCH(
           newExpiresAt.setHours(newExpiresAt.getHours() + 24);
         }
 
-        const updated = await prisma.taskTransferRequest.update({
-          where: { id },
-          data: {
-            status: "PENDING_TARGET",
-            reviewedById: session.user.id,
-            reviewedAt: now,
-            adminNote: note || null,
-            expiresAt: newExpiresAt,
-          },
-          include: {
-            task: true,
-            requester: { select: { id: true, name: true } },
-            targetUser: { select: { id: true, name: true } },
-          },
+        const updated = await prisma.$transaction(async (tx) => {
+          const transfer = await tx.taskTransferRequest.update({
+            where: { id },
+            data: {
+              status: "PENDING_TARGET",
+              reviewedById: session.user.id,
+              reviewedAt: now,
+              adminNote: note || null,
+              expiresAt: newExpiresAt,
+            },
+            include: {
+              task: true,
+              requester: { select: { id: true, name: true } },
+              targetUser: { select: { id: true, name: true } },
+            },
+          });
+
+          // Move the task to the target executor in PENDING_ACCEPTANCE state.
+          // (acceptedAt = null + assignedAt = now is the wire format for "needs
+          // explicit acceptance" — only transferred tasks ever land here, since
+          // auto-assigned tasks always set acceptedAt.)
+          await tx.task.update({
+            where: { id: transferRequest.taskId },
+            data: {
+              assigneeId: transferRequest.targetUserId,
+              assignedAt: now,
+              acceptedAt: null,
+              status: "TODO",
+              startedById: null,
+            },
+          });
+
+          await tx.taskAssignment.upsert({
+            where: { taskId_userId: { taskId: transferRequest.taskId, userId: transferRequest.targetUserId } },
+            create: { taskId: transferRequest.taskId, userId: transferRequest.targetUserId },
+            update: {},
+          });
+
+          return transfer;
         });
 
         // Notify target user

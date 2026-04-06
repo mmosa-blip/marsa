@@ -1,12 +1,14 @@
 /**
- * Task Assignment System — Single Assignee with Acceptance & Rejection
+ * Task Assignment System — Single Assignee
  *
  * Rules:
  * 1. Each task is assigned to ONE executor (assigneeId)
  * 2. Priority: oldest project first → least active tasks → round-robin
- * 3. Task must be accepted within 2 hours or auto-reassigned
- * 4. Rejected tasks go to next qualified executor (excluding previous rejectors)
- * 5. If all qualified reject, task goes to admin (assigneeId = null)
+ * 3. Auto-assigned tasks start IN_PROGRESS immediately — no acceptance required
+ * 4. Tasks reaching an executor via an admin-approved transfer require explicit
+ *    acceptance from the new executor (acceptedAt = null until accepted)
+ * 5. Rejected tasks go to next qualified executor (excluding previous rejectors)
+ * 6. If all qualified reject, task goes to admin (assigneeId = null)
  */
 import { prisma } from "@/lib/prisma";
 import { createNotification, createNotifications } from "@/lib/notifications";
@@ -126,13 +128,15 @@ export async function reassignTask(taskId: string): Promise<string | null> {
     return null;
   }
 
-  // Assign to the new executor (pending acceptance)
+  // Auto-assignment by the system → start immediately, no acceptance needed
+  const now = new Date();
   await prisma.task.update({
     where: { id: taskId },
     data: {
       assigneeId: nextAssignee,
-      assignedAt: new Date(),
-      acceptedAt: null, // reset — must accept again
+      assignedAt: now,
+      acceptedAt: now,
+      status: "IN_PROGRESS",
     },
   });
 
@@ -147,7 +151,7 @@ export async function reassignTask(taskId: string): Promise<string | null> {
   await createNotification({
     userId: nextAssignee,
     type: "NEW_TASK",
-    message: `تم تعيينك لمهمة جديدة: ${task.title} — اقبل أو ارفض خلال ساعتين`,
+    message: `تم تعيينك لمهمة جديدة: ${task.title}`,
     link: "/dashboard/my-tasks",
   });
 

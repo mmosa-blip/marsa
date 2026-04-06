@@ -328,16 +328,17 @@ export async function POST(request: Request) {
 
           templateToTaskId.set(tt.id, createdTask.id);
 
-          // Single-assignee: only the primary assignee, pending acceptance
+          // Auto-assigned by the system → start immediately, no acceptance step
           if (createdTask.assigneeId) {
             await prisma.taskAssignment.upsert({
               where: { taskId_userId: { taskId: createdTask.id, userId: createdTask.assigneeId } },
               create: { taskId: createdTask.id, userId: createdTask.assigneeId },
               update: {},
             });
+            const now = new Date();
             await prisma.task.update({
               where: { id: createdTask.id },
-              data: { assignedAt: new Date(), acceptedAt: null },
+              data: { assignedAt: now, acceptedAt: now, status: "IN_PROGRESS" },
             });
           }
         }

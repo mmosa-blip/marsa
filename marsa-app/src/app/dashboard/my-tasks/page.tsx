@@ -610,7 +610,9 @@ export default function MyTasksPage() {
   const currentTask = tasks.find((t) => t.status === "IN_PROGRESS");
   const nextTask = tasks.find((t) => t.status === "TODO" && t.id !== currentTask?.id);
 
-  // Pending acceptance: assigned but not yet accepted
+  // Pending acceptance — ONLY tasks that arrived via an admin-approved transfer.
+  // Auto-assigned tasks always have acceptedAt set, so the (!acceptedAt + assigned)
+  // filter naturally isolates transferred-and-not-yet-accepted tasks.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pendingAcceptance = (tasks as any[]).filter((t) =>
     !t.acceptedAt && t.assignedAt && (t.status === "TODO" || t.status === "WAITING")
@@ -665,16 +667,16 @@ export default function MyTasksPage() {
         </p>
       </div>
 
-      {/* Pending Acceptance Alert */}
+      {/* Pending Acceptance Alert — only for tasks transferred from another executor */}
       {pendingAcceptance.length > 0 && (
         <div className="mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "rgba(234,88,12,0.06)", border: "2px solid rgba(234,88,12,0.3)" }}>
           <div className="px-5 py-3 flex items-center gap-2" style={{ backgroundColor: "rgba(234,88,12,0.1)" }}>
             <Clock size={18} style={{ color: "#EA580C" }} />
             <span className="text-sm font-bold" style={{ color: "#EA580C" }}>
-              مهام بانتظار القبول ({pendingAcceptance.length})
+              مهام محوّلة بانتظار القبول ({pendingAcceptance.length})
             </span>
             <span className="text-[10px]" style={{ color: "#EA580C" }}>
-              — يجب القبول خلال ساعتين وإلا تُحوّل تلقائياً
+              — تم تحويلها إليك من منفذ آخر بموافقة الإدارة
             </span>
           </div>
           <div className="p-3 space-y-2">

@@ -25,7 +25,7 @@ export async function POST(
 
     const task = await prisma.task.findUnique({
       where: { id },
-      select: { id: true, title: true, assigneeId: true, projectId: true },
+      select: { id: true, title: true, assigneeId: true, projectId: true, acceptedAt: true },
     });
 
     if (!task) return NextResponse.json({ error: "المهمة غير موجودة" }, { status: 404 });
@@ -42,12 +42,33 @@ export async function POST(
       select: { name: true },
     });
 
-    // Record rejection
+    // Reject only makes sense for tasks that are pending acceptance — i.e.
+    // arrived via an admin-approved transfer. Auto-assigned tasks always
+    // have acceptedAt set and cannot be rejected via this endpoint.
+    if (task.acceptedAt) {
+      return NextResponse.json(
+        { error: "لا يمكن رفض مهمة مقبولة — استخدم تحويل المهمة بدلاً من ذلك" },
+        { status: 400 }
+      );
+    }
+
+    // Find the pending transfer that placed this task on the current user
+    const pendingTransfer = await prisma.taskTransferRequest.findFirst({
+      where: {
+        taskId: id,
+        targetUserId: session.user.id,
+        status: "PENDING_TARGET",
+      },
+      orderBy: { createdAt: "desc" },
+      include: { requester: { select: { id: true, name: true } } },
+    });
+
+    // Record the rejection on the task for audit/history
     await prisma.taskRejection.create({
       data: { taskId: id, providerId: session.user.id, reason },
     });
 
-    // Notify admins about the rejection
+    // Notify admins
     const admins = await prisma.user.findMany({
       where: { role: "ADMIN", isActive: true, deletedAt: null },
       select: { id: true },
@@ -57,15 +78,57 @@ export async function POST(
         admins.map((a) => ({
           userId: a.id,
           type: "TASK_REJECTED" as const,
-          message: `رفض ${provider?.name || "المنفذ"} المهمة: ${task.title} — السبب: ${reason}`,
+          message: `رفض ${provider?.name || "المنفذ"} المهمة المحوّلة: ${task.title} — السبب: ${reason}`,
           link: `/dashboard/projects/${task.projectId}`,
         }))
       );
     }
 
-    // Auto-reassign to next qualified executor (or notify admins if none left)
-    const newAssignee = await reassignTask(id);
+    if (pendingTransfer) {
+      // Revert: bounce the task back to the original requester (auto-accepted),
+      // and mark the transfer as rejected by target.
+      const now = new Date();
+      await prisma.$transaction(async (tx) => {
+        await tx.taskTransferRequest.update({
+          where: { id: pendingTransfer.id },
+          data: {
+            status: "REJECTED_BY_TARGET",
+            targetNote: reason,
+            targetRespondedAt: now,
+          },
+        });
+        await tx.task.update({
+          where: { id },
+          data: {
+            assigneeId: pendingTransfer.requesterId,
+            assignedAt: now,
+            acceptedAt: now,
+            status: "IN_PROGRESS",
+          },
+        });
+        await tx.taskAssignment.upsert({
+          where: { taskId_userId: { taskId: id, userId: pendingTransfer.requesterId } },
+          create: { taskId: id, userId: pendingTransfer.requesterId },
+          update: {},
+        });
+      });
 
+      // Notify the original requester that the transfer was bounced back
+      await createNotifications([
+        {
+          userId: pendingTransfer.requesterId,
+          type: "TASK_TRANSFER_REJECTED" as const,
+          message: `رفض ${provider?.name || "المنفذ المستهدف"} استلام المهمة "${task.title}" — أعيدت إليك`,
+          link: "/dashboard/my-tasks",
+        },
+      ]);
+
+      return NextResponse.json({ success: true, reverted: true });
+    }
+
+    // Fallback (shouldn't normally happen): no transfer record but acceptedAt
+    // was null — kick the standard reassignment cycle.
+    const newAssignee = await reassignTask(id);
     return NextResponse.json({
       success: true,
       reassigned: !!newAssignee,
