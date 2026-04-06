@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment-assign";
 
 export async function POST(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { templateId, clientId, name, contractId } = body;
+    const { templateId, clientId, name, contractId, departmentId } = body;
 
     if (!templateId || !clientId) {
       return NextResponse.json(
@@ -126,8 +127,11 @@ export async function POST(request: Request) {
         startDate: now,
         endDate: projectEndDate,
         ...(contractId ? { contractId } : {}),
+        ...(departmentId ? { departmentId } : {}),
       },
     });
+
+    const isInvestment = await isInvestmentDepartment(departmentId);
 
     // متغير لتتبع بداية كل خدمة في الوضع التسلسلي
     let serviceStartDate = new Date(now);
@@ -173,11 +177,21 @@ export async function POST(request: Request) {
         const dueDate = new Date(startDate);
         dueDate.setDate(dueDate.getDate() + tt.defaultDuration);
 
-        // التوزيع الدوري للموظفين المؤهلين
-        const assigneeId =
-          employees.length > 0
-            ? employees[i % employees.length].userId
-            : null;
+        // Investment: date-priority + load balancing. Others: simple round-robin
+        let assigneeId: string | null = null;
+        if (isInvestment && employees.length > 0) {
+          assigneeId = await pickInvestmentAssignee({
+            projectId: project.id,
+            serviceId: service.id,
+            qualifiedEmployeeIds: employees.map((e) => e.userId),
+            fallbackIndex: i,
+          });
+        } else {
+          assigneeId =
+            employees.length > 0
+              ? employees[i % employees.length].userId
+              : null;
+        }
 
         tasks.push({
           title: tt.name,

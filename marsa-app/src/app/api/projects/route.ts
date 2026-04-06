@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { can, PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { createAuditLog, AuditModule } from "@/lib/audit";
 import type { WorkflowType, ProjectPriority, MilestoneStatus } from "@/generated/prisma/client";
+import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment-assign";
 
 export async function GET(request: Request) {
   try {
@@ -265,6 +266,9 @@ export async function POST(request: Request) {
         const employees = tmpl.qualifiedEmployees;
         let taskStartDate = new Date(serviceStartDate);
 
+        // Check if this is an Investment department project — different assignment logic
+        const isInvestment = await isInvestmentDepartment(departmentId);
+
         // Map from TaskTemplate ID to created Task ID
         const templateToTaskId = new Map<string, string>();
 
@@ -288,6 +292,22 @@ export async function POST(request: Request) {
           // Resolve dependency: map TaskTemplate.dependsOnId to the created Task ID
           const taskDependsOnId = tt.dependsOnId ? templateToTaskId.get(tt.dependsOnId) || null : null;
 
+          // Assignee selection: Investment uses date-priority + load balancing,
+          // other departments use simple round-robin
+          let assigneeId: string | null = null;
+          if (isInvestment && employees.length > 0) {
+            assigneeId = await pickInvestmentAssignee({
+              projectId: project.id,
+              serviceId: service.id,
+              qualifiedEmployeeIds: employees.map((e) => e.userId),
+              fallbackIndex: idx,
+            });
+          } else {
+            assigneeId = employees.length > 0
+              ? employees[idx % employees.length].userId
+              : (executorMap.get(svcInput.serviceTemplateId)?.[0] || null);
+          }
+
           const createdTask = await prisma.task.create({
             data: {
               title: tt.name,
@@ -297,9 +317,7 @@ export async function POST(request: Request) {
               dueDate,
               serviceId: service.id,
               projectId: project.id,
-              assigneeId: employees.length > 0
-                ? employees[idx % employees.length].userId
-                : (executorMap.get(svcInput.serviceTemplateId)?.[0] || null),
+              assigneeId,
               dependsOnId: taskDependsOnId,
             },
           });
