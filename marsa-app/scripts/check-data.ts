@@ -14,9 +14,9 @@ async function main() {
   console.log("Departments:", await prisma.department.count());
   console.log("Permissions:", await prisma.permission.count());
 
-  const admin = await prisma.user.findUnique({
+  const admin = await prisma.user.findFirst({
     where: { email: "m.mosa@bmarsa.com" },
-    select: { id: true, name: true, role: true, isActive: true, deletedAt: true },
+    select: { id: true, name: true, phone: true, role: true, isActive: true, deletedAt: true },
   });
   console.log("Admin user:", JSON.stringify(admin, null, 2));
 
