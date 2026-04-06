@@ -20,6 +20,7 @@ import {
   X,
   Lock,
   Archive,
+  FolderOpen,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import { useSession } from "next-auth/react";
@@ -1123,13 +1124,28 @@ export default function MyTasksPage() {
                           </div>
                         </td>
                       </tr>
-                      {/* ── WAITING MODE PANEL ── */}
-                      {task.status === "IN_PROGRESS" && (
+                      {/* ── TASK DETAIL PANEL ── */}
+                      {task.status !== "DONE" && task.status !== "CANCELLED" && (
                         <tr>
                           <td colSpan={9} className="px-5 pb-4 pt-0">
                             <div className="border-t pt-3" style={{ borderColor: "#F0EDE6" }}>
-                              {/* Mode selector — no waiting mode yet */}
-                              {!task.waitingMode && (
+                              {/* Project documents quick-access — visible only inside the
+                                  detail panel, never on the task row itself */}
+                              {task.project?.id && (
+                                <div className="mb-3">
+                                  <MarsaButton
+                                    href={`/dashboard/projects/${task.project.id}/documents`}
+                                    variant="secondary"
+                                    size="sm"
+                                    icon={<FolderOpen size={14} />}
+                                  >
+                                    📁 مستندات المشروع
+                                  </MarsaButton>
+                                </div>
+                              )}
+
+                              {/* Waiting-mode controls only make sense while a task is in progress */}
+                              {task.status === "IN_PROGRESS" && !task.waitingMode && (
                                 <div>
                                   <p className="text-xs font-semibold mb-2" style={{ color: "#6B7280" }}>
                                     هل تنتظر جهة خارجية؟
@@ -1156,7 +1172,7 @@ export default function MyTasksPage() {
                               )}
 
                               {/* PROVIDER MODE — same shape as government mode (free-text name + updates) */}
-                              {task.waitingMode === "PROVIDER" && (() => {
+                              {task.status === "IN_PROGRESS" && task.waitingMode === "PROVIDER" && (() => {
                                 const hold = task.governmentHolds?.[0];
                                 return (
                                   <div className="rounded-xl p-3 max-w-lg" style={{ backgroundColor: "rgba(201,168,76,0.06)", border: "1px solid rgba(201,168,76,0.2)" }}>
@@ -1240,7 +1256,7 @@ export default function MyTasksPage() {
                               })()}
 
                               {/* GOVERNMENT MODE */}
-                              {task.waitingMode === "GOVERNMENT" && (() => {
+                              {task.status === "IN_PROGRESS" && task.waitingMode === "GOVERNMENT" && (() => {
                                 const hold = task.governmentHolds?.[0];
                                 return (
                                   <div className="rounded-xl p-3 max-w-lg" style={{ backgroundColor: "rgba(94,84,149,0.06)", border: "1px solid rgba(94,84,149,0.2)" }}>
