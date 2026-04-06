@@ -18,6 +18,7 @@ import {
   User,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ExpiringContractsWidget from "@/components/ExpiringContractsWidget";
 
 interface ProjectHealth {
   id: string;
@@ -164,6 +165,11 @@ export default function DepartmentHealthPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* Expiring Contracts Widget */}
+      <div className="mb-6">
+        <ExpiringContractsWidget departmentId={deptId} days={30} />
       </div>
 
       {/* Filter */}

@@ -1271,8 +1271,8 @@ model SystemCounter {
 model Contract {
   id             String           @id @default(cuid())
   contractNumber Int?             @unique
-  templateId     String
-  template     ContractTemplate @relation(fields: [templateId], references: [id])
+  templateId     String?
+  template     ContractTemplate? @relation(fields: [templateId], references: [id])
   clientId     String
   client       User             @relation("ContractClient", fields: [clientId], references: [id])
   issuedById   String
@@ -1282,6 +1282,12 @@ model Contract {
   variables    String           @db.LongText
   finalContent String           @db.LongText
   status       ContractStatus   @default(DRAFT)
+  // Contract tracking fields
+  startDate    DateTime?
+  endDate      DateTime?
+  durationDays Int?
+  contractValue Float?
+  uploadedFileUrl String?        @db.Text
   managerNote  String?          @db.Text
   clientNote   String?          @db.Text
   approvedById String?
