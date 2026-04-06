@@ -32,6 +32,12 @@ import {
   CreditCard,
   Edit3,
   Building2,
+  Briefcase,
+  Image as ImageIcon,
+  SkipForward,
+  Calendar,
+  Info,
+  X,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -143,6 +149,30 @@ interface ContractOption {
   installments?: ContractInstallment[];
 }
 
+interface DocTypeOption {
+  id: string;
+  name: string;
+  description: string | null;
+  kind: "FILE" | "TEXT";
+  sampleImageUrl: string | null;
+  instructions: string | null;
+  isRequired: boolean;
+  displayOrder: number;
+}
+
+interface InstallmentRow {
+  id: string;
+  title: string;
+  amount: number;
+  dueDate: string; // YYYY-MM-DD
+}
+
+interface ManagerOption {
+  id: string;
+  name: string;
+  role: string;
+}
+
 // ─── Component ───────────────────────────────────────────────────
 
 export default function NewProjectPage() {
@@ -231,7 +261,23 @@ export default function NewProjectPage() {
   // ─── Payment Milestones (Step 2) ───
   const [paymentMilestones, setPaymentMilestones] = useState<PaymentMilestone[]>([]);
 
-  // ─── Step 3 state ───
+  // ─── Step 3 state — payment installments (flat list, separate from inter-service milestones) ───
+  const [installments, setInstallments] = useState<InstallmentRow[]>([]);
+
+  // ─── Step 4 state — required documents wizard ───
+  const [docTypes, setDocTypes] = useState<DocTypeOption[]>([]);
+  const [loadingDocTypes, setLoadingDocTypes] = useState(false);
+  const [docTypesError, setDocTypesError] = useState("");
+  // pendingDocs keyed by docTypeId → uploaded URL or text data
+  const [pendingDocs, setPendingDocs] = useState<Record<string, { fileUrl?: string; textData?: string; skipped?: boolean }>>({});
+  const [currentDocIndex, setCurrentDocIndex] = useState(0);
+
+  // ─── Step 6 state — assign project manager (optional) ───
+  const [managers, setManagers] = useState<ManagerOption[]>([]);
+  const [loadingManagers, setLoadingManagers] = useState(false);
+  const [selectedManagerId, setSelectedManagerId] = useState("");
+
+  // ─── Step 7 (review) state ───
   const [serviceDetails, setServiceDetails] = useState<Record<string, ServiceDetail>>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
@@ -253,6 +299,43 @@ export default function NewProjectPage() {
   useEffect(() => {
     fetch("/api/departments").then(r => r.json()).then(d => { if (Array.isArray(d)) setDepartments(d); });
   }, []);
+
+  // ─── Fetch document types when entering step 4 (filtered by department) ───
+  useEffect(() => {
+    if (currentStep !== 4 || !departmentId) return;
+    setLoadingDocTypes(true);
+    setDocTypesError("");
+    fetch(`/api/doc-types?departmentId=${departmentId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const sorted = [...data].sort((a: DocTypeOption, b: DocTypeOption) => a.displayOrder - b.displayOrder);
+          setDocTypes(sorted);
+          setCurrentDocIndex(0);
+        } else {
+          setDocTypes([]);
+          setDocTypesError(data?.error || "تعذر تحميل أنواع المستندات");
+        }
+      })
+      .catch(() => setDocTypesError("تعذر الاتصال بالخادم"))
+      .finally(() => setLoadingDocTypes(false));
+  }, [currentStep, departmentId]);
+
+  // ─── Fetch managers when entering step 6 ───
+  useEffect(() => {
+    if (currentStep !== 6 || managers.length > 0) return;
+    setLoadingManagers(true);
+    fetch("/api/users?transferTargets=true")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          // Only ADMIN/MANAGER are eligible to be project managers
+          setManagers(data.filter((u: ManagerOption) => ["ADMIN", "MANAGER"].includes(u.role)));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingManagers(false));
+  }, [currentStep, managers.length]);
 
   // ─── Fetch project templates on mount ───
   useEffect(() => {
@@ -484,7 +567,7 @@ export default function NewProjectPage() {
   }, []);
 
   useEffect(() => {
-    if (currentStep === 2 && categories.length === 0) {
+    if (currentStep === 5 && categories.length === 0) {
       fetchCatalog();
     }
   }, [currentStep, categories.length, fetchCatalog]);
@@ -587,9 +670,9 @@ export default function NewProjectPage() {
   const finalTotal = contractAmount || (totalPriceOverride ? parseFloat(totalPriceOverride) : calculatedTotal);
   const priceFromContract = !!contractAmount;
 
-  // ─── Fetch service details for step 3 ───
+  // ─── Fetch service details for review (step 7) ───
   useEffect(() => {
-    if (currentStep === 3) {
+    if (currentStep === 7) {
       setLoadingDetails(true);
       const idsToFetch = selectedServices
         .map((s) => s.serviceTemplateId)
@@ -668,6 +751,23 @@ export default function NewProjectPage() {
 
       let projectId: string | null = null;
 
+      // Step-3 installments are flat (no afterServiceIndex), so anchor them all
+      // to position 0 in the existing paymentMilestones format expected by the API.
+      const installmentMilestones = installments.map((i) => ({
+        title: i.title,
+        amount: i.amount,
+        afterServiceIndex: 0,
+        dueDate: i.dueDate || undefined,
+      }));
+      const allPaymentMilestones = [
+        ...paymentMilestones.map((p) => ({
+          title: p.title,
+          amount: p.amount,
+          afterServiceIndex: p.afterServiceIndex,
+        })),
+        ...installmentMilestones,
+      ];
+
       if (useTemplateGenerate) {
         const res = await fetch("/api/projects/generate", {
           method: "POST",
@@ -681,6 +781,7 @@ export default function NewProjectPage() {
             contractStartDate: contractStartDate || undefined,
             contractDurationDays: contractDurationDays ? parseInt(contractDurationDays) : undefined,
             contractEndDate: contractEndDate || undefined,
+            managerId: selectedManagerId || undefined,
           }),
         });
         if (res.ok) {
@@ -707,16 +808,13 @@ export default function NewProjectPage() {
             contractStartDate: contractStartDate || undefined,
             contractDurationDays: contractDurationDays ? parseInt(contractDurationDays) : undefined,
             contractEndDate: contractEndDate || undefined,
+            managerId: selectedManagerId || undefined,
             services: selectedServices.map((s) => ({
               serviceTemplateId: s.serviceTemplateId,
               price: s.price,
               sortOrder: s.sortOrder,
             })),
-            paymentMilestones: paymentMilestones.map((p) => ({
-              title: p.title,
-              amount: p.amount,
-              afterServiceIndex: p.afterServiceIndex,
-            })),
+            paymentMilestones: allPaymentMilestones,
           }),
         });
         if (res.ok) {
@@ -727,6 +825,28 @@ export default function NewProjectPage() {
           alert(err.error || "حدث خطأ أثناء إنشاء المشروع");
           setSubmitting(false);
           return;
+        }
+      }
+
+      // After project creation — upload any pending documents collected in step 4
+      if (projectId) {
+        const docsToUpload = Object.entries(pendingDocs).filter(
+          ([, v]) => !v.skipped && (v.fileUrl || v.textData)
+        );
+        for (const [documentTypeId, payload] of docsToUpload) {
+          try {
+            await fetch(`/api/projects/${projectId}/documents`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                documentTypeId,
+                fileUrl: payload.fileUrl || undefined,
+                textData: payload.textData || undefined,
+              }),
+            });
+          } catch {
+            // Don't fail the whole flow — executor can re-upload from project page
+          }
         }
       }
 
@@ -762,54 +882,74 @@ export default function NewProjectPage() {
     setSubmitting(false);
   };
 
-  // ─── Navigation: template selected → skip step 2 ───
-  const handleNext = () => {
-    if (currentStep === 1) {
-      if (templateApplied && selectedTemplateId) {
-        // Skip step 2, go directly to step 3
-        setCurrentStep(3);
-      } else {
-        setCurrentStep(2);
-      }
-    } else if (currentStep === 2) {
-      setCurrentStep(3);
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentStep === 3 && templateApplied && selectedTemplateId) {
-      // If we skipped step 2, go back to step 1
-      setCurrentStep(1);
-    } else {
-      setCurrentStep((s) => s - 1);
-    }
-  };
+  // ─── Navigation ───
+  const handleNext = () => setCurrentStep((s) => Math.min(7, s + 1));
+  const handlePrev = () => setCurrentStep((s) => Math.max(1, s - 1));
 
   // ─── Validation ───
-  // Contract is valid when EITHER an existing signed contract is picked,
-  // OR the user has chosen a mode and filled the required fields for that mode.
+  // Step 1 — basic info: client, project name, department
+  const step1Valid = !!selectedClient && !!projectName.trim() && !!departmentId;
+  // Step 2 — contract: existing picked OR inline form complete for chosen mode
   const inlineContractValid =
     contractMode !== "" &&
     !!contractForm.startDate &&
     !!contractForm.endDate &&
     (contractMode === "new" || !!contractForm.uploadedFileUrl.trim());
-  const contractValid = !!selectedContractId || inlineContractValid;
-  const step1Valid = !!selectedClient && !!projectName.trim() && contractValid;
-  const step2Valid = selectedServices.length >= 2;
-  const step3Valid = !saveAsTemplate || templateName.trim().length > 0;
+  const step2Valid = !!selectedContractId || inlineContractValid;
+  // Step 3 — payment schedule: optional, but each row must be complete
+  const step3Valid = installments.every(
+    (i) => i.title.trim() && i.amount > 0 && i.dueDate
+  );
+  // Step 4 — required documents must be uploaded (or skipped if optional)
+  const requiredDocTypes = docTypes.filter((d) => d.isRequired);
+  const step4Valid = requiredDocTypes.every((d) => {
+    const entry = pendingDocs[d.id];
+    return entry && (entry.fileUrl || entry.textData);
+  });
+  // Step 5 — at least one service (template or manual)
+  const step5Valid = selectedServices.length >= 1 || (templateApplied && !!selectedTemplateId);
+  // Step 6 — manager is optional
+  const step6Valid = true;
+  // Step 7 — save-as-template name if checked
+  const step7Valid = !saveAsTemplate || templateName.trim().length > 0;
 
   const canGoNext = () => {
     if (currentStep === 1) return step1Valid;
     if (currentStep === 2) return step2Valid;
+    if (currentStep === 3) return step3Valid;
+    if (currentStep === 4) return step4Valid;
+    if (currentStep === 5) return step5Valid;
+    if (currentStep === 6) return step6Valid;
     return false;
   };
 
   // ─── Step labels ───
   const steps = [
-    { num: 1, label: "البيانات والمتطلبات" },
-    { num: 2, label: "الخدمات والدفعات" },
-    { num: 3, label: "مراجعة وتأكيد" },
+    { num: 1, label: "البيانات الأساسية" },
+    { num: 2, label: "العقد" },
+    { num: 3, label: "جدول الدفعات" },
+    { num: 4, label: "المستندات" },
+    { num: 5, label: "الخدمات" },
+    { num: 6, label: "مدير المشروع" },
+    { num: 7, label: "مراجعة وتأكيد" },
   ];
+
+  // ─── Installment row helpers ───
+  const addInstallment = () => {
+    setInstallments((prev) => [
+      ...prev,
+      { id: `inst-${Date.now()}-${Math.random()}`, title: `الدفعة ${prev.length + 1}`, amount: 0, dueDate: "" },
+    ]);
+  };
+  const updateInstallment = (id: string, field: keyof InstallmentRow, value: string | number) => {
+    setInstallments((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, [field]: value } : i))
+    );
+  };
+  const removeInstallment = (id: string) => {
+    setInstallments((prev) => prev.filter((i) => i.id !== id));
+  };
+  const installmentsTotal = installments.reduce((sum, i) => sum + (i.amount || 0), 0);
 
   // ─── Render ───
   return (
@@ -872,10 +1012,11 @@ export default function NewProjectPage() {
         ))}
       </div>
 
-      {/* ══════════════════════════════════════════════ STEP 1 ══════════════════════════════════════════════ */}
-      {currentStep === 1 && (
+      {/* ══════════════════════════════════════════════ STEPS 1-6 (max-w-3xl wrapper) ══════════════════════════════════════════════ */}
+      {[1, 2, 3, 4, 5, 6].includes(currentStep) && (
         <div className="max-w-3xl mx-auto space-y-6">
-          {/* Client Selection */}
+          {/* Client Selection — STEP 1 */}
+          {currentStep === 1 && (
           <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
             <div className="flex items-center gap-2 mb-5">
               <User size={20} style={{ color: "#C9A84C" }} />
@@ -1003,9 +1144,10 @@ export default function NewProjectPage() {
               </div>
             )}
           </div>
+          )}
 
-          {/* Contract — created together with the project */}
-          {selectedClient && (
+          {/* Contract — STEP 2 */}
+          {currentStep === 2 && selectedClient && (
             <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
               <div className="flex items-center gap-2 mb-2">
                 <FileText size={20} style={{ color: "#C9A84C" }} />
@@ -1248,7 +1390,8 @@ export default function NewProjectPage() {
             </div>
           )}
 
-          {/* Project Info */}
+          {/* Project Info — STEP 1 */}
+          {currentStep === 1 && (
           <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
             <div className="flex items-center gap-2 mb-5">
               <FolderKanban size={20} style={{ color: "#C9A84C" }} />
@@ -1306,8 +1449,10 @@ export default function NewProjectPage() {
               </div>
             </div>
           </div>
+          )}
 
-          {/* Workflow Type */}
+          {/* Workflow Type — STEP 5 */}
+          {currentStep === 5 && (
           <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
             <div className="flex items-center gap-2 mb-5">
               <Layers size={20} style={{ color: "#C9A84C" }} />
@@ -1384,79 +1529,10 @@ export default function NewProjectPage() {
               </button>
             </div>
           </div>
+          )}
 
-          {/* SLA Timeline */}
-          <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
-            <div className="flex items-center gap-2 mb-5">
-              <Clock size={20} style={{ color: "#C9A84C" }} />
-              <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>
-                مدة العقد (SLA)
-              </h2>
-              <span className="text-xs text-gray-400 mr-2">(اختياري)</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: "#2D3748" }}>
-                  تاريخ بداية العقد
-                </label>
-                <input
-                  type="date"
-                  value={contractStartDate}
-                  onChange={(e) => {
-                    setContractStartDate(e.target.value);
-                    if (e.target.value && contractDurationDays) {
-                      const start = new Date(e.target.value);
-                      start.setDate(start.getDate() + parseInt(contractDurationDays));
-                      setContractEndDate(start.toISOString().split("T")[0]);
-                    }
-                  }}
-                  className="w-full px-4 py-3 rounded-xl border text-sm outline-none transition-all"
-                  style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: "#2D3748" }}>
-                  مدة العقد (بالأيام)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={contractDurationDays}
-                  onChange={(e) => {
-                    setContractDurationDays(e.target.value);
-                    if (contractStartDate && e.target.value) {
-                      const start = new Date(contractStartDate);
-                      start.setDate(start.getDate() + parseInt(e.target.value));
-                      setContractEndDate(start.toISOString().split("T")[0]);
-                    }
-                  }}
-                  placeholder="مثال: 90"
-                  className="w-full px-4 py-3 rounded-xl border text-sm outline-none transition-all"
-                  style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: "#2D3748" }}>
-                  تاريخ نهاية العقد
-                </label>
-                <input
-                  type="date"
-                  value={contractEndDate}
-                  onChange={(e) => {
-                    setContractEndDate(e.target.value);
-                    if (contractStartDate && e.target.value) {
-                      const days = Math.floor((new Date(e.target.value).getTime() - new Date(contractStartDate).getTime()) / (1000 * 60 * 60 * 24));
-                      if (days > 0) setContractDurationDays(String(days));
-                    }
-                  }}
-                  className="w-full px-4 py-3 rounded-xl border text-sm outline-none transition-all"
-                  style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Use Template */}
+          {/* Use Template — STEP 5 */}
+          {currentStep === 5 && (
           <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
             <div className="flex items-center gap-2 mb-5">
               <BookTemplate size={20} style={{ color: "#C9A84C" }} />
@@ -1487,15 +1563,399 @@ export default function NewProjectPage() {
             {templateApplied && (
               <p className="text-xs mt-2 flex items-center gap-1" style={{ color: "#059669" }}>
                 <CheckCircle2 size={14} />
-                تم تطبيق القالب - سيتم تجاوز خطوة الخدمات والانتقال مباشرة للمراجعة
+                تم تطبيق القالب — سيتم استخدام خدماته
               </p>
             )}
           </div>
+          )}
+
+          {/* ─── STEP 3: Payment Schedule ─── */}
+          {currentStep === 3 && (
+            <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
+              <div className="flex items-center gap-2 mb-2">
+                <CreditCard size={20} style={{ color: "#C9A84C" }} />
+                <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>جدول الدفعات</h2>
+              </div>
+              <p className="text-xs mb-5" style={{ color: "#6B7280" }}>
+                أضف الدفعات المتفق عليها مع العميل (يمكن تركها فارغة وإضافتها لاحقاً)
+              </p>
+
+              {installments.length > 0 && (
+                <div className="space-y-3 mb-4">
+                  {installments.map((row, idx) => (
+                    <div key={row.id} className="p-3 rounded-xl" style={{ border: "1px solid #E2E0D8", backgroundColor: "#FAFAFA" }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}>
+                          {idx + 1}
+                        </span>
+                        <input
+                          type="text"
+                          value={row.title}
+                          onChange={(e) => updateInstallment(row.id, "title", e.target.value)}
+                          placeholder="عنوان الدفعة"
+                          className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
+                          style={{ border: "1px solid #E2E0D8" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeInstallment(row.id)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] mb-1" style={{ color: "#6B7280" }}>المبلغ</label>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={row.amount || ""}
+                              onChange={(e) => updateInstallment(row.id, "amount", parseFloat(e.target.value) || 0)}
+                              placeholder="0.00"
+                              dir="ltr"
+                              className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
+                              style={{ border: "1px solid #E2E0D8" }}
+                            />
+                            <SarSymbol size={12} />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] mb-1" style={{ color: "#6B7280" }}>تاريخ الاستحقاق</label>
+                          <input
+                            type="date"
+                            value={row.dueDate}
+                            onChange={(e) => updateInstallment(row.id, "dueDate", e.target.value)}
+                            className="w-full px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
+                            style={{ border: "1px solid #E2E0D8" }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={addInstallment}
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium border border-dashed transition-all"
+                style={{ color: "#5E5495", borderColor: "rgba(94,84,149,0.3)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(94,84,149,0.04)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+              >
+                <Plus size={14} />
+                <span>إضافة دفعة</span>
+              </button>
+
+              {installments.length > 0 && (
+                <div className="mt-4 pt-3 flex items-center justify-between" style={{ borderTop: "1px solid #E2E0D8" }}>
+                  <span className="text-sm font-bold" style={{ color: "#1C1B2E" }}>إجمالي الدفعات</span>
+                  <span className="text-base font-bold" style={{ color: "#C9A84C" }}>
+                    {installmentsTotal.toLocaleString("en-US")} <SarSymbol size={14} />
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── STEP 4: Required Documents ─── */}
+          {currentStep === 4 && (
+            <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
+              <div className="flex items-center gap-2 mb-2">
+                <FileText size={20} style={{ color: "#C9A84C" }} />
+                <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>المستندات المطلوبة</h2>
+              </div>
+              <p className="text-xs mb-5" style={{ color: "#6B7280" }}>
+                ارفع المستندات المطلوبة للمشروع — يمكنك تخطي الاختياري وإضافته لاحقاً
+              </p>
+
+              {!departmentId && (
+                <div className="text-center py-6 text-xs" style={{ color: "#9CA3AF" }}>
+                  اختر قسماً في الخطوة الأولى لعرض المستندات المطلوبة
+                </div>
+              )}
+
+              {departmentId && loadingDocTypes && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 size={24} className="animate-spin" style={{ color: "#C9A84C" }} />
+                </div>
+              )}
+
+              {departmentId && !loadingDocTypes && docTypesError && (
+                <div className="p-3 rounded-lg text-xs" style={{ backgroundColor: "rgba(220,38,38,0.06)", color: "#DC2626" }}>
+                  {docTypesError}
+                </div>
+              )}
+
+              {departmentId && !loadingDocTypes && !docTypesError && docTypes.length === 0 && (
+                <div className="text-center py-6 text-xs" style={{ color: "#9CA3AF" }}>
+                  لا توجد مستندات مطلوبة لهذا القسم
+                </div>
+              )}
+
+              {departmentId && !loadingDocTypes && docTypes.length > 0 && (() => {
+                const dt = docTypes[currentDocIndex];
+                if (!dt) return null;
+                const entry = pendingDocs[dt.id];
+                const isUploaded = !!(entry && (entry.fileUrl || entry.textData));
+                const isSkipped = !!entry?.skipped;
+                const totalDocs = docTypes.length;
+                const uploadedCount = docTypes.filter((d) => {
+                  const e = pendingDocs[d.id];
+                  return e && (e.fileUrl || e.textData);
+                }).length;
+
+                return (
+                  <div>
+                    {/* Progress */}
+                    <div className="mb-5">
+                      <div className="flex items-center justify-between mb-2 text-xs" style={{ color: "#6B7280" }}>
+                        <span>المستند {currentDocIndex + 1} من {totalDocs}</span>
+                        <span>{uploadedCount} مرفوع من {totalDocs}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#F0EEF5" }}>
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${((currentDocIndex + 1) / totalDocs) * 100}%`,
+                            background: "linear-gradient(90deg, #5E5495, #C9A84C)",
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Doc card */}
+                    <div className="p-4 rounded-xl" style={{ border: "1px solid #E2E0D8", backgroundColor: "#FAFAFE" }}>
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "rgba(94,84,149,0.1)" }}>
+                          <FileText size={18} style={{ color: "#5E5495" }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-bold" style={{ color: "#1C1B2E" }}>{dt.name}</h3>
+                            {dt.isRequired ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#DC2626" }}>
+                                مطلوب
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(107,114,128,0.1)", color: "#6B7280" }}>
+                                اختياري
+                              </span>
+                            )}
+                          </div>
+                          {dt.description && (
+                            <p className="text-xs mt-1" style={{ color: "#6B7280" }}>{dt.description}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Sample image */}
+                      {dt.sampleImageUrl && (
+                        <div className="mb-3">
+                          <p className="text-[11px] mb-1.5 flex items-center gap-1" style={{ color: "#6B7280" }}>
+                            <ImageIcon size={11} />
+                            نموذج توضيحي:
+                          </p>
+                          <a href={dt.sampleImageUrl} target="_blank" rel="noopener noreferrer">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={dt.sampleImageUrl}
+                              alt={`نموذج ${dt.name}`}
+                              className="w-full max-h-48 object-contain rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                              style={{ border: "1px solid #E2E0D8", backgroundColor: "white" }}
+                            />
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Instructions */}
+                      {dt.instructions && (
+                        <div className="mb-3 p-3 rounded-lg flex gap-2" style={{ backgroundColor: "rgba(201,168,76,0.06)" }}>
+                          <Info size={14} className="shrink-0 mt-0.5" style={{ color: "#C9A84C" }} />
+                          <p className="text-xs whitespace-pre-line" style={{ color: "#1C1B2E" }}>{dt.instructions}</p>
+                        </div>
+                      )}
+
+                      {/* Upload area */}
+                      {dt.kind === "FILE" ? (
+                        isUploaded && entry?.fileUrl ? (
+                          <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)" }}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <CheckCircle2 size={16} style={{ color: "#059669" }} />
+                              <a href={entry.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold truncate hover:underline" style={{ color: "#059669" }}>
+                                تم الرفع — معاينة
+                              </a>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setPendingDocs((prev) => { const next = { ...prev }; delete next[dt.id]; return next; })}
+                              className="text-xs"
+                              style={{ color: "#DC2626" }}
+                            >
+                              حذف
+                            </button>
+                          </div>
+                        ) : (
+                          <UploadButton
+                            endpoint="documentUploader"
+                            onClientUploadComplete={(res) => {
+                              if (res?.[0]) {
+                                setPendingDocs((prev) => ({ ...prev, [dt.id]: { fileUrl: res[0].ufsUrl } }));
+                              }
+                            }}
+                            onUploadError={(error) => alert("فشل الرفع: " + error.message)}
+                            appearance={{
+                              button: { backgroundColor: "#C9A84C", color: "white", borderRadius: "0.75rem", fontSize: "0.75rem", padding: "0.5rem 1rem" },
+                              allowedContent: { color: "#9CA3AF", fontSize: "0.625rem" },
+                            }}
+                            content={{
+                              button: ({ ready, isUploading }) => isUploading ? "جاري الرفع..." : ready ? "اختر ملف" : "تجهيز...",
+                              allowedContent: () => "PDF, Word, صور (حتى 16MB)",
+                            }}
+                          />
+                        )
+                      ) : (
+                        <textarea
+                          value={entry?.textData || ""}
+                          onChange={(e) => setPendingDocs((prev) => ({ ...prev, [dt.id]: { textData: e.target.value } }))}
+                          rows={4}
+                          placeholder="أدخل البيانات هنا..."
+                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ border: "1px solid #E2E0D8" }}
+                        />
+                      )}
+
+                      {isSkipped && !isUploaded && (
+                        <p className="mt-2 text-[11px] flex items-center gap-1" style={{ color: "#9CA3AF" }}>
+                          <SkipForward size={12} />
+                          تم التخطي — يمكن إضافته لاحقاً
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Per-doc nav */}
+                    <div className="flex items-center justify-between mt-4 gap-2">
+                      <MarsaButton
+                        variant="ghost"
+                        size="sm"
+                        disabled={currentDocIndex === 0}
+                        onClick={() => setCurrentDocIndex((i) => Math.max(0, i - 1))}
+                        icon={<ArrowRight size={14} />}
+                      >
+                        السابق
+                      </MarsaButton>
+
+                      <div className="flex items-center gap-2">
+                        {!dt.isRequired && !isUploaded && (
+                          <MarsaButton
+                            variant="secondary"
+                            size="sm"
+                            icon={<SkipForward size={14} />}
+                            onClick={() => {
+                              setPendingDocs((prev) => ({ ...prev, [dt.id]: { skipped: true } }));
+                              if (currentDocIndex < totalDocs - 1) setCurrentDocIndex((i) => i + 1);
+                            }}
+                          >
+                            تخطي
+                          </MarsaButton>
+                        )}
+                        {currentDocIndex < totalDocs - 1 && (
+                          <MarsaButton
+                            variant="primary"
+                            size="sm"
+                            disabled={dt.isRequired && !isUploaded}
+                            onClick={() => setCurrentDocIndex((i) => i + 1)}
+                          >
+                            التالي
+                            <ArrowLeft size={14} />
+                          </MarsaButton>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* ─── STEP 6: Assign Project Manager (optional) ─── */}
+          {currentStep === 6 && (
+            <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
+              <div className="flex items-center gap-2 mb-2">
+                <Briefcase size={20} style={{ color: "#C9A84C" }} />
+                <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>تعيين مدير المشروع</h2>
+                <span className="text-xs" style={{ color: "#9CA3AF" }}>(اختياري)</span>
+              </div>
+              <p className="text-xs mb-5" style={{ color: "#6B7280" }}>
+                اختر مدير المشروع من قائمة المسؤولين والمدراء — إذا تركتها فارغة، ستكون أنت المدير الافتراضي
+              </p>
+
+              {loadingManagers ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 size={20} className="animate-spin" style={{ color: "#C9A84C" }} />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedManagerId("")}
+                    className="w-full p-3 rounded-xl flex items-center gap-3 text-right transition-all"
+                    style={
+                      selectedManagerId === ""
+                        ? { backgroundColor: "rgba(201,168,76,0.06)", border: "2px solid #C9A84C" }
+                        : { backgroundColor: "white", border: "1px solid #E2E0D8" }
+                    }
+                  >
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(94,84,149,0.1)" }}>
+                      <User size={16} style={{ color: "#5E5495" }} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold" style={{ color: "#1C1B2E" }}>أنا (المنشئ)</p>
+                      <p className="text-[11px]" style={{ color: "#9CA3AF" }}>سأتولى إدارة هذا المشروع</p>
+                    </div>
+                    {selectedManagerId === "" && <Check size={18} style={{ color: "#C9A84C" }} />}
+                  </button>
+
+                  {managers.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setSelectedManagerId(m.id)}
+                      className="w-full p-3 rounded-xl flex items-center gap-3 text-right transition-all"
+                      style={
+                        selectedManagerId === m.id
+                          ? { backgroundColor: "rgba(201,168,76,0.06)", border: "2px solid #C9A84C" }
+                          : { backgroundColor: "white", border: "1px solid #E2E0D8" }
+                      }
+                    >
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: "#5E5495" }}>
+                        {m.name.charAt(0)}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold" style={{ color: "#1C1B2E" }}>{m.name}</p>
+                        <p className="text-[11px]" style={{ color: "#9CA3AF" }}>{m.role === "ADMIN" ? "مسؤول" : "مدير"}</p>
+                      </div>
+                      {selectedManagerId === m.id && <Check size={18} style={{ color: "#C9A84C" }} />}
+                    </button>
+                  ))}
+
+                  {managers.length === 0 && (
+                    <p className="text-center text-xs py-4" style={{ color: "#9CA3AF" }}>
+                      لا يوجد مدراء آخرون متاحون
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════ STEP 2 ══════════════════════════════════════════════ */}
-      {currentStep === 2 && (
+      {/* ══════════════════════════════════════════════ STEP 5 — Services Catalog ══════════════════════════════════════════════ */}
+      {currentStep === 5 && (
         <div className="flex gap-6">
           {/* Left: Service Catalog */}
           <div className="flex-1 min-w-0">
@@ -1879,8 +2339,8 @@ export default function NewProjectPage() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════ STEP 3 ══════════════════════════════════════════════ */}
-      {currentStep === 3 && (
+      {/* ══════════════════════════════════════════════ STEP 7 — Review & Confirm ══════════════════════════════════════════════ */}
+      {currentStep === 7 && (
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Summary */}
           <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
@@ -1959,11 +2419,11 @@ export default function NewProjectPage() {
                   المسار الزمني للمشروع
                 </h2>
               </div>
-              {/* Edit services button - allows going to step 2 to customize */}
+              {/* Edit services button — jump back to services step */}
               <MarsaButton variant="secondary" icon={<Edit3 size={14} />}
                 onClick={() => {
                   setTemplateApplied(false);
-                  setCurrentStep(2);
+                  setCurrentStep(5);
                 }}
               >
                 تعديل الخدمات
@@ -2219,13 +2679,13 @@ export default function NewProjectPage() {
         </div>
 
         <div>
-          {currentStep < 3 ? (
+          {currentStep < 7 ? (
             <MarsaButton variant="primary" size="lg" onClick={handleNext} disabled={!canGoNext()}>
               التالي
               <ChevronLeft size={16} />
             </MarsaButton>
           ) : (
-            <MarsaButton variant="gold" size="lg" onClick={handleSubmit} disabled={submitting || !step3Valid} loading={submitting}
+            <MarsaButton variant="gold" size="lg" onClick={handleSubmit} disabled={submitting || !step7Valid} loading={submitting}
               icon={!submitting ? <FolderKanban size={16} /> : undefined}
             >
               {submitting ? t.common.loading : t.common.create}

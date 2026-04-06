@@ -12,7 +12,8 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { templateId, clientId, name, contractId, departmentId } = body;
+    const { templateId, clientId, name, contractId, departmentId, managerId } = body;
+    const resolvedManagerId: string = managerId || session.user.id;
 
     if (!templateId || !clientId) {
       return NextResponse.json(
@@ -121,7 +122,7 @@ export async function POST(request: Request) {
         workflowType: template.workflowType,
         status: "ACTIVE",
         clientId,
-        managerId: session.user.id,
+        managerId: resolvedManagerId,
         templateId: template.id,
         totalPrice: finalPrice,
         startDate: now,

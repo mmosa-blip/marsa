@@ -104,6 +104,7 @@ export async function POST(request: Request) {
       contractStartDate,
       contractDurationDays,
       contractEndDate,
+      managerId,
     } = body as {
       clientId: string;
       name: string;
@@ -118,7 +119,10 @@ export async function POST(request: Request) {
       contractStartDate?: string;
       contractDurationDays?: number;
       contractEndDate?: string;
+      managerId?: string;
     };
+
+    const resolvedManagerId = managerId || session.user.id;
 
     // If contractId provided, extract totalAmount and installments from contract
     let contractTotalPrice: number | null = null;
@@ -204,7 +208,7 @@ export async function POST(request: Request) {
           name,
           description: description || null,
           clientId,
-          managerId: session.user.id,
+          managerId: resolvedManagerId,
           workflowType: (workflowType || "SEQUENTIAL") as WorkflowType,
           totalPrice: contractTotalPrice || totalPrice || calculatedPrice,
           status: "ACTIVE",
@@ -508,7 +512,7 @@ export async function POST(request: Request) {
         name,
         description: description || null,
         clientId,
-        managerId: session.user.id,
+        managerId: resolvedManagerId,
         priority: (priority || "MEDIUM") as ProjectPriority,
         workflowType: (workflowType || "SEQUENTIAL") as WorkflowType,
         totalPrice: contractTotalPrice || totalPrice || null,
