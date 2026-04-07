@@ -168,19 +168,23 @@ export default function ExecutorCityPage() {
     if (!projects) return null;
 
     // Container height matches the Tailwind classes on the outer frame:
-    //   h-[220px]   <  md (768)
-    //   md:h-[300px]  768..1023
-    //   lg:h-[420px]  >= 1024
-    // Fullscreen mode overrides everything with the full viewport height.
+    //   h-[240px]    <  md  (< 768)
+    //   md:h-[300px]    768..1023
+    //   lg:h-[380px]    1024..1279
+    //   xl:h-[420px]    >= 1280
+    // Plus a hard cap at 40% of viewport height so the city never takes
+    // more than 40vh on short/wide screens. Fullscreen overrides all of it.
     let containerH: number;
     if (fullscreen) {
       containerH = viewport.h;
-    } else if (viewport.w >= 1024) {
-      containerH = 420;
-    } else if (viewport.w >= 768) {
-      containerH = 300;
     } else {
-      containerH = 220;
+      const breakpointH =
+        viewport.w >= 1280 ? 420 :
+        viewport.w >= 1024 ? 380 :
+        viewport.w >= 768  ? 300 :
+                             240;
+      const cap = Math.floor(viewport.h * 0.4);
+      containerH = Math.min(breakpointH, cap);
     }
     const canvasHeight = containerH;
     const sky = Math.round(canvasHeight * 0.55);
@@ -842,12 +846,18 @@ export default function ExecutorCityPage() {
                 className={
                   fullscreen
                     ? "fixed inset-0 z-50 h-screen w-screen bg-white overflow-hidden"
-                    : "relative w-full overflow-hidden bg-white rounded-2xl h-[220px] md:h-[300px] lg:h-[420px]"
+                    : "relative w-full overflow-hidden bg-white rounded-2xl h-[240px] md:h-[300px] lg:h-[380px] xl:h-[420px]"
                 }
                 style={
                   fullscreen
                     ? undefined
-                    : { border: "1px solid #E2E0D8", boxShadow: "0 4px 18px rgba(0,0,0,0.06)" }
+                    : {
+                        border: "1px solid #E2E0D8",
+                        boxShadow: "0 4px 18px rgba(0,0,0,0.06)",
+                        // Cap at 40% of viewport height so the city never
+                        // dominates the page on short / wide screens.
+                        maxHeight: "40vh",
+                      }
                 }
               >
                 {/* Inner scrollable container — overflow-x: auto, drag wired
