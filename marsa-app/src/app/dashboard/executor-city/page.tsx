@@ -114,11 +114,15 @@ export default function ExecutorCityPage() {
     w: typeof window !== "undefined" ? window.innerWidth : 1280,
     h: typeof window !== "undefined" ? window.innerHeight : 720,
   });
-  // Compact toggle: shrinks the canvas height significantly. The wide canvas
-  // sits in a horizontally-scrollable container — no more camera transform.
-  const [compact, setCompact] = useState(false);
+  // Fullscreen toggle: blows the map frame up to the whole viewport. The
+  // outer frame has a fixed responsive height; fullscreen overrides it
+  // with `fixed inset-0 z-50 h-screen w-screen`.
+  const [fullscreen, setFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const dragStateRef = useRef({ active: false, startX: 0, startScroll: 0, moved: 0 });
+  // We only track `moved` here so a drag doesn't fire the canvas onClick
+  // (which opens the building popup). The drag itself is wired via native
+  // mouse listeners in a useEffect below.
+  const dragStateRef = useRef({ moved: 0 });
 
   // Fetch projects with services for the city
   useEffect(() => {
@@ -142,22 +146,26 @@ export default function ExecutorCityPage() {
   const layout = useMemo(() => {
     if (!projects) return null;
 
-    // Responsive height presets — three breakpoints, each with a normal
-    // and a compact variant. Slot (per-building horizontal width) also
-    // scales down on narrow screens.
-    let normalH: number;
-    let slot: number;
-    if (viewport.w < 640) {
-      normalH = 260; slot = 110;        // mobile
-    } else if (viewport.w < 1024) {
-      normalH = 340; slot = 130;        // tablet
+    // Container height matches the Tailwind classes on the outer frame:
+    //   h-[220px]   <  md (768)
+    //   md:h-[300px]  768..1023
+    //   lg:h-[420px]  >= 1024
+    // Fullscreen mode overrides everything with the full viewport height.
+    let containerH: number;
+    if (fullscreen) {
+      containerH = viewport.h;
+    } else if (viewport.w >= 1024) {
+      containerH = 420;
+    } else if (viewport.w >= 768) {
+      containerH = 300;
     } else {
-      normalH = 440; slot = 150;        // desktop
+      containerH = 220;
     }
-    const compactH = viewport.w < 640 ? 200 : viewport.w < 1024 ? 240 : 260;
-    const canvasHeight = compact ? compactH : normalH;
+    const canvasHeight = containerH;
     const sky = Math.round(canvasHeight * 0.55);
     const padX = 50;
+    // Slot per building scales with viewport width
+    const slot = viewport.w < 640 ? 110 : viewport.w < 1024 ? 130 : 150;
 
     const buildings: BuildingLayout[] = projects.map((p, idx) => {
       const services = p.services || [];
@@ -232,11 +240,11 @@ export default function ExecutorCityPage() {
       };
     });
 
-    // Canvas width = max(visible viewport, natural width). The container
-    // scrolls horizontally when this overflows.
-    const minVisible = Math.max(320, viewport.w - 80);
+    // Canvas width = max(1400, natural width from buildings). The fixed
+    // 1400 floor matches the spec for the inner content min-width so the
+    // map always has room to drag horizontally.
     const naturalWidth = padX * 2 + projects.length * slot;
-    const canvasWidth = Math.max(minVisible, naturalWidth);
+    const canvasWidth = Math.max(1400, naturalWidth);
 
     return {
       canvasWidth,
@@ -244,7 +252,7 @@ export default function ExecutorCityPage() {
       sky,
       buildings,
     };
-  }, [projects, viewport, compact]);
+  }, [projects, viewport, fullscreen]);
 
   // ─── Animation loop ───
   useEffect(() => {
@@ -710,28 +718,55 @@ export default function ExecutorCityPage() {
     if (b) setSelected(b);
   }
 
-  // ─── Drag-to-scroll handlers for the map container ───
-  function onContainerMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-    if (!containerRef.current) return;
-    dragStateRef.current = {
-      active: true,
-      startX: e.clientX,
-      startScroll: containerRef.current.scrollLeft,
-      moved: 0,
+  // ─── Drag-to-scroll: native listeners on the container ──────────────
+  // The drag handlers are SCOPED to containerRef and never bound to window
+  // or document, so dragging on the page outside the frame is unaffected.
+  useEffect(() => {
+    if (view !== "city") return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    let isDown = false;
+    let startX = 0;
+    let scrollLeftStart = 0;
+
+    const onMouseDown = (e: MouseEvent) => {
+      isDown = true;
+      startX = e.pageX - container.offsetLeft;
+      scrollLeftStart = container.scrollLeft;
+      dragStateRef.current.moved = 0;
+      container.style.cursor = "grabbing";
     };
-    containerRef.current.style.cursor = "grabbing";
-  }
-  function onContainerMouseMove(e: React.MouseEvent<HTMLDivElement>) {
-    const s = dragStateRef.current;
-    if (!s.active || !containerRef.current) return;
-    const dx = e.clientX - s.startX;
-    s.moved = Math.max(s.moved, Math.abs(dx));
-    containerRef.current.scrollLeft = s.startScroll - dx;
-  }
-  function onContainerMouseUp() {
-    dragStateRef.current.active = false;
-    if (containerRef.current) containerRef.current.style.cursor = "grab";
-  }
+    const onMouseLeave = () => {
+      isDown = false;
+      container.style.cursor = "grab";
+    };
+    const onMouseUp = () => {
+      isDown = false;
+      container.style.cursor = "grab";
+    };
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - container.offsetLeft;
+      const dx = x - startX;
+      dragStateRef.current.moved = Math.max(dragStateRef.current.moved, Math.abs(dx));
+      container.scrollLeft = scrollLeftStart - dx;
+    };
+
+    container.addEventListener("mousedown", onMouseDown);
+    container.addEventListener("mouseleave", onMouseLeave);
+    container.addEventListener("mouseup", onMouseUp);
+    container.addEventListener("mousemove", onMouseMove);
+
+    return () => {
+      container.removeEventListener("mousedown", onMouseDown);
+      container.removeEventListener("mouseleave", onMouseLeave);
+      container.removeEventListener("mouseup", onMouseUp);
+      container.removeEventListener("mousemove", onMouseMove);
+    };
+  }, [view, layout, fullscreen]);
+
   function handleMove(e: React.MouseEvent<HTMLCanvasElement>) {
     const b = pointToBuilding(e.clientX, e.clientY);
     setHoveredId(b?.id || null);
@@ -813,45 +848,87 @@ export default function ExecutorCityPage() {
 
           {layout && layout.buildings.length > 0 && (
             <>
-              {/* 1) Map: scrollable container with drag-to-scroll. Canvas can
-                  exceed the visible width — the container handles overflow. */}
+              {/* ─── Map frame ───
+                  Outer frame: fixed responsive height, full width, overflow
+                  hidden, position relative. In fullscreen mode it becomes
+                  fixed inset-0 z-50 covering the whole viewport. The drag
+                  listeners are scoped to the inner container only — the page
+                  outside the frame is not affected. */}
               <div
-                ref={containerRef}
-                onMouseDown={onContainerMouseDown}
-                onMouseMove={onContainerMouseMove}
-                onMouseUp={onContainerMouseUp}
-                onMouseLeave={onContainerMouseUp}
-                className="bg-white rounded-2xl overflow-x-auto select-none"
-                style={{
-                  border: "1px solid #E2E0D8",
-                  boxShadow: "0 4px 18px rgba(0,0,0,0.06)",
-                  cursor: "grab",
-                }}
+                className={
+                  fullscreen
+                    ? "fixed inset-0 z-50 h-screen w-screen bg-white overflow-hidden"
+                    : "relative w-full overflow-hidden bg-white rounded-2xl h-[220px] md:h-[300px] lg:h-[420px]"
+                }
+                style={
+                  fullscreen
+                    ? undefined
+                    : { border: "1px solid #E2E0D8", boxShadow: "0 4px 18px rgba(0,0,0,0.06)" }
+                }
               >
-                <canvas
-                  ref={canvasRef}
-                  onClick={handleClick}
-                  onMouseMove={handleMove}
-                  onMouseLeave={() => setHoveredId(null)}
-                  style={{ display: "block" }}
-                />
-              </div>
-
-              {/* 2) Zoom toggle below the map */}
-              <div className="mt-3 mb-5 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => setCompact((v) => !v)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:shadow-md"
+                {/* Inner scrollable container — overflow-x: auto, drag wired
+                    via native listeners in useEffect above. Hidden scrollbar
+                    via inline style. */}
+                <div
+                  ref={containerRef}
+                  className="w-full h-full overflow-x-auto overflow-y-hidden select-none"
                   style={{
-                    backgroundColor: "white",
-                    border: "1px solid #E2E0D8",
-                    color: "#1C1B2E",
+                    cursor: "grab",
+                    scrollbarWidth: "none",
+                    msOverflowStyle: "none",
                   }}
                 >
-                  🗺️ {compact ? "تكبير العرض" : "تصغير العرض"}
-                </button>
+                  {/* Content wrapper enforces the 1400px minimum content
+                      width and full container height. */}
+                  <div style={{ minWidth: 1400, height: "100%" }}>
+                    <canvas
+                      ref={canvasRef}
+                      onClick={handleClick}
+                      onMouseMove={handleMove}
+                      onMouseLeave={() => setHoveredId(null)}
+                      style={{ display: "block", height: "100%" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Exit fullscreen button */}
+                {fullscreen && (
+                  <button
+                    type="button"
+                    onClick={() => setFullscreen(false)}
+                    aria-label="خروج من ملء الشاشة"
+                    className="absolute top-4 left-4 z-10 flex items-center justify-center rounded-full transition-all hover:shadow-lg"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      backgroundColor: "white",
+                      border: "1px solid #E2E0D8",
+                      color: "#1C1B2E",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    }}
+                  >
+                    <X size={20} />
+                  </button>
+                )}
               </div>
+
+              {/* Fullscreen toggle below the frame */}
+              {!fullscreen && (
+                <div className="mt-3 mb-5 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setFullscreen(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:shadow-md"
+                    style={{
+                      backgroundColor: "white",
+                      border: "1px solid #E2E0D8",
+                      color: "#1C1B2E",
+                    }}
+                  >
+                    🗺️ ملء الشاشة
+                  </button>
+                </div>
+              )}
 
               {/* 3) Project cards: 1 col mobile / 2 col tablet / 3 col desktop */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
