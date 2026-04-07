@@ -201,13 +201,14 @@ const executorGroups: NavGroup[] = [
     tGroupKey: "homeAndFollow",
     icon: LayoutDashboard,
     children: [
-      { href: "/dashboard/my-tasks", label: "مهامي", tKey: "myTasks" },
+      // مدينتي is the unified workspace — it carries the city view AND the
+      // tasks list behind a toggle, replacing the standalone /my-tasks route.
+      { href: "/dashboard/executor-city", label: "مدينتي", tKey: "myCity" },
       { href: "/dashboard/opportunities", label: "الفرص", tKey: "opportunities" },
       { href: "/dashboard/clients", label: "العملاء", tKey: "clients" },
       { href: "/dashboard/task-transfers", label: "طلبات التحويل", tKey: "transfers" },
       { href: "/dashboard/my-projects", label: "مشاريعي", tKey: "myProjects" },
       { href: "/dashboard/my-health", label: "صحة مشاريعي", tKey: "myHealth" },
-      { href: "/dashboard/executor-city", label: "مدينتي", tKey: "myCity" },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
       { href: "/dashboard/policies", label: "اللوائح والإرشادات", tKey: "policies" },
     ],

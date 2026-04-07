@@ -16,6 +16,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const departmentId = searchParams.get("departmentId");
+    const withServices = searchParams.get("withServices") === "true";
 
     const where: Record<string, unknown> = { deletedAt: null };
     if (departmentId) where.departmentId = departmentId;
@@ -44,6 +45,19 @@ export async function GET(request: Request) {
         department: { select: { id: true, name: true, nameEn: true, color: true } },
         tasks: { select: { id: true, status: true } },
         _count: { select: { services: true } },
+        ...(withServices
+          ? {
+              services: {
+                select: {
+                  id: true,
+                  name: true,
+                  status: true,
+                  tasks: { select: { id: true, status: true } },
+                },
+                orderBy: { serviceOrder: "asc" },
+              },
+            }
+          : {}),
       },
       orderBy: { createdAt: "desc" },
     });
