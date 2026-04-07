@@ -924,7 +924,7 @@ export default function MyTasksView() {
         <div className="flex justify-center py-20">
           <Loader2 size={40} className="animate-spin" style={{ color: "#1C1B2E" }} />
         </div>
-      ) : !data || !data.tasks || data.tasks.length === 0 ? (
+      ) : !data || tasks.length === 0 ? (
         <div
           className="text-center py-20 bg-white rounded-2xl"
           style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
@@ -982,7 +982,9 @@ export default function MyTasksView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.tasks.map((task) => {
+                  {/* Use the filtered `tasks` constant (active tab applies a
+                      canStart filter on top of the API response). */}
+                  {tasks.map((task) => {
                     const st = statusConfig[task.status] || { label: task.status, bg: "#F3F4F6", text: "#6B7280" };
                     const pr = priorityConfig[task.priority] || { label: task.priority, bg: "#F3F4F6", text: "#6B7280" };
                     const isOverdue =
