@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trophy, Loader2, CheckCircle2, Clock, Target, User as UserIcon } from "lucide-react";
+import { Trophy, Loader2, CheckCircle2, Clock, Target } from "lucide-react";
 
 interface Row {
   id: string;
   name: string;
-  avatar: string | null;
   role: string;
   completedTasks: number;
   avgExecutionHours: number;
@@ -24,28 +23,6 @@ const PODIUM = [
   { medal: "🥈", color: "#9CA3AF", bg: "linear-gradient(180deg, rgba(156,163,175,0.18), rgba(156,163,175,0.04))", border: "rgba(156,163,175,0.4)" },
   { medal: "🥉", color: "#B45309", bg: "linear-gradient(180deg, rgba(180,83,9,0.18), rgba(180,83,9,0.04))", border: "rgba(180,83,9,0.4)" },
 ];
-
-function Avatar({ src, name, size = 40 }: { src: string | null; name: string; size?: number }) {
-  if (src) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return (
-      <img
-        src={src}
-        alt={name}
-        className="rounded-full object-cover"
-        style={{ width: size, height: size }}
-      />
-    );
-  }
-  return (
-    <div
-      className="rounded-full flex items-center justify-center text-white font-bold"
-      style={{ width: size, height: size, backgroundColor: "#5E5495", fontSize: size * 0.4 }}
-    >
-      {name.charAt(0)}
-    </div>
-  );
-}
 
 export default function LeaderboardWidget() {
   const [data, setData] = useState<Data | null>(null);
@@ -114,16 +91,13 @@ export default function LeaderboardWidget() {
                   transform: isFirst ? "translateY(-8px)" : "none",
                 }}
               >
-                <span className="text-2xl mb-1">{cfg.medal}</span>
-                <div className="mb-2">
-                  <Avatar src={row.avatar} name={row.name} size={isFirst ? 56 : 44} />
-                </div>
-                <p className="text-xs font-bold mb-1 truncate w-full" style={{ color: "#1C1B2E" }} title={row.name}>
+                <span className={isFirst ? "text-4xl mb-2" : "text-3xl mb-2"}>{cfg.medal}</span>
+                <p className="text-sm font-bold mb-2 truncate w-full" style={{ color: "#1C1B2E" }} title={row.name}>
                   {row.name}
                   {isCurrent && <span className="text-[9px] mr-1" style={{ color: "#5E5495" }}>(أنت)</span>}
                 </p>
                 <div className="flex flex-col items-center gap-0.5 w-full">
-                  <span className="text-[10px] flex items-center gap-1" style={{ color: cfg.color }}>
+                  <span className="text-[11px] flex items-center gap-1 font-bold" style={{ color: cfg.color }}>
                     <CheckCircle2 size={11} />
                     {row.completedTasks} مهمة
                   </span>
@@ -176,15 +150,12 @@ export default function LeaderboardWidget() {
                   >
                     <td className="px-3 py-2 font-bold" style={{ color: "#9CA3AF" }}>{row.rank}</td>
                     <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Avatar src={row.avatar} name={row.name} size={28} />
-                        <span className="font-medium" style={{ color: "#1C1B2E" }}>
-                          {row.name}
-                          {isCurrent && (
-                            <span className="text-[9px] mr-1" style={{ color: "#5E5495" }}>(أنت)</span>
-                          )}
-                        </span>
-                      </div>
+                      <span className="font-medium" style={{ color: "#1C1B2E" }}>
+                        {row.name}
+                        {isCurrent && (
+                          <span className="text-[9px] mr-1" style={{ color: "#5E5495" }}>(أنت)</span>
+                        )}
+                      </span>
                     </td>
                     <td className="px-3 py-2 text-center" style={{ color: "#1C1B2E" }}>{row.completedTasks}</td>
                     <td className="px-3 py-2 text-center" style={{ color: "#6B7280" }}>
@@ -224,7 +195,6 @@ export default function LeaderboardWidget() {
         <span className="flex items-center gap-1"><CheckCircle2 size={10} /> منجزة</span>
         <span className="flex items-center gap-1"><Clock size={10} /> متوسط الوقت</span>
         <span className="flex items-center gap-1"><Target size={10} /> في الوقت</span>
-        <span className="flex items-center gap-1"><UserIcon size={10} /> أنت</span>
       </div>
     </div>
   );

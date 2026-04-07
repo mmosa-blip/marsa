@@ -22,7 +22,7 @@ export async function GET() {
         isActive: true,
         role: { in: ["EXECUTOR", "ADMIN", "MANAGER"] },
       },
-      select: { id: true, name: true, avatar: true, role: true },
+      select: { id: true, name: true, role: true },
     });
 
     if (users.length === 0) {
@@ -108,7 +108,6 @@ export async function GET() {
       return {
         id: u.id,
         name: u.name,
-        avatar: u.avatar,
         role: u.role,
         completedTasks: acc.completed,
         avgExecutionHours: avgExecHours,
