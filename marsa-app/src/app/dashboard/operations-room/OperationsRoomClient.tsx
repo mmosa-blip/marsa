@@ -97,6 +97,90 @@ function statusColor(status: string): { bg: string; fg: string } {
   }
 }
 
+// First letter of first word + first letter of last word; falls back to the
+// first 2 chars for single-word names.
+function initialsFor(name: string): string {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return "—";
+  const parts = trimmed.split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2);
+  return (parts[0][0] || "") + (parts[parts.length - 1][0] || "");
+}
+
+// Stable colour per user id so the same person always gets the same avatar tint.
+const AVATAR_COLORS = ["#5E5495", "#1B2A4A", "#0F766E", "#7C3AED", "#0891B2", "#B45309", "#C9A84C", "#DC2626"];
+function avatarColor(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+
+// Tiny inline avatar — 24px circle with initials, full name in title tooltip.
+function Avatar({ id, name }: { id: string; name: string }) {
+  return (
+    <span
+      title={name}
+      className="inline-flex items-center justify-center rounded-full text-white font-bold flex-shrink-0"
+      style={{
+        width: 24,
+        height: 24,
+        fontSize: 10,
+        backgroundColor: avatarColor(id),
+        border: "1.5px solid white",
+        boxShadow: "0 0 0 1px rgba(0,0,0,0.06)",
+      }}
+    >
+      {initialsFor(name)}
+    </span>
+  );
+}
+
+// Stack of avatars for a list of users (overlapping with negative margin).
+// Renders nothing when the list is empty so the layout doesn't shift.
+function AvatarStack({ users }: { users: { id: string; name: string }[] }) {
+  if (users.length === 0) return null;
+  // Cap at 4 avatars + "+N" overflow chip
+  const visible = users.slice(0, 4);
+  const overflow = users.length - visible.length;
+  return (
+    <span className="inline-flex items-center" style={{ direction: "ltr" }}>
+      {visible.map((u, idx) => (
+        <span key={u.id} style={{ marginInlineStart: idx === 0 ? 0 : -8 }}>
+          <Avatar id={u.id} name={u.name} />
+        </span>
+      ))}
+      {overflow > 0 && (
+        <span
+          title={users.slice(4).map((u) => u.name).join(" · ")}
+          className="inline-flex items-center justify-center rounded-full text-[10px] font-bold flex-shrink-0"
+          style={{
+            width: 24,
+            height: 24,
+            backgroundColor: "#F0EEF5",
+            color: "#6B7280",
+            border: "1.5px solid white",
+            marginInlineStart: -8,
+          }}
+        >
+          +{overflow}
+        </span>
+      )}
+    </span>
+  );
+}
+
+// Distinct executors across an arbitrary list of tasks (preserves first
+// occurrence order).
+function distinctExecutors(tasks: OverviewTask[]): { id: string; name: string }[] {
+  const seen = new Map<string, string>();
+  for (const t of tasks) {
+    if (t.assignee && !seen.has(t.assignee.id)) {
+      seen.set(t.assignee.id, t.assignee.name);
+    }
+  }
+  return Array.from(seen, ([id, name]) => ({ id, name }));
+}
+
 // This file is loaded via next/dynamic({ ssr: false }) so it never runs on
 // the server. `new Date()` and locale formatting are completely safe here.
 function isLateTask(t: OverviewTask): boolean {
@@ -291,6 +375,8 @@ export default function OperationsRoomClient() {
                     {dept.projects.map((proj) => {
                       const pKey = "p:" + proj.id;
                       const pOpen = expanded.has(pKey);
+                      // Distinct executors across every task in every service of this project
+                      const projectExecutors = distinctExecutors(proj.services.flatMap((s) => s.tasks));
                       return (
                         <div key={proj.id} style={{ borderTop: "1px solid #F0EDE6" }}>
                           {/* Project row */}
@@ -337,6 +423,7 @@ export default function OperationsRoomClient() {
                                 </span>
                               )}
                             </button>
+                            <AvatarStack users={projectExecutors} />
                             <MarsaButton
                               variant="secondary"
                               size="xs"
@@ -358,10 +445,8 @@ export default function OperationsRoomClient() {
                                 const sOpen = expanded.has(sKey);
                                 const totalTasks = svc.tasks.length;
                                 const doneTasks = svc.tasks.filter((t) => t.status === "DONE").length;
-                                // distinct executors on this service
-                                const execMap = new Map<string, string>();
-                                for (const t of svc.tasks) if (t.assignee && !execMap.has(t.assignee.id)) execMap.set(t.assignee.id, t.assignee.name);
-                                const executors = Array.from(execMap, ([id, name]) => ({ id, name }));
+                                // Distinct executors across this service's tasks
+                                const serviceExecutors = distinctExecutors(svc.tasks);
                                 return (
                                   <div key={svc.id} style={{ borderTop: "1px solid #F0EDE6" }}>
                                     {/* Service row */}
@@ -383,12 +468,8 @@ export default function OperationsRoomClient() {
                                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495" }}>
                                           {doneTasks}/{totalTasks}
                                         </span>
-                                        {executors.length > 0 && (
-                                          <span className="text-[10px]" style={{ color: "#6B7280" }}>
-                                            {executors.map((e) => e.name).join(" · ")}
-                                          </span>
-                                        )}
                                       </button>
+                                      <AvatarStack users={serviceExecutors} />
                                       <MarsaButton
                                         variant="secondary"
                                         size="xs"
@@ -432,13 +513,14 @@ export default function OperationsRoomClient() {
                                                       {formatDate(task.dueDate)}
                                                     </span>
                                                   )}
-                                                  {task.assignee ? (
-                                                    <span className="text-[9px]" style={{ color: "#5E5495" }}>{task.assignee.name}</span>
-                                                  ) : (
+                                                  {!task.assignee && (
                                                     <span className="text-[9px] italic" style={{ color: "#9CA3AF" }}>غير مسند</span>
                                                   )}
                                                 </div>
                                               </div>
+                                              {task.assignee && (
+                                                <Avatar id={task.assignee.id} name={task.assignee.name} />
+                                              )}
                                               <MarsaButton
                                                 variant="secondary"
                                                 size="xs"
