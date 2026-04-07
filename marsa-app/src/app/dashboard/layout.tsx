@@ -468,7 +468,7 @@ function DashboardLayoutInner({
         </button>
       </div>
     )}
-    <div className="min-h-screen flex" style={{ backgroundColor: "#F8F9FA" }} dir={isRTL ? "rtl" : "ltr"}>
+    <div className="h-screen flex overflow-hidden" style={{ backgroundColor: "#F8F9FA" }} dir={isRTL ? "rtl" : "ltr"}>
 
       {/* ═══ Mobile header bar ═══ */}
       <div
@@ -754,7 +754,7 @@ function DashboardLayoutInner({
       </div>
 
       {/* ═══ Main content ═══ */}
-      <main className={`flex-1 ${isRTL ? "mr-0 lg:mr-[270px]" : "ml-0 lg:ml-[270px]"} ${impersonating ? "pt-22 lg:pt-24" : "pt-12 lg:pt-14"} pb-20 lg:pb-0`}>
+      <main className={`flex-1 h-full overflow-y-auto ${isRTL ? "mr-0 lg:mr-[270px]" : "ml-0 lg:ml-[270px]"} ${impersonating ? "pt-22 lg:pt-24" : "pt-12 lg:pt-14"} pb-20 lg:pb-0`}>
         {/* Welcome bar - desktop only */}
         <div className="hidden lg:block px-8 pt-6 pb-2">
           <h2 className="text-xl font-bold" style={{ color: "#1C1B2E" }}>
