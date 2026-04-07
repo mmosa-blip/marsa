@@ -389,19 +389,35 @@ function DashboardLayoutInner({
   // Sidebar mobile state
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Accordion open groups — persist in localStorage
-  const [openGroups, setOpenGroups] = useState<string[]>(() => {
-    if (typeof window === "undefined") return groups.map(g => g.id);
+  // Mounted flag — flips to true after the first client useEffect.
+  // Used to gate any render path that depends on localStorage / Date / etc
+  // so SSR and the first client render produce identical HTML.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  // Accordion open groups — initialize ALWAYS to "all open" so SSR and the
+  // first client render match. After mount we hydrate from localStorage in
+  // a separate effect.
+  const [openGroups, setOpenGroups] = useState<string[]>(() => groups.map((g) => g.id));
+
+  // Sync from localStorage once on mount
+  useEffect(() => {
     try {
       const saved = localStorage.getItem("kaf_sidebar_groups");
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setOpenGroups(parsed);
+      }
     } catch {}
-    return groups.map(g => g.id);
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Persist subsequent changes to localStorage (skip the very first render
+  // where openGroups is still the default).
   useEffect(() => {
+    if (!mounted) return;
     try { localStorage.setItem("kaf_sidebar_groups", JSON.stringify(openGroups)); } catch {}
-  }, [openGroups]);
+  }, [openGroups, mounted]);
 
   // Auto-open group containing current path
   useEffect(() => {
@@ -744,10 +760,17 @@ function DashboardLayoutInner({
           <h2 className="text-xl font-bold" style={{ color: "#1C1B2E" }}>
             مرحباً {decodeURIComponent(session?.user?.name || "مستخدم")}
           </h2>
-          <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
-            {new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura-nu-latn", { year: "numeric", month: "long", day: "numeric" })}
-            {" — "}
-            {new Date().toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "long", day: "numeric" })}
+          <p className="text-sm mt-1" style={{ color: "#6B7280", minHeight: "1.25rem" }}>
+            {/* Date strings depend on the runtime clock + ICU locale, both of
+                which differ between Node SSR and the browser. Render only
+                after mount so SSR and the first client render are byte-equal. */}
+            {mounted && (
+              <>
+                {new Date().toLocaleDateString("ar-SA-u-ca-islamic-umalqura-nu-latn", { year: "numeric", month: "long", day: "numeric" })}
+                {" — "}
+                {new Date().toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "long", day: "numeric" })}
+              </>
+            )}
           </p>
           <div style={{ height: 1, background: "linear-gradient(90deg, transparent, rgba(201,168,76,0.3), transparent)", marginTop: 12 }} />
         </div>
