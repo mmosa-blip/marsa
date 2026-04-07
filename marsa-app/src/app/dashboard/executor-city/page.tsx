@@ -123,6 +123,10 @@ export default function ExecutorCityPage() {
   // (which opens the building popup). The drag itself is wired via native
   // mouse listeners in a useEffect below.
   const dragStateRef = useRef({ moved: 0 });
+  // Live width of the scrollable container (set after mount via ResizeObserver
+  // and also on fullscreen toggle). The canvas takes max(containerWidth, 1400,
+  // natural building width) so it always fills the visible frame at minimum.
+  const [containerWidth, setContainerWidth] = useState(0);
 
   // Fetch projects with services for the city — runs once on mount
   useEffect(() => {
@@ -140,6 +144,24 @@ export default function ExecutorCityPage() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  // Track the scrollable container's *visible* width with a ResizeObserver
+  // so the canvas can always fill it (no empty band on the right). Re-runs
+  // whenever the container DOM changes (mount, fullscreen toggle, viewport
+  // breakpoint flip).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setContainerWidth(el.clientWidth);
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = Math.round(entry.contentRect.width);
+        if (w > 0) setContainerWidth(w);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fullscreen, viewport.w]);
 
   // Compute layout
   const layout = useMemo(() => {
@@ -239,11 +261,16 @@ export default function ExecutorCityPage() {
       };
     });
 
-    // Canvas width = max(1400, natural width from buildings). The fixed
-    // 1400 floor matches the spec for the inner content min-width so the
-    // map always has room to drag horizontally.
+    // Canvas width must satisfy three constraints simultaneously:
+    //   1. fill the visible container so there's no empty band on the right
+    //   2. accommodate every building (padX*2 + N*slot)
+    //   3. give the user enough room to drag horizontally on small screens
+    // We take the max of all three. containerWidth is 0 before the first
+    // ResizeObserver tick — fall back to viewport.w in that case so the
+    // very first paint isn't a tiny stub.
     const naturalWidth = padX * 2 + projects.length * slot;
-    const canvasWidth = Math.max(1400, naturalWidth);
+    const visibleW = containerWidth > 0 ? containerWidth : viewport.w;
+    const canvasWidth = Math.max(visibleW, 1400, naturalWidth);
 
     return {
       canvasWidth,
@@ -251,7 +278,7 @@ export default function ExecutorCityPage() {
       sky,
       buildings,
     };
-  }, [projects, viewport, fullscreen]);
+  }, [projects, viewport, fullscreen, containerWidth]);
 
   // ─── Animation loop ───
   useEffect(() => {
@@ -824,8 +851,11 @@ export default function ExecutorCityPage() {
                 }
               >
                 {/* Inner scrollable container — overflow-x: auto, drag wired
-                    via native listeners in useEffect above. Hidden scrollbar
-                    via inline style. */}
+                    via native listeners in useEffect above. The canvas takes
+                    its pixel width from layout.canvasWidth (which is the max
+                    of containerWidth, 1400, and natural building width) so
+                    the scene always fills the frame at minimum, and overflows
+                    horizontally only when there are more buildings than fit. */}
                 <div
                   ref={containerRef}
                   className="w-full h-full overflow-x-auto overflow-y-hidden select-none"
@@ -835,17 +865,13 @@ export default function ExecutorCityPage() {
                     msOverflowStyle: "none",
                   }}
                 >
-                  {/* Content wrapper enforces the 1400px minimum content
-                      width and full container height. */}
-                  <div style={{ minWidth: 1400, height: "100%" }}>
-                    <canvas
-                      ref={canvasRef}
-                      onClick={handleClick}
-                      onMouseMove={handleMove}
-                      onMouseLeave={() => setHoveredId(null)}
-                      style={{ display: "block", height: "100%" }}
-                    />
-                  </div>
+                  <canvas
+                    ref={canvasRef}
+                    onClick={handleClick}
+                    onMouseMove={handleMove}
+                    onMouseLeave={() => setHoveredId(null)}
+                    style={{ display: "block" }}
+                  />
                 </div>
 
                 {/* Exit fullscreen button */}
