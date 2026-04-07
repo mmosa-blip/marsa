@@ -13,13 +13,28 @@ export async function GET() {
     const userId = session.user.id;
     const userRole = session.user.role;
 
-    // For executors/providers: return linked services via UserService
+    // For executors/providers: return services where the user is linked
+    // either via UserService (manual admin link) OR via Task.assigneeId
+    // (auto-distributed by project-instantiation / redistributeTasks).
+    // The UserService-only query missed every executor whose tasks were
+    // assigned by the qualified-employees / project-generation paths.
     if (userRole === "EXECUTOR" || userRole === "EXTERNAL_PROVIDER") {
-      const userServices = await prisma.userService.findMany({
-        where: { userId },
-        include: { service: { select: { id: true, name: true, category: true } } },
+      const services = await prisma.service.findMany({
+        where: {
+          deletedAt: null,
+          OR: [
+            { executors: { some: { userId } } },           // UserService link
+            { tasks: { some: { assigneeId: userId } } },   // assigneeId on any task
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+        },
+        distinct: ["id"],
       });
-      return NextResponse.json(userServices);
+      return NextResponse.json(services);
     }
 
     // For clients: return services where they are the client
