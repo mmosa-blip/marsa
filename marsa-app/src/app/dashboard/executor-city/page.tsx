@@ -114,11 +114,11 @@ export default function ExecutorCityPage() {
     w: typeof window !== "undefined" ? window.innerWidth : 1280,
     h: typeof window !== "undefined" ? window.innerHeight : 720,
   });
-  // World camera offset (px). cameraTargetX animates toward cameraX in the
-  // RAF loop so arrow clicks scroll smoothly.
-  const cameraXRef = useRef(0);
-  const cameraTargetRef = useRef(0);
-  const [cameraTick, setCameraTick] = useState(0); // forces React re-renders for the off-screen counters
+  // Compact toggle: shrinks the canvas height significantly. The wide canvas
+  // sits in a horizontally-scrollable container — no more camera transform.
+  const [compact, setCompact] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef({ active: false, startX: 0, startScroll: 0, moved: 0 });
 
   // Fetch projects with services for the city
   useEffect(() => {
@@ -142,14 +142,22 @@ export default function ExecutorCityPage() {
   const layout = useMemo(() => {
     if (!projects) return null;
 
-    // Canvas size is fixed to (a sub-region of) the viewport. Buildings live
-    // in a wider "world" that we pan via cameraX — the canvas itself never
-    // grows beyond what the screen can show.
-    const canvasWidth = Math.max(640, Math.min(viewport.w - 80, 1600));
-    const canvasHeight = Math.max(420, Math.min(viewport.h - 280, 720));
+    // Responsive height presets — three breakpoints, each with a normal
+    // and a compact variant. Slot (per-building horizontal width) also
+    // scales down on narrow screens.
+    let normalH: number;
+    let slot: number;
+    if (viewport.w < 640) {
+      normalH = 260; slot = 110;        // mobile
+    } else if (viewport.w < 1024) {
+      normalH = 340; slot = 130;        // tablet
+    } else {
+      normalH = 440; slot = 150;        // desktop
+    }
+    const compactH = viewport.w < 640 ? 200 : viewport.w < 1024 ? 240 : 260;
+    const canvasHeight = compact ? compactH : normalH;
     const sky = Math.round(canvasHeight * 0.55);
-    const padX = 60;
-    const slot = 150; // fixed per-building horizontal slot in world space
+    const padX = 50;
 
     const buildings: BuildingLayout[] = projects.map((p, idx) => {
       const services = p.services || [];
@@ -224,16 +232,19 @@ export default function ExecutorCityPage() {
       };
     });
 
-    const worldWidth = Math.max(canvasWidth, padX * 2 + projects.length * slot);
+    // Canvas width = max(visible viewport, natural width). The container
+    // scrolls horizontally when this overflows.
+    const minVisible = Math.max(320, viewport.w - 80);
+    const naturalWidth = padX * 2 + projects.length * slot;
+    const canvasWidth = Math.max(minVisible, naturalWidth);
 
     return {
       canvasWidth,
       canvasHeight,
-      worldWidth,
       sky,
       buildings,
     };
-  }, [projects, viewport]);
+  }, [projects, viewport, compact]);
 
   // ─── Animation loop ───
   useEffect(() => {
@@ -259,7 +270,7 @@ export default function ExecutorCityPage() {
 
     const VW = layout.canvasWidth;   // visible canvas width
     const VH = layout.canvasHeight;  // visible canvas height
-    const WORLD_W = layout.worldWidth;
+    const WORLD_W = layout.canvasWidth; // canvas IS the world now
     const groundY = layout.sky;
     const roadY = groundY + 30;
     const roadHeight = 38;
@@ -639,25 +650,12 @@ export default function ExecutorCityPage() {
       const time = now - t0;
       ctx.clearRect(0, 0, VW, VH);
 
-      // Smooth-scroll camera toward target
-      const camMax = Math.max(0, WORLD_W - VW);
-      const t = cameraTargetRef.current;
-      const clampedTarget = Math.max(0, Math.min(camMax, t));
-      cameraXRef.current += (clampedTarget - cameraXRef.current) * 0.18;
-      if (Math.abs(clampedTarget - cameraXRef.current) < 0.5) {
-        cameraXRef.current = clampedTarget;
-      }
-      const camX = cameraXRef.current;
-
-      // ─── Screen-locked layer (sky + sun) ───
+      // Sky + sun — drawn first, no transform needed
       drawSky();
       drawSun(time);
 
-      // ─── World layer (everything else, panned by -camX) ───
-      ctx.save();
-      ctx.translate(-camX, 0);
-
-      // Clouds drift slowly leftward in world space and wrap around
+      // Everything else lives in canvas space directly. The container handles
+      // horizontal scrolling via overflow-x, so we don't pan here.
       for (const c of clouds) {
         c.x -= c.speed;
         if (c.x < -80) c.x = WORLD_W + 80;
@@ -680,34 +678,20 @@ export default function ExecutorCityPage() {
       for (const tree of trees) drawStreetTree(tree, time);
       for (const f of flowers) drawFlower(f);
 
-      ctx.restore();
-
       raf = requestAnimationFrame(tick);
     }
 
-    // Reset camera when entering or relayouting
-    cameraXRef.current = 0;
-    cameraTargetRef.current = 0;
-
-    // Force a React re-render every ~300ms so the off-screen counters track
-    // the smoothed camera position without a full state binding.
-    const tickInterval = window.setInterval(() => setCameraTick((v) => v + 1), 300);
-
     raf = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.clearInterval(tickInterval);
-    };
+    return () => cancelAnimationFrame(raf);
   }, [view, layout, hoveredId]);
 
   function pointToBuilding(clientX: number, clientY: number): BuildingLayout | null {
     if (!layout) return null;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return null;
-    // Translate the screen-space click into world-space (account for camera)
-    const screenX = ((clientX - rect.left) / rect.width) * layout.canvasWidth;
+    // Direct canvas-space coordinates — the container handles scrolling
+    const x = ((clientX - rect.left) / rect.width) * layout.canvasWidth;
     const y = ((clientY - rect.top) / rect.height) * layout.canvasHeight;
-    const x = screenX + cameraXRef.current;
     const roadY = layout.sky + 30;
     for (const b of layout.buildings) {
       const baseX = b.x - b.baseWidth / 2;
@@ -720,8 +704,33 @@ export default function ExecutorCityPage() {
   }
 
   function handleClick(e: React.MouseEvent<HTMLCanvasElement>) {
+    // Suppress click if the user dragged the map more than a few pixels
+    if (dragStateRef.current.moved > 5) return;
     const b = pointToBuilding(e.clientX, e.clientY);
     if (b) setSelected(b);
+  }
+
+  // ─── Drag-to-scroll handlers for the map container ───
+  function onContainerMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    if (!containerRef.current) return;
+    dragStateRef.current = {
+      active: true,
+      startX: e.clientX,
+      startScroll: containerRef.current.scrollLeft,
+      moved: 0,
+    };
+    containerRef.current.style.cursor = "grabbing";
+  }
+  function onContainerMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const s = dragStateRef.current;
+    if (!s.active || !containerRef.current) return;
+    const dx = e.clientX - s.startX;
+    s.moved = Math.max(s.moved, Math.abs(dx));
+    containerRef.current.scrollLeft = s.startScroll - dx;
+  }
+  function onContainerMouseUp() {
+    dragStateRef.current.active = false;
+    if (containerRef.current) containerRef.current.style.cursor = "grab";
   }
   function handleMove(e: React.MouseEvent<HTMLCanvasElement>) {
     const b = pointToBuilding(e.clientX, e.clientY);
@@ -730,30 +739,6 @@ export default function ExecutorCityPage() {
       canvasRef.current.style.cursor = b ? "pointer" : "default";
     }
   }
-
-  // ─── Camera scroll helpers + off-screen counters ───
-  const camMaxX = layout ? Math.max(0, layout.worldWidth - layout.canvasWidth) : 0;
-  const currentCam = cameraXRef.current;
-  const offLeftCount = useMemo(() => {
-    if (!layout) return 0;
-    return layout.buildings.filter((b) => b.x + b.baseWidth / 2 < currentCam + 10).length;
-    // cameraTick triggers re-renders so this stays fresh
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout, cameraTick]);
-  const offRightCount = useMemo(() => {
-    if (!layout) return 0;
-    return layout.buildings.filter(
-      (b) => b.x - b.baseWidth / 2 > currentCam + layout.canvasWidth - 10
-    ).length;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layout, cameraTick]);
-
-  const scrollBy = (delta: number) => {
-    if (!layout) return;
-    const next = Math.max(0, Math.min(camMaxX, cameraTargetRef.current + delta));
-    cameraTargetRef.current = next;
-    setCameraTick((v) => v + 1);
-  };
 
   if (status === "loading") return null;
   if (!session) redirect("/auth/login");
@@ -828,16 +813,19 @@ export default function ExecutorCityPage() {
 
           {layout && layout.buildings.length > 0 && (
             <>
-              {/* Canvas viewport — fixed size, never scrolls. Arrow buttons
-                  pan the world camera within this fixed window. */}
+              {/* 1) Map: scrollable container with drag-to-scroll. Canvas can
+                  exceed the visible width — the container handles overflow. */}
               <div
-                className="relative bg-white rounded-2xl overflow-hidden"
+                ref={containerRef}
+                onMouseDown={onContainerMouseDown}
+                onMouseMove={onContainerMouseMove}
+                onMouseUp={onContainerMouseUp}
+                onMouseLeave={onContainerMouseUp}
+                className="bg-white rounded-2xl overflow-x-auto select-none"
                 style={{
                   border: "1px solid #E2E0D8",
                   boxShadow: "0 4px 18px rgba(0,0,0,0.06)",
-                  width: layout.canvasWidth,
-                  maxWidth: "100%",
-                  margin: "0 auto",
+                  cursor: "grab",
                 }}
               >
                 <canvas
@@ -847,48 +835,26 @@ export default function ExecutorCityPage() {
                   onMouseLeave={() => setHoveredId(null)}
                   style={{ display: "block" }}
                 />
+              </div>
 
-                {/* Right arrow (forward in RTL = previous projects on the left) */}
+              {/* 2) Zoom toggle below the map */}
+              <div className="mt-3 mb-5 flex justify-center">
                 <button
                   type="button"
-                  onClick={() => scrollBy(-260)}
-                  disabled={offLeftCount === 0}
-                  className="absolute top-1/2 -translate-y-1/2 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  onClick={() => setCompact((v) => !v)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:shadow-md"
                   style={{
-                    right: 12,
-                    backgroundColor: offLeftCount === 0 ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.95)",
-                    color: offLeftCount === 0 ? "#9CA3AF" : "#1C1B2E",
-                    border: "1px solid rgba(0,0,0,0.08)",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-                    cursor: offLeftCount === 0 ? "default" : "pointer",
+                    backgroundColor: "white",
+                    border: "1px solid #E2E0D8",
+                    color: "#1C1B2E",
                   }}
-                  aria-label="السابق"
                 >
-                  ← {offLeftCount > 0 ? `${offLeftCount} مشروع` : ""}
-                </button>
-
-                {/* Left arrow (back in RTL = next projects on the right) */}
-                <button
-                  type="button"
-                  onClick={() => scrollBy(260)}
-                  disabled={offRightCount === 0}
-                  className="absolute top-1/2 -translate-y-1/2 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all"
-                  style={{
-                    left: 12,
-                    backgroundColor: offRightCount === 0 ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.95)",
-                    color: offRightCount === 0 ? "#9CA3AF" : "#1C1B2E",
-                    border: "1px solid rgba(0,0,0,0.08)",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-                    cursor: offRightCount === 0 ? "default" : "pointer",
-                  }}
-                  aria-label="التالي"
-                >
-                  {offRightCount > 0 ? `${offRightCount} مشروع` : ""} →
+                  🗺️ {compact ? "تكبير العرض" : "تصغير العرض"}
                 </button>
               </div>
 
-              {/* Project cards beneath the city */}
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {/* 3) Project cards: 1 col mobile / 2 col tablet / 3 col desktop */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {layout.buildings.map((b) => {
                   const completedFloors = b.floors.filter((f) => f.isComplete).length;
                   return (
