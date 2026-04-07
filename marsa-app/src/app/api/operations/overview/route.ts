@@ -82,18 +82,31 @@ export async function GET() {
           : null,
         progress: total > 0 ? Math.round((done / total) * 100) : 0,
         taskStats: { late, active, done },
-        services: p.services.map((s) => ({
-          id: s.id,
-          name: s.name,
-          status: s.status,
-          tasks: s.tasks.map((t) => ({
-            id: t.id,
-            title: t.title,
-            status: t.status,
-            dueDate: t.dueDate ? t.dueDate.toISOString() : null,
-            assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name } : null,
-          })),
-        })),
+        services: p.services.map((s) => {
+          // Distinct executors derived from this service's task assignees
+          // (preserves first-occurrence order via Map insertion).
+          const seen = new Map<string, string>();
+          for (const t of s.tasks) {
+            if (t.assignee && !seen.has(t.assignee.id)) {
+              seen.set(t.assignee.id, t.assignee.name);
+            }
+          }
+          const executors = Array.from(seen, ([id, name]) => ({ id, name }));
+
+          return {
+            id: s.id,
+            name: s.name,
+            status: s.status,
+            executors,
+            tasks: s.tasks.map((t) => ({
+              id: t.id,
+              title: t.title,
+              status: t.status,
+              dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+              assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name } : null,
+            })),
+          };
+        }),
       };
     });
 

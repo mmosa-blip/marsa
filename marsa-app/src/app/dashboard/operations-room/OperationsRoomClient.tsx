@@ -48,6 +48,9 @@ interface OverviewService {
   id: string;
   name: string;
   status: string | null;
+  // Distinct executors derived from this service's tasks (server-side now,
+  // but we still recompute on the client where needed for resilience).
+  executors?: { id: string; name: string }[];
   tasks: OverviewTask[];
 }
 interface OverviewProject {
@@ -116,28 +119,73 @@ function avatarColor(id: string): string {
 }
 
 // Tiny inline avatar — 24px circle with initials, full name in title tooltip.
-function Avatar({ id, name }: { id: string; name: string }) {
+// When onRemove is provided, a small × button appears at top-end on hover.
+function Avatar({
+  id,
+  name,
+  onRemove,
+  disabled,
+}: {
+  id: string;
+  name: string;
+  onRemove?: () => void;
+  disabled?: boolean;
+}) {
   return (
-    <span
-      title={name}
-      className="inline-flex items-center justify-center rounded-full text-white font-bold flex-shrink-0"
-      style={{
-        width: 24,
-        height: 24,
-        fontSize: 10,
-        backgroundColor: avatarColor(id),
-        border: "1.5px solid white",
-        boxShadow: "0 0 0 1px rgba(0,0,0,0.06)",
-      }}
-    >
-      {initialsFor(name)}
+    <span className="relative inline-block group" style={{ width: 24, height: 24 }}>
+      <span
+        title={name}
+        className="inline-flex items-center justify-center rounded-full text-white font-bold flex-shrink-0"
+        style={{
+          width: 24,
+          height: 24,
+          fontSize: 10,
+          backgroundColor: avatarColor(id),
+          border: "1.5px solid white",
+          boxShadow: "0 0 0 1px rgba(0,0,0,0.06)",
+        }}
+      >
+        {initialsFor(name)}
+      </span>
+      {onRemove && (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          title={`إزالة ${name}`}
+          aria-label={`إزالة ${name}`}
+          className="absolute -top-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-full"
+          style={{
+            insetInlineEnd: -4,
+            width: 14,
+            height: 14,
+            backgroundColor: "#DC2626",
+            color: "white",
+            fontSize: 10,
+            lineHeight: 1,
+            border: "1.5px solid white",
+            cursor: disabled ? "not-allowed" : "pointer",
+          }}
+        >
+          ×
+        </button>
+      )}
     </span>
   );
 }
 
 // Stack of avatars for a list of users (overlapping with negative margin).
 // Renders nothing when the list is empty so the layout doesn't shift.
-function AvatarStack({ users }: { users: { id: string; name: string }[] }) {
+// onRemoveOne is forwarded to each Avatar so the × button can fire.
+function AvatarStack({
+  users,
+  onRemoveOne,
+  disabled,
+}: {
+  users: { id: string; name: string }[];
+  onRemoveOne?: (userId: string, name: string) => void;
+  disabled?: boolean;
+}) {
   if (users.length === 0) return null;
   // Cap at 4 avatars + "+N" overflow chip
   const visible = users.slice(0, 4);
@@ -146,7 +194,12 @@ function AvatarStack({ users }: { users: { id: string; name: string }[] }) {
     <span className="inline-flex items-center" style={{ direction: "ltr" }}>
       {visible.map((u, idx) => (
         <span key={u.id} style={{ marginInlineStart: idx === 0 ? 0 : -8 }}>
-          <Avatar id={u.id} name={u.name} />
+          <Avatar
+            id={u.id}
+            name={u.name}
+            onRemove={onRemoveOne ? () => onRemoveOne(u.id, u.name) : undefined}
+            disabled={disabled}
+          />
         </span>
       ))}
       {overflow > 0 && (
@@ -277,6 +330,82 @@ export default function OperationsRoomClient() {
       else next.add(key);
       return next;
     });
+  };
+
+  // ── Remove actions ──
+  const [removing, setRemoving] = useState(false);
+
+  const removeFromTask = async (taskId: string) => {
+    if (removing) return;
+    setRemoving(true);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigneeId: null }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert((j as { error?: string }).error || "تعذّر إلغاء الإسناد");
+        return;
+      }
+      refreshOverview();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "حدث خطأ");
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  const removeFromService = async (userId: string, serviceId: string) => {
+    if (removing) return;
+    setRemoving(true);
+    try {
+      const res = await fetch(`/api/users/${userId}/services`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceId }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert((j as { error?: string }).error || "تعذّر إلغاء الربط");
+        return;
+      }
+      refreshOverview();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "حدث خطأ");
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  const removeFromProject = async (
+    userId: string,
+    serviceIds: string[]
+  ) => {
+    if (removing) return;
+    setRemoving(true);
+    try {
+      // Sequential — keeps the load on Supabase pgbouncer light and matches
+      // the assign route's per-service pattern. Each call is idempotent.
+      for (const sid of serviceIds) {
+        const res = await fetch(`/api/users/${userId}/services`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ serviceId: sid }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          alert((j as { error?: string }).error || "تعذّر إلغاء الربط من بعض الخدمات");
+          return;
+        }
+      }
+      refreshOverview();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "حدث خطأ");
+    } finally {
+      setRemoving(false);
+    }
   };
 
   // ── Assign action ──
@@ -423,7 +552,11 @@ export default function OperationsRoomClient() {
                                 </span>
                               )}
                             </button>
-                            <AvatarStack users={projectExecutors} />
+                            <AvatarStack
+                              users={projectExecutors}
+                              disabled={removing}
+                              onRemoveOne={(uid) => removeFromProject(uid, proj.services.map((s) => s.id))}
+                            />
                             <MarsaButton
                               variant="secondary"
                               size="xs"
@@ -469,7 +602,11 @@ export default function OperationsRoomClient() {
                                           {doneTasks}/{totalTasks}
                                         </span>
                                       </button>
-                                      <AvatarStack users={serviceExecutors} />
+                                      <AvatarStack
+                                        users={serviceExecutors}
+                                        disabled={removing}
+                                        onRemoveOne={(uid) => removeFromService(uid, svc.id)}
+                                      />
                                       <MarsaButton
                                         variant="secondary"
                                         size="xs"
@@ -519,7 +656,12 @@ export default function OperationsRoomClient() {
                                                 </div>
                                               </div>
                                               {task.assignee && (
-                                                <Avatar id={task.assignee.id} name={task.assignee.name} />
+                                                <Avatar
+                                                  id={task.assignee.id}
+                                                  name={task.assignee.name}
+                                                  disabled={removing}
+                                                  onRemove={() => removeFromTask(task.id)}
+                                                />
                                               )}
                                               <MarsaButton
                                                 variant="secondary"
