@@ -31,25 +31,43 @@ export async function GET() {
 
     const now = new Date();
 
-    // ── Projects ──────────────────────────────────────────────────────────
+    // ── Projects (with full service+task hierarchy for the tree view) ────
     const projects = await prisma.project.findMany({
       where: { deletedAt: null },
       select: {
         id: true,
         name: true,
         department: { select: { id: true, name: true, color: true } },
-        tasks: {
-          select: { id: true, status: true, dueDate: true },
+        services: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            tasks: {
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                dueDate: true,
+                assignee: { select: { id: true, name: true } },
+              },
+              orderBy: { order: "asc" },
+            },
+          },
+          orderBy: { serviceOrder: "asc" },
         },
       },
       orderBy: { createdAt: "desc" },
     });
 
     const projectRows = projects.map((p) => {
-      const total = p.tasks.length;
-      const done = p.tasks.filter((t) => t.status === "DONE").length;
-      const active = p.tasks.filter((t) => ACTIVE_STATUSES.includes(t.status as typeof ACTIVE_STATUSES[number])).length;
-      const late = p.tasks.filter(
+      // Flatten the nested services to compute project-level taskStats once.
+      const allTasks = p.services.flatMap((s) => s.tasks);
+      const total = allTasks.length;
+      const done = allTasks.filter((t) => t.status === "DONE").length;
+      const active = allTasks.filter((t) => ACTIVE_STATUSES.includes(t.status as typeof ACTIVE_STATUSES[number])).length;
+      const late = allTasks.filter(
         (t) =>
           t.dueDate &&
           new Date(t.dueDate) < now &&
@@ -64,6 +82,18 @@ export async function GET() {
           : null,
         progress: total > 0 ? Math.round((done / total) * 100) : 0,
         taskStats: { late, active, done },
+        services: p.services.map((s) => ({
+          id: s.id,
+          name: s.name,
+          status: s.status,
+          tasks: s.tasks.map((t) => ({
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+            assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name } : null,
+          })),
+        })),
       };
     });
 
