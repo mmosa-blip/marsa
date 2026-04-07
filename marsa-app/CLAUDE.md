@@ -110,4 +110,7 @@ The schema was migrated from MariaDB to PostgreSQL. Do not introduce `@db.LongTe
 
 ## Deployment
 
-Hostinger VPS, PM2 (`ecosystem.config.js`), Next.js `output: "standalone"`, custom `server.js`. The deploy script is `deploy.sh`. After deploys, the live `DATABASE_URL` env var must point at the Supabase pooler — a stale URL is the most common cause of "registration is broken in production but works locally".
+- Platform: Vercel (auto-deploy on push to main)
+- URL: marsa-delta.vercel.app
+- Database: Supabase PostgreSQL (pgbouncer pooler)
+- لا يوجد SSH أو PM2 أو Hostinger — كل push إلى main ينشر تلقائياً
