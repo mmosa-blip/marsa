@@ -97,14 +97,23 @@ function statusColor(status: string): { bg: string; fg: string } {
   }
 }
 
-function isLateTask(t: OverviewTask): boolean {
+// `now` is passed in by the component AFTER mount so the SSR render and the
+// first client render produce identical HTML (no React #418 mismatch).
+// During SSR / before mount we receive `null` and treat the task as not-late.
+function isLateTask(t: OverviewTask, now: Date | null): boolean {
+  if (!now) return false;
   if (!t.dueDate) return false;
   if (t.status === "DONE" || t.status === "CANCELLED") return false;
-  return new Date(t.dueDate) < new Date();
+  return new Date(t.dueDate) < now;
 }
 
-function formatDate(d: string | null): string {
+// Same trick for formatDate — `toLocaleDateString` with Arabic locale can
+// produce slightly different output between Node ICU (SSR) and browser ICU.
+// Returning a placeholder until the component is mounted keeps SSR and the
+// first client render byte-identical.
+function formatDate(d: string | null, mounted: boolean): string {
   if (!d) return "—";
+  if (!mounted) return "…";
   return new Date(d).toLocaleDateString("ar-SA-u-nu-latn", {
     year: "numeric",
     month: "short",
@@ -122,6 +131,21 @@ export default function OperationsRoomPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null);
   const [assigning, setAssigning] = useState(false);
+
+  // ── Hydration-safe "now" + mounted flag ──
+  // Both stay null/false until the first useEffect on the client. Render
+  // paths that depend on the current time or on locale-formatted dates check
+  // these flags so the SSR and first client render produce identical HTML.
+  const [mounted, setMounted] = useState(false);
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setMounted(true);
+    setNow(new Date());
+    // Refresh "now" once a minute so isLateTask stays current after long
+    // periods on the page (cheap, no re-render storm).
+    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // ── Auth gate ──
   useEffect(() => {
@@ -428,7 +452,7 @@ export default function OperationsRoomPage() {
                                         )}
                                         {svc.tasks.map((task) => {
                                           const sc = statusColor(task.status);
-                                          const late = isLateTask(task);
+                                          const late = isLateTask(task, now);
                                           return (
                                             <div key={task.id} className="flex items-center gap-3 p-2.5 pe-20" style={{ borderTop: "1px solid #F8F7F3", backgroundColor: "rgba(248,247,243,0.4)" }}>
                                               <ListChecks size={12} style={{ color: "#9CA3AF" }} />
@@ -446,7 +470,7 @@ export default function OperationsRoomPage() {
                                                       style={{ color: late ? "#DC2626" : "#9CA3AF", fontWeight: late ? 600 : 400 }}
                                                     >
                                                       {late && <AlertTriangle size={9} />}
-                                                      {formatDate(task.dueDate)}
+                                                      {formatDate(task.dueDate, mounted)}
                                                     </span>
                                                   )}
                                                   {task.assignee ? (
