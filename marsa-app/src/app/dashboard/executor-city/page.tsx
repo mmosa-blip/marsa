@@ -44,16 +44,37 @@ interface FloorLayout {
   totalTasks: number;
   doneTasks: number;
   isComplete: boolean;
+  isCurrent: boolean; // the in-progress floor (partial, dimmer)
 }
 
 interface BuildingLayout extends ApiProject {
-  x: number;          // ground-level center x in canvas px
+  x: number;          // world-space center x (NOT screen — camera offset is applied at draw time)
   baseWidth: number;
-  baseHeight: number; // total height in canvas px
-  floors: FloorLayout[];
+  baseHeight: number; // total height in canvas px (only counts visible floors)
+  cols: number;       // uniform columns for the whole building
+  floors: FloorLayout[];     // ALL service floors (for popup/cards)
+  visibleFloors: FloorLayout[]; // floors that have grown into existence
   color: string;
   isComplete: boolean;
   isDelayed: boolean;
+}
+
+// Uniform window/grid constants — same across every building
+const WIN_W = 9;
+const WIN_H = 11;
+const WIN_GAP_X = 4;
+const WIN_GAP_Y = 4;
+const FLOOR_PAD_X = 5;
+const FLOOR_PAD_Y = 3;
+const MAX_COLS = 6;
+const ROW_H = WIN_H + WIN_GAP_Y;
+const COL_W = WIN_W + WIN_GAP_X;
+
+function rowsForFloor(taskCount: number) {
+  return Math.max(1, Math.ceil(Math.max(1, taskCount) / MAX_COLS));
+}
+function floorBandHeight(taskCount: number) {
+  return rowsForFloor(taskCount) * ROW_H + FLOOR_PAD_Y * 2;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -93,6 +114,11 @@ export default function ExecutorCityPage() {
     w: typeof window !== "undefined" ? window.innerWidth : 1280,
     h: typeof window !== "undefined" ? window.innerHeight : 720,
   });
+  // World camera offset (px). cameraTargetX animates toward cameraX in the
+  // RAF loop so arrow clicks scroll smoothly.
+  const cameraXRef = useRef(0);
+  const cameraTargetRef = useRef(0);
+  const [cameraTick, setCameraTick] = useState(0); // forces React re-renders for the off-screen counters
 
   // Fetch projects with services for the city
   useEffect(() => {
@@ -116,27 +142,18 @@ export default function ExecutorCityPage() {
   const layout = useMemo(() => {
     if (!projects) return null;
 
-    // Canvas occupies most of the viewport, but we also clamp to a sensible
-    // visible "stage". Buildings flow horizontally; if the row gets too wide
-    // for the viewport, the container scrolls.
-    const stageHeight = Math.max(420, Math.min(viewport.h - 280, 720));
-    const sky = Math.round(stageHeight * 0.55);
-    const groundOffset = 60;
+    // Canvas size is fixed to (a sub-region of) the viewport. Buildings live
+    // in a wider "world" that we pan via cameraX — the canvas itself never
+    // grows beyond what the screen can show.
+    const canvasWidth = Math.max(640, Math.min(viewport.w - 80, 1600));
+    const canvasHeight = Math.max(420, Math.min(viewport.h - 280, 720));
+    const sky = Math.round(canvasHeight * 0.55);
     const padX = 60;
-    // Slot per building scales with viewport — narrower screens get tighter
-    // spacing so a few buildings still fit on one row.
-    const slot = Math.max(110, Math.min(170, Math.round(viewport.w / 9)));
-    // Stage width = viewport width; if buildings exceed it, we widen.
-    const minWidth = Math.max(800, viewport.w - 120);
-    const computedWidth = padX * 2 + projects.length * slot;
-    const totalWidth = Math.max(minWidth, computedWidth);
-
-    // Use the longest service-list so heights stay comparable across projects
-    const maxFloors = Math.max(1, ...projects.map((p) => p.services?.length || 1));
+    const slot = 150; // fixed per-building horizontal slot in world space
 
     const buildings: BuildingLayout[] = projects.map((p, idx) => {
       const services = p.services || [];
-      const floors: FloorLayout[] = services.map((s) => {
+      const allFloors: FloorLayout[] = services.map((s) => {
         const total = s.tasks?.length || 0;
         const done = s.tasks?.filter((t) => t.status === "DONE").length || 0;
         return {
@@ -145,21 +162,49 @@ export default function ExecutorCityPage() {
           totalTasks: total,
           doneTasks: done,
           isComplete: total > 0 && done >= total,
+          isCurrent: false,
         };
       });
 
-      // Floor layout: each floor is a horizontal band; height per floor is
-      // capped so very tall buildings don't blow out the stage.
-      const floorCount = Math.max(1, floors.length);
-      const floorHeight = Math.max(22, Math.min(36, Math.round(220 / Math.max(2, maxFloors))));
-      const baseHeight = Math.max(80, floorCount * floorHeight + 18); // +18 for roof slab room
+      // A floor only "exists" once the previous service is finished.
+      // The first floor is always visible; the topmost visible floor is the
+      // currently in-progress service (rendered as a partial/dim floor) or
+      // a completed service if every prior service is done too.
+      const visibleFloors: FloorLayout[] = [];
+      for (let i = 0; i < allFloors.length; i++) {
+        if (i === 0 || allFloors[i - 1].isComplete) {
+          visibleFloors.push({ ...allFloors[i], isCurrent: !allFloors[i].isComplete });
+        } else {
+          break;
+        }
+      }
+      // Always keep at least a ground floor so brand-new projects still
+      // show something (a tiny single-window stub).
+      if (visibleFloors.length === 0) {
+        visibleFloors.push({
+          serviceId: "stub",
+          serviceName: "—",
+          totalTasks: 1,
+          doneTasks: 0,
+          isComplete: false,
+          isCurrent: true,
+        });
+      }
 
-      // Width based on max windows in any floor (so the widest service fits)
-      const maxWindows = floors.reduce((m, f) => Math.max(m, f.totalTasks || 1), 1);
-      const windowsPerRow = Math.min(5, Math.max(2, maxWindows));
-      const baseWidth = 36 + windowsPerRow * 16;
+      // Uniform building columns: take the widest visible floor's column
+      // count so the grid is square within this building.
+      const cols = Math.max(
+        1,
+        ...visibleFloors.map((f) => Math.min(MAX_COLS, Math.max(1, f.totalTasks || 1)))
+      );
+      const baseWidth = cols * COL_W + FLOOR_PAD_X * 2;
 
-      const isComplete = floors.length > 0 && floors.every((f) => f.isComplete);
+      // Total height = sum of every visible floor's band height + door slab.
+      const floorsHeight = visibleFloors.reduce((s, f) => s + floorBandHeight(f.totalTasks), 0);
+      const DOOR_H = 14;
+      const baseHeight = floorsHeight + DOOR_H + 4;
+
+      const isComplete = allFloors.length > 0 && allFloors.every((f) => f.isComplete);
       const now = Date.now();
       const isDelayed =
         !isComplete &&
@@ -170,18 +215,22 @@ export default function ExecutorCityPage() {
         x: padX + idx * slot + slot / 2,
         baseWidth,
         baseHeight,
-        floors,
+        cols,
+        floors: allFloors,
+        visibleFloors,
         color: pickColor(p.id, idx, p.department?.color),
         isComplete,
         isDelayed,
       };
     });
 
+    const worldWidth = Math.max(canvasWidth, padX * 2 + projects.length * slot);
+
     return {
-      width: totalWidth,
-      height: stageHeight,
+      canvasWidth,
+      canvasHeight,
+      worldWidth,
       sky,
-      groundOffset,
       buildings,
     };
   }, [projects, viewport]);
@@ -193,10 +242,12 @@ export default function ExecutorCityPage() {
     if (!canvas) return;
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = layout.width * dpr;
-    canvas.height = layout.height * dpr;
-    canvas.style.width = `${layout.width}px`;
-    canvas.style.height = `${layout.height}px`;
+    // Canvas is sized to the FIXED visible viewport (canvasWidth/Height) —
+    // the wider world is panned via cameraX, never by resizing the canvas.
+    canvas.width = layout.canvasWidth * dpr;
+    canvas.height = layout.canvasHeight * dpr;
+    canvas.style.width = `${layout.canvasWidth}px`;
+    canvas.style.height = `${layout.canvasHeight}px`;
     const ctx = canvas.getContext("2d")!;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
@@ -206,44 +257,40 @@ export default function ExecutorCityPage() {
     type Tree = { x: number; phase: number; scale: number };
     type Flower = { x: number; y: number; color: string };
 
-    const W = layout.width;
-    const H = layout.height;
+    const VW = layout.canvasWidth;   // visible canvas width
+    const VH = layout.canvasHeight;  // visible canvas height
+    const WORLD_W = layout.worldWidth;
     const groundY = layout.sky;
     const roadY = groundY + 30;
     const roadHeight = 38;
 
-    const clouds: Cloud[] = Array.from({ length: 5 }, (_, i) => ({
-      x: (i / 5) * W + Math.random() * 80,
+    // Decorations live in WORLD coords (so they pan with the camera)
+    const clouds: Cloud[] = Array.from({ length: Math.max(5, Math.ceil(WORLD_W / 250)) }, (_, i) => ({
+      x: (i / 5) * WORLD_W + Math.random() * 80,
       y: 40 + Math.random() * 90,
       scale: 0.7 + Math.random() * 0.6,
       speed: 0.12 + Math.random() * 0.1,
     }));
 
-    const cars: Car[] = Array.from({ length: 6 }, (_, i) => ({
-      x: (i / 6) * W + Math.random() * 100,
+    const cars: Car[] = Array.from({ length: Math.max(6, Math.ceil(WORLD_W / 200)) }, (_, i) => ({
+      x: (i / 6) * WORLD_W + Math.random() * 100,
       y: roadY + (i % 2 === 0 ? 5 : roadHeight - 18),
       speed: 1.2 + Math.random() * 1.0,
       color: ["#DC2626", "#2563EB", "#059669", "#C9A84C", "#7C3AED", "#0891B2"][i % 6],
       dir: i % 2 === 0 ? 1 : -1,
     }));
 
-    const trees: Tree[] = Array.from({ length: Math.ceil(W / 90) }, (_, i) => ({
+    const trees: Tree[] = Array.from({ length: Math.ceil(WORLD_W / 90) }, (_, i) => ({
       x: 30 + i * 90 + Math.random() * 30,
       phase: Math.random() * Math.PI * 2,
       scale: 0.9 + Math.random() * 0.4,
     }));
 
-    const flowers: Flower[] = Array.from({ length: Math.ceil(W / 30) }, (_, i) => ({
+    const flowers: Flower[] = Array.from({ length: Math.ceil(WORLD_W / 30) }, (_, i) => ({
       x: i * 30 + Math.random() * 20,
       y: roadY + roadHeight + 18 + Math.random() * 20,
       color: ["#EF4444", "#F59E0B", "#EC4899", "#FBBF24", "#A855F7"][i % 5],
     }));
-
-    // Rocket state — fast horizontal flight with smoke trail
-    let rocketX = -120;
-    let rocketY = 80;
-    const rocketSpeed = 2.5; // faster than the old plane
-    const rocketSmoke: { x: number; y: number; age: number; size: number }[] = [];
 
     let raf = 0;
     const t0 = performance.now();
@@ -254,7 +301,7 @@ export default function ExecutorCityPage() {
       grd.addColorStop(0.6, "#B8E1F5");
       grd.addColorStop(1, "#E0F2FE");
       ctx.fillStyle = grd;
-      ctx.fillRect(0, 0, W, layout!.sky);
+      ctx.fillRect(0, 0, VW, layout!.sky);
     }
 
     function drawSun(time: number) {
@@ -301,15 +348,15 @@ export default function ExecutorCityPage() {
       ctx.fillStyle = "#5C8A4E";
       ctx.beginPath();
       ctx.moveTo(0, layout!.sky);
-      for (let x = 0; x <= W; x += 40) {
+      for (let x = 0; x <= WORLD_W; x += 40) {
         const y = layout!.sky - 20 - Math.sin(x / 60) * 12;
         ctx.lineTo(x, y);
       }
-      ctx.lineTo(W, layout!.sky);
+      ctx.lineTo(WORLD_W, layout!.sky);
       ctx.closePath();
       ctx.fill();
       ctx.fillStyle = "#3E6B36";
-      for (let x = 20; x < W; x += 30) {
+      for (let x = 20; x < WORLD_W; x += 30) {
         const baseY = layout!.sky - 22 - Math.sin(x / 60) * 12;
         ctx.beginPath();
         ctx.moveTo(x, baseY);
@@ -324,25 +371,25 @@ export default function ExecutorCityPage() {
       ctx.fillStyle = "#7CB342";
       ctx.beginPath();
       ctx.moveTo(0, layout!.sky);
-      for (let x = 0; x <= W; x += 8) {
+      for (let x = 0; x <= WORLD_W; x += 8) {
         const y = layout!.sky + Math.sin((x + time / 30) / 25) * 1.5;
         ctx.lineTo(x, y);
       }
-      ctx.lineTo(W, H);
-      ctx.lineTo(0, H);
+      ctx.lineTo(WORLD_W, VH);
+      ctx.lineTo(0, VH);
       ctx.closePath();
       ctx.fill();
       ctx.fillStyle = "#689F38";
-      ctx.fillRect(0, layout!.sky + 18, W, 12);
+      ctx.fillRect(0, layout!.sky + 18, WORLD_W, 12);
     }
 
     function drawRoad() {
       ctx.fillStyle = "#374151";
-      ctx.fillRect(0, roadY, W, roadHeight);
+      ctx.fillRect(0, roadY, WORLD_W, roadHeight);
       ctx.fillStyle = "#9CA3AF";
-      ctx.fillRect(0, roadY + roadHeight / 2 - 1, W, 2);
+      ctx.fillRect(0, roadY + roadHeight / 2 - 1, WORLD_W, 2);
       ctx.fillStyle = "#FBBF24";
-      for (let x = 0; x < W; x += 30) {
+      for (let x = 0; x < WORLD_W; x += 30) {
         ctx.fillRect(x, roadY + roadHeight / 2 - 1, 16, 2);
       }
     }
@@ -416,104 +463,6 @@ export default function ExecutorCityPage() {
       ctx.restore();
     }
 
-    function drawRocket(time: number) {
-      // Smoke trail (drawn first, so the rocket sits on top)
-      for (const p of rocketSmoke) {
-        const alpha = Math.max(0, 0.45 - p.age / 80);
-        ctx.fillStyle = `rgba(180,180,200,${alpha})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size + p.age * 0.06, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Rocket body — pointed nose, dark menacing palette, fins, flickering flame
-      ctx.save();
-      ctx.translate(rocketX, rocketY);
-
-      // Flame (at the tail = left side since rocket flies right)
-      const flicker = 0.7 + Math.sin(time / 60) * 0.25 + Math.random() * 0.1;
-      const flameLen = 22 * flicker;
-      const grad = ctx.createLinearGradient(-flameLen, 0, 4, 0);
-      grad.addColorStop(0, "rgba(255,80,0,0)");
-      grad.addColorStop(0.5, "rgba(255,140,0,0.9)");
-      grad.addColorStop(1, "rgba(255,235,0,1)");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.moveTo(0, -5);
-      ctx.lineTo(-flameLen, 0);
-      ctx.lineTo(0, 5);
-      ctx.closePath();
-      ctx.fill();
-
-      // Inner brighter flame core
-      ctx.fillStyle = "rgba(255,255,200,0.9)";
-      ctx.beginPath();
-      ctx.moveTo(0, -3);
-      ctx.lineTo(-flameLen * 0.55, 0);
-      ctx.lineTo(0, 3);
-      ctx.closePath();
-      ctx.fill();
-
-      // Body cylinder
-      const bodyGrad = ctx.createLinearGradient(0, -7, 0, 7);
-      bodyGrad.addColorStop(0, "#9CA3AF");
-      bodyGrad.addColorStop(0.5, "#1F2937");
-      bodyGrad.addColorStop(1, "#111827");
-      ctx.fillStyle = bodyGrad;
-      ctx.beginPath();
-      ctx.roundRect(0, -7, 38, 14, 2);
-      ctx.fill();
-
-      // Red warning stripes
-      ctx.fillStyle = "#DC2626";
-      ctx.fillRect(8, -7, 4, 14);
-      ctx.fillRect(20, -7, 4, 14);
-
-      // Pointed nose cone
-      ctx.fillStyle = "#DC2626";
-      ctx.beginPath();
-      ctx.moveTo(38, -7);
-      ctx.lineTo(54, 0);
-      ctx.lineTo(38, 7);
-      ctx.closePath();
-      ctx.fill();
-      // Nose tip highlight
-      ctx.fillStyle = "#7F1D1D";
-      ctx.beginPath();
-      ctx.moveTo(48, -2);
-      ctx.lineTo(54, 0);
-      ctx.lineTo(48, 2);
-      ctx.closePath();
-      ctx.fill();
-
-      // Top fin
-      ctx.fillStyle = "#1F2937";
-      ctx.beginPath();
-      ctx.moveTo(2, -7);
-      ctx.lineTo(-6, -14);
-      ctx.lineTo(10, -7);
-      ctx.closePath();
-      ctx.fill();
-      // Bottom fin
-      ctx.beginPath();
-      ctx.moveTo(2, 7);
-      ctx.lineTo(-6, 14);
-      ctx.lineTo(10, 7);
-      ctx.closePath();
-      ctx.fill();
-
-      // Window
-      ctx.fillStyle = "#FBBF24";
-      ctx.beginPath();
-      ctx.arc(28, 0, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#7C2D12";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      ctx.restore();
-    }
-
     function drawBuilding(b: BuildingLayout, time: number) {
       const baseX = b.x - b.baseWidth / 2;
       const baseY = roadY - 4;
@@ -539,66 +488,65 @@ export default function ExecutorCityPage() {
       ctx.fillStyle = shade(baseColor, -25);
       ctx.fillRect(baseX - 3, topY - 5, b.baseWidth + 6, 6);
 
-      // Floors — one band per service. Each band carries that service's
-      // task windows (lit = done) plus a thin separator line.
-      const floors = b.floors.length > 0 ? b.floors : [{
-        serviceId: "ghost",
-        serviceName: "",
-        totalTasks: 1,
-        doneTasks: 0,
-        isComplete: false,
-      }];
-      const padX = 5;
-      const usableHeight = b.baseHeight - 18; // leave room for door at the bottom
-      const floorHeight = usableHeight / floors.length;
+      // Floors — one band per VISIBLE service (a service appears only after
+      // its predecessor is done). Floor 0 = ground floor (drawn at the bottom
+      // of the building), the last visible floor is the top.
+      const visible = b.visibleFloors;
+      const DOOR_H = 14;
+      // Walk from ground floor (visible[0]) upward.
+      let cursorY = baseY - DOOR_H; // top of the door / bottom of the floors area
+      for (let fi = 0; fi < visible.length; fi++) {
+        const floor = visible[fi];
+        const bandH = floorBandHeight(floor.totalTasks);
+        const fyBottom = cursorY;
+        const fyTop = cursorY - bandH;
 
-      for (let fi = 0; fi < floors.length; fi++) {
-        const floor = floors[fi];
-        // Floor sits from top down: floor 0 = ground floor (closest to baseY),
-        // floor N = top. Iterate so the visual order matches "first service is
-        // ground floor".
-        const floorIndex = floors.length - 1 - fi;
-        const fyTop = topY + 4 + floorIndex * floorHeight;
+        // Floor separator (skip the very top one)
+        ctx.fillStyle = "rgba(0,0,0,0.22)";
+        ctx.fillRect(baseX + 2, fyBottom - 1, b.baseWidth - 4, 1);
 
-        // Faint separator line between floors
-        if (floorIndex < floors.length - 1) {
+        // Dim the band background for the in-progress (current) floor so it
+        // reads as a "partial" floor still under construction.
+        if (floor.isCurrent) {
           ctx.fillStyle = "rgba(0,0,0,0.18)";
-          ctx.fillRect(baseX + 2, fyTop, b.baseWidth - 4, 1);
+          ctx.fillRect(baseX + 1, fyTop, b.baseWidth - 2, bandH);
         }
 
-        const total = Math.max(1, floor.totalTasks);
-        const cols = Math.min(5, Math.max(1, total));
-        const rows = Math.ceil(total / cols);
-        const gridW = b.baseWidth - padX * 2;
-        const gridH = floorHeight - 4;
-        const cellW = gridW / cols;
-        const cellH = gridH / rows;
-        const winW = Math.max(3, cellW * 0.6);
-        const winH = Math.max(3, cellH * 0.6);
+        // Window grid — uniform sizes (WIN_W × WIN_H) regardless of project
+        const cols = Math.min(MAX_COLS, Math.max(1, floor.totalTasks));
+        const rows = rowsForFloor(floor.totalTasks);
+        // Centre horizontally inside the building
+        const gridW = cols * COL_W - WIN_GAP_X;
+        const startX = baseX + (b.baseWidth - gridW) / 2;
+        const startY = fyTop + FLOOR_PAD_Y;
         let drawn = 0;
         for (let r = 0; r < rows; r++) {
           for (let c = 0; c < cols; c++) {
-            if (drawn >= total) break;
-            const wx = baseX + padX + c * cellW + (cellW - winW) / 2;
-            const wy = fyTop + 2 + r * cellH + (cellH - winH) / 2;
+            if (drawn >= floor.totalTasks) break;
+            const wx = startX + c * COL_W;
+            const wy = startY + r * ROW_H;
             const lit = drawn < floor.doneTasks;
             if (lit) {
-              ctx.fillStyle = "rgba(255,235,150,0.35)";
-              ctx.fillRect(wx - 1, wy - 1, winW + 2, winH + 2);
+              // Bright yellow lit window with a soft glow
+              ctx.fillStyle = "rgba(255,235,120,0.35)";
+              ctx.fillRect(wx - 1, wy - 1, WIN_W + 2, WIN_H + 2);
               ctx.fillStyle = "#FFE680";
             } else {
-              ctx.fillStyle = "rgba(0,0,0,0.45)";
+              // Dark blue/grey pending window
+              ctx.fillStyle = floor.isCurrent ? "#0F172A" : "#1E293B";
             }
-            ctx.fillRect(wx, wy, winW, winH);
+            ctx.fillRect(wx, wy, WIN_W, WIN_H);
             drawn++;
           }
         }
+
+        cursorY = fyTop;
       }
 
       // Door
       const doorW = Math.min(14, b.baseWidth * 0.3);
       ctx.fillStyle = shade(baseColor, -35);
-      ctx.fillRect(b.x - doorW / 2, baseY - 14, doorW, 14);
+      ctx.fillRect(b.x - doorW / 2, baseY - DOOR_H, doorW, DOOR_H);
 
       if (b.isDelayed) {
         ctx.strokeStyle = "rgba(0,0,0,0.55)";
@@ -689,29 +637,32 @@ export default function ExecutorCityPage() {
 
     function tick(now: number) {
       const time = now - t0;
-      ctx.clearRect(0, 0, W, H);
+      ctx.clearRect(0, 0, VW, VH);
 
+      // Smooth-scroll camera toward target
+      const camMax = Math.max(0, WORLD_W - VW);
+      const t = cameraTargetRef.current;
+      const clampedTarget = Math.max(0, Math.min(camMax, t));
+      cameraXRef.current += (clampedTarget - cameraXRef.current) * 0.18;
+      if (Math.abs(clampedTarget - cameraXRef.current) < 0.5) {
+        cameraXRef.current = clampedTarget;
+      }
+      const camX = cameraXRef.current;
+
+      // ─── Screen-locked layer (sky + sun) ───
       drawSky();
       drawSun(time);
 
-      // Clouds
+      // ─── World layer (everything else, panned by -camX) ───
+      ctx.save();
+      ctx.translate(-camX, 0);
+
+      // Clouds drift slowly leftward in world space and wrap around
       for (const c of clouds) {
         c.x -= c.speed;
-        if (c.x < -80) c.x = W + 80;
+        if (c.x < -80) c.x = WORLD_W + 80;
         drawCloud(c);
       }
-
-      // Rocket — fast, with smoke trail
-      rocketX += rocketSpeed;
-      if (rocketX > W + 80) {
-        rocketX = -120;
-        rocketY = 50 + Math.random() * 70;
-      }
-      // Emit smoke from the tail (left of the rocket = current x)
-      rocketSmoke.push({ x: rocketX - 2, y: rocketY + (Math.random() * 4 - 2), age: 0, size: 3 });
-      for (const p of rocketSmoke) p.age++;
-      while (rocketSmoke.length > 80) rocketSmoke.shift();
-      drawRocket(time);
 
       drawForest();
       drawGround(time);
@@ -719,8 +670,8 @@ export default function ExecutorCityPage() {
 
       for (const car of cars) {
         car.x += car.speed * car.dir;
-        if (car.dir === 1 && car.x > W + 30) car.x = -40;
-        if (car.dir === -1 && car.x < -40) car.x = W + 30;
+        if (car.dir === 1 && car.x > WORLD_W + 30) car.x = -40;
+        if (car.dir === -1 && car.x < -40) car.x = WORLD_W + 30;
         drawCar(car);
       }
 
@@ -729,19 +680,34 @@ export default function ExecutorCityPage() {
       for (const tree of trees) drawStreetTree(tree, time);
       for (const f of flowers) drawFlower(f);
 
+      ctx.restore();
+
       raf = requestAnimationFrame(tick);
     }
 
+    // Reset camera when entering or relayouting
+    cameraXRef.current = 0;
+    cameraTargetRef.current = 0;
+
+    // Force a React re-render every ~300ms so the off-screen counters track
+    // the smoothed camera position without a full state binding.
+    const tickInterval = window.setInterval(() => setCameraTick((v) => v + 1), 300);
+
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearInterval(tickInterval);
+    };
   }, [view, layout, hoveredId]);
 
   function pointToBuilding(clientX: number, clientY: number): BuildingLayout | null {
     if (!layout) return null;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return null;
-    const x = ((clientX - rect.left) / rect.width) * layout.width;
-    const y = ((clientY - rect.top) / rect.height) * layout.height;
+    // Translate the screen-space click into world-space (account for camera)
+    const screenX = ((clientX - rect.left) / rect.width) * layout.canvasWidth;
+    const y = ((clientY - rect.top) / rect.height) * layout.canvasHeight;
+    const x = screenX + cameraXRef.current;
     const roadY = layout.sky + 30;
     for (const b of layout.buildings) {
       const baseX = b.x - b.baseWidth / 2;
@@ -764,6 +730,30 @@ export default function ExecutorCityPage() {
       canvasRef.current.style.cursor = b ? "pointer" : "default";
     }
   }
+
+  // ─── Camera scroll helpers + off-screen counters ───
+  const camMaxX = layout ? Math.max(0, layout.worldWidth - layout.canvasWidth) : 0;
+  const currentCam = cameraXRef.current;
+  const offLeftCount = useMemo(() => {
+    if (!layout) return 0;
+    return layout.buildings.filter((b) => b.x + b.baseWidth / 2 < currentCam + 10).length;
+    // cameraTick triggers re-renders so this stays fresh
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, cameraTick]);
+  const offRightCount = useMemo(() => {
+    if (!layout) return 0;
+    return layout.buildings.filter(
+      (b) => b.x - b.baseWidth / 2 > currentCam + layout.canvasWidth - 10
+    ).length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, cameraTick]);
+
+  const scrollBy = (delta: number) => {
+    if (!layout) return;
+    const next = Math.max(0, Math.min(camMaxX, cameraTargetRef.current + delta));
+    cameraTargetRef.current = next;
+    setCameraTick((v) => v + 1);
+  };
 
   if (status === "loading") return null;
   if (!session) redirect("/auth/login");
@@ -838,9 +828,17 @@ export default function ExecutorCityPage() {
 
           {layout && layout.buildings.length > 0 && (
             <>
+              {/* Canvas viewport — fixed size, never scrolls. Arrow buttons
+                  pan the world camera within this fixed window. */}
               <div
-                className="bg-white rounded-2xl overflow-x-auto"
-                style={{ border: "1px solid #E2E0D8", boxShadow: "0 4px 18px rgba(0,0,0,0.06)" }}
+                className="relative bg-white rounded-2xl overflow-hidden"
+                style={{
+                  border: "1px solid #E2E0D8",
+                  boxShadow: "0 4px 18px rgba(0,0,0,0.06)",
+                  width: layout.canvasWidth,
+                  maxWidth: "100%",
+                  margin: "0 auto",
+                }}
               >
                 <canvas
                   ref={canvasRef}
@@ -849,6 +847,44 @@ export default function ExecutorCityPage() {
                   onMouseLeave={() => setHoveredId(null)}
                   style={{ display: "block" }}
                 />
+
+                {/* Right arrow (forward in RTL = previous projects on the left) */}
+                <button
+                  type="button"
+                  onClick={() => scrollBy(-260)}
+                  disabled={offLeftCount === 0}
+                  className="absolute top-1/2 -translate-y-1/2 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={{
+                    right: 12,
+                    backgroundColor: offLeftCount === 0 ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.95)",
+                    color: offLeftCount === 0 ? "#9CA3AF" : "#1C1B2E",
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                    cursor: offLeftCount === 0 ? "default" : "pointer",
+                  }}
+                  aria-label="السابق"
+                >
+                  ← {offLeftCount > 0 ? `${offLeftCount} مشروع` : ""}
+                </button>
+
+                {/* Left arrow (back in RTL = next projects on the right) */}
+                <button
+                  type="button"
+                  onClick={() => scrollBy(260)}
+                  disabled={offRightCount === 0}
+                  className="absolute top-1/2 -translate-y-1/2 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={{
+                    left: 12,
+                    backgroundColor: offRightCount === 0 ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.95)",
+                    color: offRightCount === 0 ? "#9CA3AF" : "#1C1B2E",
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                    cursor: offRightCount === 0 ? "default" : "pointer",
+                  }}
+                  aria-label="التالي"
+                >
+                  {offRightCount > 0 ? `${offRightCount} مشروع` : ""} →
+                </button>
               </div>
 
               {/* Project cards beneath the city */}
