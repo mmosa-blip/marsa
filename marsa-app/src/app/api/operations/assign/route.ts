@@ -57,9 +57,13 @@ async function assignServiceTasksToUser(
   if (reassignable.length > 0) {
     const ids = reassignable.map((t) => t.id);
 
+    // Auto-accept system-assigned tasks (per the principle from commit 2ac48bf):
+    // tasks reassigned by an admin via operations-room don't go through the
+    // "pending acceptance" gate. Only tasks that arrived via an admin-approved
+    // TaskTransferRequest keep acceptedAt = null.
     await prisma.task.updateMany({
       where: { id: { in: ids } },
-      data: { assigneeId: userId, assignedAt: now },
+      data: { assigneeId: userId, assignedAt: now, acceptedAt: now },
     });
 
     if (previouslyUnassigned.length > 0) {
@@ -258,9 +262,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "المهمة غير موجودة" }, { status: 404 });
       }
 
+      const taskNow = new Date();
+      // Auto-accept — same principle as the project/service paths above.
       await prisma.task.update({
         where: { id: targetId },
-        data: { assigneeId: userId, assignedAt: new Date() },
+        data: { assigneeId: userId, assignedAt: taskNow, acceptedAt: taskNow },
       });
       await prisma.taskAssignment.upsert({
         where: { taskId_userId: { taskId: targetId, userId } },

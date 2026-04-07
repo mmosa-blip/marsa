@@ -167,6 +167,9 @@ export default function MyTasksView() {
   const [transferUsers, setTransferUsers] = useState<{ id: string; name: string }[]>([]);
 
   // Filters
+  // Top-level tab — drives the API status/time params + the canStart filter
+  // applied client-side on the "active" tab.
+  const [activeTab, setActiveTab] = useState<"active" | "late" | "today" | "done">("active");
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
@@ -243,16 +246,29 @@ export default function MyTasksView() {
   const fetchTasks = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams();
-    // If a specific status filter is chosen AND it's a completed status, search in completed section
+
+    // Tab-driven defaults. Explicit statusFilter still overrides the active
+    // tab (so the legacy filter dropdown keeps working for power users).
     if (statusFilter && !["DONE", "CANCELLED"].includes(statusFilter)) {
       params.set("status", statusFilter);
-    } else if (!statusFilter) {
-      // Default: show only active tasks (exclude DONE and CANCELLED)
+    } else if (activeTab === "active") {
+      // Active = TODO + IN_PROGRESS only. The canStart=false ones are
+      // filtered out client-side just before render.
+      params.set("status", "TODO,IN_PROGRESS");
+    } else if (activeTab === "late") {
       params.set("status", "TODO,WAITING,IN_PROGRESS,IN_REVIEW,WAITING_EXTERNAL");
+      params.set("time", "overdue");
+    } else if (activeTab === "today") {
+      params.set("status", "TODO,WAITING,IN_PROGRESS,IN_REVIEW,WAITING_EXTERNAL");
+      params.set("time", "today");
+    } else if (activeTab === "done") {
+      params.set("status", "DONE");
     }
+
     if (priorityFilter) params.set("priority", priorityFilter);
     if (projectFilter) params.set("project", projectFilter);
     if (serviceFilter) params.set("service", serviceFilter);
+    // Manual time filter still wins if the user picks one explicitly
     if (timeFilter) params.set("time", timeFilter);
     if (search) params.set("search", search);
     if (dateFrom) params.set("dateFrom", dateFrom);
@@ -267,7 +283,7 @@ export default function MyTasksView() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [statusFilter, priorityFilter, projectFilter, serviceFilter, timeFilter, search, dateFrom, dateTo, page]);
+  }, [activeTab, statusFilter, priorityFilter, projectFilter, serviceFilter, timeFilter, search, dateFrom, dateTo, page]);
 
   useEffect(() => {
     const timer = setTimeout(fetchTasks, search ? 300 : 0);
@@ -318,7 +334,19 @@ export default function MyTasksView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actionLoading, bulkLoading, data]);
 
-  const tasks = data?.tasks || [];
+  const rawTasks = data?.tasks || [];
+  // On the "active" tab we hide tasks that can't start yet (sequential
+  // dependency or payment lock) — they're not actionable so they only
+  // clutter the queue. They still appear under "متأخرة"/"اليوم" if they
+  // qualify by date, and under "مكتملة" once they're done.
+  const tasks = activeTab === "active"
+    ? rawTasks.filter((t) => t.canStart !== false)
+    : rawTasks;
+
+  // Reset pagination whenever the user switches tab
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab]);
 
   // Clear selection when data changes
   useEffect(() => {
@@ -650,7 +678,7 @@ export default function MyTasksView() {
   return (
     <div className="p-8" dir="rtl" style={{ backgroundColor: "#F8F9FA", minHeight: "100vh" }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>
             {t.tasks.myTasks}
@@ -667,50 +695,35 @@ export default function MyTasksView() {
         </p>
       </div>
 
-      {/* Pending Acceptance Alert — only for tasks transferred from another executor */}
-      {pendingAcceptance.length > 0 && (
-        <div className="mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "rgba(234,88,12,0.06)", border: "2px solid rgba(234,88,12,0.3)" }}>
-          <div className="px-5 py-3 flex items-center gap-2" style={{ backgroundColor: "rgba(234,88,12,0.1)" }}>
-            <Clock size={18} style={{ color: "#EA580C" }} />
-            <span className="text-sm font-bold" style={{ color: "#EA580C" }}>
-              مهام محوّلة بانتظار القبول ({pendingAcceptance.length})
-            </span>
-            <span className="text-[10px]" style={{ color: "#EA580C" }}>
-              — تم تحويلها إليك من منفذ آخر بموافقة الإدارة
-            </span>
-          </div>
-          <div className="p-3 space-y-2">
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {pendingAcceptance.slice(0, 5).map((task: any) => (
-              <div key={task.id} className="bg-white rounded-xl p-4 flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
-                    {task.title}
-                  </p>
-                  {task.service?.name && (
-                    <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
-                      {task.service.name}
-                    </p>
-                  )}
-                  {task.project?.name && (
-                    <p className="text-[10px] mt-0.5" style={{ color: "#9CA3AF" }}>
-                      📁 {task.project.name}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <MarsaButton variant="gold" size="sm" onClick={() => handleAccept(task.id)}>
-                    قبول
-                  </MarsaButton>
-                  <MarsaButton variant="dangerSoft" size="sm" onClick={() => handleReject(task.id)}>
-                    رفض
-                  </MarsaButton>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Tabs — drives the active list view */}
+      <div
+        className="flex p-1 rounded-xl mb-6 max-w-xl"
+        style={{ backgroundColor: "#F0EEF5", border: "1px solid #E2E0D8" }}
+      >
+        {([
+          { id: "active", label: "نشطة" },
+          { id: "late", label: "متأخرة" },
+          { id: "today", label: "اليوم" },
+          { id: "done", label: "مكتملة" },
+        ] as const).map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+              style={
+                active
+                  ? { backgroundColor: "#5E5495", color: "white", boxShadow: "0 2px 6px rgba(94,84,149,0.3)" }
+                  : { backgroundColor: "transparent", color: "#6B7280" }
+              }
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Current + Next Task Panel */}
       {(currentTask || nextTask) && (

@@ -43,9 +43,13 @@ export async function POST(
 
   if (unassignedTasks.length > 0) {
     const now = new Date();
+    // Auto-accept system-assigned tasks (per the principle from commit
+    // 2ac48bf): tasks linked by an admin via this endpoint don't go through
+    // the "pending acceptance" gate. Only tasks that arrived via an
+    // admin-approved TaskTransferRequest keep acceptedAt = null.
     await prisma.task.updateMany({
       where: { serviceId, assigneeId: null },
-      data: { assigneeId: id, assignedAt: now },
+      data: { assigneeId: id, assignedAt: now, acceptedAt: now },
     });
 
     // Create ASSIGNED time logs for each auto-assigned task
