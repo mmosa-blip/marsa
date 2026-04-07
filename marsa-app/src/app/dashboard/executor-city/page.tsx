@@ -167,23 +167,24 @@ export default function ExecutorCityPage() {
   const layout = useMemo(() => {
     if (!projects) return null;
 
-    // Container height matches the Tailwind classes on the outer frame:
-    //   h-[240px]    <  md  (< 768)
-    //   md:h-[300px]    768..1023
-    //   lg:h-[380px]    1024..1279
-    //   xl:h-[420px]    >= 1280
-    // Plus a hard cap at 40% of viewport height so the city never takes
-    // more than 40vh on short/wide screens. Fullscreen overrides all of it.
+    // Container height matches the Tailwind classes on the city frame:
+    //   h-[200px]    <  md  (< 768)
+    //   md:h-[260px]    768..1023
+    //   lg:h-[320px]    1024..1279
+    //   xl:h-[360px]    >= 1280
+    // Plus a hard cap at 38% of viewport height so the frame never takes
+    // more than ~38vh and there's always room for header + tasks below.
+    // Fullscreen overrides all of it.
     let containerH: number;
     if (fullscreen) {
       containerH = viewport.h;
     } else {
       const breakpointH =
-        viewport.w >= 1280 ? 420 :
-        viewport.w >= 1024 ? 380 :
-        viewport.w >= 768  ? 300 :
-                             240;
-      const cap = Math.floor(viewport.h * 0.4);
+        viewport.w >= 1280 ? 360 :
+        viewport.w >= 1024 ? 320 :
+        viewport.w >= 768  ? 260 :
+                             200;
+      const cap = Math.floor(viewport.h * 0.38);
       containerH = Math.min(breakpointH, cap);
     }
     const canvasHeight = containerH;
@@ -808,177 +809,123 @@ export default function ExecutorCityPage() {
   if (!session) redirect("/auth/login");
 
   return (
-    <div className="p-8" dir="rtl">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
-          <Building2 size={24} style={{ color: "#C9A84C" }} />
+    // Page is exactly the viewport height minus the dashboard top bar
+    // (pt-12 mobile / pt-14 desktop). Internal regions own their own scroll
+    // so nothing ever spills outside the visible screen.
+    <div
+      className="flex flex-col h-[calc(100vh-3rem)] lg:h-[calc(100vh-3.5rem)] overflow-hidden p-4 lg:p-6"
+      dir="rtl"
+    >
+      {/* Header — compact, fixed height */}
+      <div className="mb-3 flex-shrink-0">
+        <h1 className="text-xl lg:text-2xl font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
+          <Building2 size={22} style={{ color: "#C9A84C" }} />
           مدينتي
         </h1>
-        <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
-          كل مشروع مبنى — كل خدمة طابق، ونوافذ كل طابق هي مهامها
-        </p>
       </div>
 
-      {/* ═══ City section (always visible) ═══ */}
-      {!projects && (
-            <div className="bg-white rounded-2xl p-12 flex justify-center" style={{ border: "1px solid #E2E0D8" }}>
-              <Loader2 size={32} className="animate-spin" style={{ color: "#C9A84C" }} />
-            </div>
-          )}
+      {/* ═══ City frame — fixed-height region, drag inside ═══ */}
+      <div className="flex-shrink-0 mb-3">
+        {!projects && (
+          <div className="bg-white rounded-2xl p-6 flex justify-center" style={{ border: "1px solid #E2E0D8" }}>
+            <Loader2 size={28} className="animate-spin" style={{ color: "#C9A84C" }} />
+          </div>
+        )}
 
-          {projects && projects.length === 0 && (
-            <div className="bg-white rounded-2xl p-12 text-center" style={{ border: "1px solid #E2E0D8" }}>
-              <Building2 size={40} className="mx-auto mb-3" style={{ color: "#D1D5DB" }} />
-              <p style={{ color: "#6B7280" }}>لا توجد مشاريع لعرضها بعد</p>
-            </div>
-          )}
+        {projects && projects.length === 0 && (
+          <div className="bg-white rounded-2xl p-6 text-center" style={{ border: "1px solid #E2E0D8" }}>
+            <Building2 size={32} className="mx-auto mb-2" style={{ color: "#D1D5DB" }} />
+            <p className="text-sm" style={{ color: "#6B7280" }}>لا توجد مشاريع لعرضها بعد</p>
+          </div>
+        )}
 
-          {layout && layout.buildings.length > 0 && (
-            <>
-              {/* ─── Map frame ───
-                  Outer frame: fixed responsive height, full width, overflow
-                  hidden, position relative. In fullscreen mode it becomes
-                  fixed inset-0 z-50 covering the whole viewport. The drag
-                  listeners are scoped to the inner container only — the page
-                  outside the frame is not affected. */}
-              <div
-                className={
-                  fullscreen
-                    ? "fixed inset-0 z-50 h-screen w-screen bg-white overflow-hidden"
-                    : "relative w-full overflow-hidden bg-white rounded-2xl h-[240px] md:h-[300px] lg:h-[380px] xl:h-[420px]"
-                }
-                style={
-                  fullscreen
-                    ? undefined
-                    : {
-                        border: "1px solid #E2E0D8",
-                        boxShadow: "0 4px 18px rgba(0,0,0,0.06)",
-                        // Cap at 40% of viewport height so the city never
-                        // dominates the page on short / wide screens.
-                        maxHeight: "40vh",
-                      }
-                }
+        {layout && layout.buildings.length > 0 && (
+          <div
+            className={
+              fullscreen
+                ? "fixed inset-0 z-50 h-screen w-screen bg-white overflow-hidden"
+                : "relative w-full overflow-hidden bg-white rounded-2xl h-[200px] md:h-[260px] lg:h-[320px] xl:h-[360px]"
+            }
+            style={
+              fullscreen
+                ? undefined
+                : {
+                    border: "1px solid #E2E0D8",
+                    boxShadow: "0 4px 18px rgba(0,0,0,0.06)",
+                    // Hard cap so the frame can never take more than ~38% of
+                    // the viewport — leaves room for header + tasks below.
+                    maxHeight: "38vh",
+                  }
+            }
+          >
+            {/* Inner scrollable container — drag listeners attached natively */}
+            <div
+              ref={containerRef}
+              className="w-full h-full overflow-x-auto overflow-y-hidden select-none"
+              style={{
+                cursor: "grab",
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+              }}
+            >
+              <canvas
+                ref={canvasRef}
+                onClick={handleClick}
+                onMouseMove={handleMove}
+                onMouseLeave={() => setHoveredId(null)}
+                style={{ display: "block" }}
+              />
+            </div>
+
+            {/* Fullscreen button — moved INTO the frame so it doesn't claim
+                its own row. Top-end (RTL = top-left) corner. */}
+            {!fullscreen && (
+              <button
+                type="button"
+                onClick={() => setFullscreen(true)}
+                aria-label="ملء الشاشة"
+                title="ملء الشاشة"
+                className="absolute top-3 left-3 z-10 flex items-center justify-center rounded-full transition-all hover:shadow-lg"
+                style={{
+                  width: 36,
+                  height: 36,
+                  backgroundColor: "rgba(255,255,255,0.95)",
+                  border: "1px solid #E2E0D8",
+                  color: "#1C1B2E",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                  fontSize: 16,
+                }}
               >
-                {/* Inner scrollable container — overflow-x: auto, drag wired
-                    via native listeners in useEffect above. The canvas takes
-                    its pixel width from layout.canvasWidth (which is the max
-                    of containerWidth, 1400, and natural building width) so
-                    the scene always fills the frame at minimum, and overflows
-                    horizontally only when there are more buildings than fit. */}
-                <div
-                  ref={containerRef}
-                  className="w-full h-full overflow-x-auto overflow-y-hidden select-none"
-                  style={{
-                    cursor: "grab",
-                    scrollbarWidth: "none",
-                    msOverflowStyle: "none",
-                  }}
-                >
-                  <canvas
-                    ref={canvasRef}
-                    onClick={handleClick}
-                    onMouseMove={handleMove}
-                    onMouseLeave={() => setHoveredId(null)}
-                    style={{ display: "block" }}
-                  />
-                </div>
+                🗺️
+              </button>
+            )}
 
-                {/* Exit fullscreen button */}
-                {fullscreen && (
-                  <button
-                    type="button"
-                    onClick={() => setFullscreen(false)}
-                    aria-label="خروج من ملء الشاشة"
-                    className="absolute top-4 left-4 z-10 flex items-center justify-center rounded-full transition-all hover:shadow-lg"
-                    style={{
-                      width: 40,
-                      height: 40,
-                      backgroundColor: "white",
-                      border: "1px solid #E2E0D8",
-                      color: "#1C1B2E",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    }}
-                  >
-                    <X size={20} />
-                  </button>
-                )}
-              </div>
+            {/* Exit fullscreen button */}
+            {fullscreen && (
+              <button
+                type="button"
+                onClick={() => setFullscreen(false)}
+                aria-label="خروج من ملء الشاشة"
+                className="absolute top-4 left-4 z-10 flex items-center justify-center rounded-full transition-all hover:shadow-lg"
+                style={{
+                  width: 40,
+                  height: 40,
+                  backgroundColor: "white",
+                  border: "1px solid #E2E0D8",
+                  color: "#1C1B2E",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                }}
+              >
+                <X size={20} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
-              {/* Fullscreen toggle below the frame */}
-              {!fullscreen && (
-                <div className="mt-3 mb-5 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setFullscreen(true)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:shadow-md"
-                    style={{
-                      backgroundColor: "white",
-                      border: "1px solid #E2E0D8",
-                      color: "#1C1B2E",
-                    }}
-                  >
-                    🗺️ ملء الشاشة
-                  </button>
-                </div>
-              )}
-
-              {/* 3) Project cards: 1 col mobile / 2 col tablet / 3 col desktop */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {layout.buildings.map((b) => {
-                  const completedFloors = b.floors.filter((f) => f.isComplete).length;
-                  return (
-                    <button
-                      key={b.id}
-                      onClick={() => setSelected(b)}
-                      className="text-right bg-white rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
-                      style={{ border: `1px solid ${b.isDelayed ? "rgba(220,38,38,0.4)" : "#E2E0D8"}` }}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold truncate" style={{ color: "#1C1B2E" }} title={b.name}>
-                            {b.name}
-                          </p>
-                          {b.department?.name && (
-                            <p className="text-[10px] mt-0.5" style={{ color: b.color }}>
-                              {b.department.name}
-                            </p>
-                          )}
-                        </div>
-                        {b.isComplete && <span className="text-xl">⭐</span>}
-                        {b.isDelayed && <span className="text-xs">⚠️</span>}
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] mb-1.5" style={{ color: "#6B7280" }}>
-                        <span>{STATUS_LABELS[b.status] || b.status}</span>
-                        <span className="font-bold" style={{ color: b.isDelayed ? "#DC2626" : "#1C1B2E" }}>
-                          {completedFloors}/{b.floors.length} طابق
-                        </span>
-                      </div>
-                      <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: "#F0EEF5" }}>
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${b.progress}%`,
-                            background: b.isComplete
-                              ? "linear-gradient(90deg, #C9A84C, #FBBF24)"
-                              : b.isDelayed
-                                ? "#DC2626"
-                                : "linear-gradient(90deg, #1B2A4A, #C9A84C)",
-                          }}
-                        />
-                      </div>
-                      <p className="text-[10px] mt-1 text-left font-semibold" style={{ color: "#9CA3AF" }}>
-                        {b.completedTasks}/{b.totalTasks} مهمة • {b.progress}%
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-      {/* ═══ Tasks section (always visible, directly under the city) ═══ */}
-      <div className="mt-8 -mx-8">
+      {/* ═══ Tasks section — takes the remaining vertical space and scrolls
+              internally so the page itself never overflows the viewport ═══ */}
+      <div className="flex-1 min-h-0 overflow-y-auto -mx-4 lg:-mx-6 -mb-4 lg:-mb-6">
         <MyTasksView />
       </div>
 

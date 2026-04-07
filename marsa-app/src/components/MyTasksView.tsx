@@ -676,7 +676,9 @@ export default function MyTasksView() {
   };
 
   return (
-    <div className="p-8" dir="rtl" style={{ backgroundColor: "#F8F9FA", minHeight: "100vh" }}>
+    // Embedded inside /dashboard/executor-city — the parent owns the height
+    // and scrolling. No min-h-screen, no background tint here.
+    <div className="p-6" dir="rtl">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
