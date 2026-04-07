@@ -16,72 +16,109 @@ import { prisma } from "@/lib/prisma";
  */
 
 /**
- * Move every previously-unassigned task in a service to a user, and ensure
- * a TaskAssignment row exists for the user against EVERY task in the service.
+ * Reassign tasks in a service to a user. The set of tasks that get touched
+ * is intentionally restricted:
+ *
+ *   - tasks with `assigneeId IS NULL`  → reassigned (they had no owner)
+ *   - tasks owned by an existing project executor → reassigned (the project's
+ *     executor pool is being rebalanced)
+ *   - tasks owned by anyone OUTSIDE the project executor pool (e.g. a manual
+ *     direct assignment to Mohammed) → LEFT ALONE
  *
  * Runs as a sequence of independent statements — no transaction wrapper.
- *
- * UserService linkage is intentionally NOT done here; the caller does it
- * as a separate top-level statement so the helper stays focused.
+ * UserService linkage is intentionally done by the caller, not here.
  */
 async function assignServiceTasksToUser(
   serviceId: string,
   userId: string,
-  now: Date
-): Promise<{ unassignedMoved: number; totalLinked: number }> {
-  // 1. Tasks that don't have an assignee yet — these become the user's,
-  //    plus need a TaskTimeLog ASSIGNED entry and a TaskTimeSummary row.
-  const unassigned = await prisma.task.findMany({
-    where: { serviceId, assigneeId: null },
-    select: { id: true },
+  now: Date,
+  projectExecutorIds: string[]
+): Promise<{ tasksMoved: number; totalLinked: number }> {
+  // 1. Pull the tasks we are allowed to touch — unassigned OR owned by a
+  //    current project executor. Manual direct assignments to anyone outside
+  //    that pool are skipped here so they remain untouched.
+  const reassignable = await prisma.task.findMany({
+    where: {
+      serviceId,
+      OR: [
+        { assigneeId: null },
+        ...(projectExecutorIds.length > 0
+          ? [{ assigneeId: { in: projectExecutorIds } }]
+          : []),
+      ],
+    },
+    select: { id: true, assigneeId: true },
   });
 
-  if (unassigned.length > 0) {
-    const ids = unassigned.map((t) => t.id);
+  // Of those, the ones that were previously unassigned need fresh
+  // TaskTimeLog ASSIGNED + TaskTimeSummary rows.
+  const previouslyUnassigned = reassignable.filter((t) => t.assigneeId === null);
+
+  if (reassignable.length > 0) {
+    const ids = reassignable.map((t) => t.id);
 
     await prisma.task.updateMany({
       where: { id: { in: ids } },
       data: { assigneeId: userId, assignedAt: now },
     });
 
-    await prisma.taskTimeLog.createMany({
-      data: ids.map((id) => ({
-        taskId: id,
-        userId,
-        event: "ASSIGNED",
-        timestamp: now,
-      })),
-    });
+    if (previouslyUnassigned.length > 0) {
+      const newIds = previouslyUnassigned.map((t) => t.id);
 
-    // Create a summary row for any task that doesn't have one yet (single
-    // batch query, skips duplicates instead of looping upserts).
-    await prisma.taskTimeSummary.createMany({
-      data: ids.map((id) => ({ taskId: id, assignedAt: now })),
+      await prisma.taskTimeLog.createMany({
+        data: newIds.map((id) => ({
+          taskId: id,
+          userId,
+          event: "ASSIGNED",
+          timestamp: now,
+        })),
+      });
+
+      // One batch insert with skipDuplicates instead of looping upserts.
+      await prisma.taskTimeSummary.createMany({
+        data: newIds.map((id) => ({ taskId: id, assignedAt: now })),
+        skipDuplicates: true,
+      });
+
+      // Bump assignedAt on any rows that already existed.
+      await prisma.taskTimeSummary.updateMany({
+        where: { taskId: { in: newIds } },
+        data: { assignedAt: now },
+      });
+    }
+  }
+
+  // 2. TaskAssignment row for the user against every reassignable task only —
+  //    we don't add the user as a co-assignee on tasks owned by people outside
+  //    the project executor pool, otherwise their queue would surface tasks
+  //    they have no claim on.
+  if (reassignable.length > 0) {
+    await prisma.taskAssignment.createMany({
+      data: reassignable.map((t) => ({ taskId: t.id, userId })),
       skipDuplicates: true,
-    });
-
-    // For tasks that already had a summary, bump assignedAt to now so the
-    // metric reflects the latest assignment.
-    await prisma.taskTimeSummary.updateMany({
-      where: { taskId: { in: ids } },
-      data: { assignedAt: now },
     });
   }
 
-  // 2. TaskAssignment row for the user against every task in the service.
-  //    createMany + skipDuplicates is equivalent to N upserts with `update: {}`.
-  const allTasks = await prisma.task.findMany({
-    where: { serviceId },
+  return { tasksMoved: reassignable.length, totalLinked: reassignable.length };
+}
+
+/**
+ * The set of users currently linked to a project as executors. Used as the
+ * "trusted pool" when deciding which task ownerships are safe to overwrite
+ * during a project- or service-level reassignment.
+ */
+async function getProjectExecutorIds(projectId: string): Promise<string[]> {
+  const services = await prisma.service.findMany({
+    where: { projectId, deletedAt: null },
     select: { id: true },
   });
-  if (allTasks.length > 0) {
-    await prisma.taskAssignment.createMany({
-      data: allTasks.map((t) => ({ taskId: t.id, userId })),
-      skipDuplicates: true,
-    });
-  }
-
-  return { unassignedMoved: unassigned.length, totalLinked: allTasks.length };
+  if (services.length === 0) return [];
+  const links = await prisma.userService.findMany({
+    where: { serviceId: { in: services.map((s) => s.id) } },
+    select: { userId: true },
+    distinct: ["userId"],
+  });
+  return links.map((l) => l.userId);
 }
 
 // POST /api/operations/assign
@@ -138,11 +175,20 @@ export async function POST(request: NextRequest) {
       const liveServices = project.services.filter((s) => !s.deletedAt);
       if (liveServices.length === 0) {
         return NextResponse.json({
-          assigned: { type, targetId, userId, services: 0, unassignedMoved: 0, totalLinked: 0 },
+          assigned: { type, targetId, userId, services: 0, tasksMoved: 0, totalLinked: 0 },
         });
       }
 
-      let unassignedMoved = 0;
+      // Snapshot the project's current executor pool BEFORE any UserService
+      // upsert, then add the new user. The "trusted pool" used by every
+      // service-level reassignment is this combined set, so previously-
+      // unassigned tasks AND tasks owned by an existing project executor
+      // get reassigned, while a manual direct assignment to someone outside
+      // the pool (e.g. Mohammed) stays untouched.
+      const baseExecutors = await getProjectExecutorIds(project.id);
+      const projectExecutorIds = Array.from(new Set([...baseExecutors, userId]));
+
+      let tasksMoved = 0;
       let totalLinked = 0;
       const now = new Date();
 
@@ -154,8 +200,8 @@ export async function POST(request: NextRequest) {
           create: { userId, serviceId: s.id },
           update: {},
         });
-        const r = await assignServiceTasksToUser(s.id, userId, now);
-        unassignedMoved += r.unassignedMoved;
+        const r = await assignServiceTasksToUser(s.id, userId, now, projectExecutorIds);
+        tasksMoved += r.tasksMoved;
         totalLinked += r.totalLinked;
       }
 
@@ -165,7 +211,7 @@ export async function POST(request: NextRequest) {
           targetId,
           userId,
           services: liveServices.length,
-          unassignedMoved,
+          tasksMoved,
           totalLinked,
         },
       });
@@ -175,11 +221,16 @@ export async function POST(request: NextRequest) {
     if (type === "service") {
       const service = await prisma.service.findUnique({
         where: { id: targetId },
-        select: { id: true, deletedAt: true },
+        select: { id: true, projectId: true, deletedAt: true },
       });
       if (!service || service.deletedAt) {
         return NextResponse.json({ error: "الخدمة غير موجودة" }, { status: 404 });
       }
+
+      // Same trusted-pool logic as the project branch — derive from the
+      // parent project so a service-level assign respects the same fence.
+      const baseExecutors = service.projectId ? await getProjectExecutorIds(service.projectId) : [];
+      const projectExecutorIds = Array.from(new Set([...baseExecutors, userId]));
 
       await prisma.userService.upsert({
         where: { userId_serviceId: { userId, serviceId: service.id } },
@@ -187,7 +238,12 @@ export async function POST(request: NextRequest) {
         update: {},
       });
 
-      const summary = await assignServiceTasksToUser(service.id, userId, new Date());
+      const summary = await assignServiceTasksToUser(
+        service.id,
+        userId,
+        new Date(),
+        projectExecutorIds
+      );
 
       return NextResponse.json({ assigned: { type, targetId, userId, ...summary } });
     }
