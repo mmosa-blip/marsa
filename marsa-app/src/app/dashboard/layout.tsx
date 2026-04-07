@@ -51,6 +51,7 @@ import {
   ShieldCheck,
   Target,
   Zap,
+  Radio,
   type LucideIcon,
 } from "lucide-react";
 
@@ -96,12 +97,12 @@ const adminGroups: NavGroup[] = [
     tGroupKey: "operations",
     icon: FolderOpen,
     children: [
+      { href: "/dashboard/operations-room", label: "غرفة العمليات", tKey: "operationsRoom", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/quick-service", label: "طلب خدمة سريع", tKey: "quickService" },
       { href: "/dashboard/projects/templates", label: "قوالب المشاريع", tKey: "projectTemplates" },
       { href: "/dashboard/contract-templates", label: "قوالب العقود", tKey: "contractTemplates", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/service-requests", label: "طلبات الخدمات", tKey: "serviceRequests", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/service-catalog", label: "كتالوج الخدمات", tKey: "services" },
-      { href: "/dashboard/service-provider-mappings", label: "ربط المزودين", tKey: "providerMappings", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/task-transfers", label: "طلبات التحويل", tKey: "transfers" },
       { href: "/services", label: "سوق الخدمات", tKey: "marketplace" },
     ],
