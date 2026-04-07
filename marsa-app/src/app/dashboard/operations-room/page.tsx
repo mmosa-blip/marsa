@@ -195,7 +195,17 @@ export default function OperationsRoomPage() {
 
   // ── Assign action ──
   const performAssign = async (userId: string) => {
-    if (!assignTarget) return;
+    // [INSTRUMENTATION — temporary] Trace every step to the browser console
+    // so we can pinpoint where the assign flow breaks. Remove after debugging.
+    console.log("[assign] 1. clicked", {
+      type: assignTarget?.type,
+      targetId: assignTarget?.targetId,
+      userId,
+    });
+    if (!assignTarget) {
+      console.warn("[assign] aborted — assignTarget is null");
+      return;
+    }
     setAssigning(true);
     try {
       const res = await fetch("/api/operations/assign", {
@@ -207,14 +217,23 @@ export default function OperationsRoomPage() {
           userId,
         }),
       });
+      console.log("[assign] 2. response status", res.status);
+      const body = await res
+        .json()
+        .catch((e) => ({ error: "Failed to parse JSON: " + (e instanceof Error ? e.message : String(e)) }));
+      console.log("[assign] 3. response body", body);
+
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        alert(j.error || "تعذّر تنفيذ الإسناد");
+        const errMsg = (body as { error?: string }).error || "تعذّر تنفيذ الإسناد";
+        console.error("[assign] FAILED", { status: res.status, error: errMsg });
+        alert(errMsg);
         return;
       }
+      console.log("[assign] 4. success — refreshing overview");
       refreshOverview();
       setAssignTarget(null);
     } catch (err) {
+      console.error("[assign] caught network/runtime error", err);
       alert(err instanceof Error ? err.message : "حدث خطأ");
     } finally {
       setAssigning(false);
