@@ -725,6 +725,18 @@ export default function MyTasksView() {
         })}
       </div>
 
+      {/* Active-tab notice — explains that blocked (sequential / payment-locked)
+          tasks are intentionally hidden so the queue stays focused. */}
+      {activeTab === "active" && (
+        <p
+          className="text-xs mb-4 flex items-center gap-1.5"
+          style={{ color: "#6B7280" }}
+        >
+          <CircleDot size={12} style={{ color: "#C9A84C" }} />
+          تظهر فقط المهام الجاهزة للبدء
+        </p>
+      )}
+
       {/* Current + Next Task Panel */}
       {(currentTask || nextTask) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
