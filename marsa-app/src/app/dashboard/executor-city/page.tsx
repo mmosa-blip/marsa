@@ -3,20 +3,21 @@
 /**
  * Unified executor workspace at /dashboard/executor-city.
  *
- * Toggles between two views:
- *   • مدينتي  — gamified canvas city. Each project is a building whose floors
- *     come from its services and whose windows-per-floor come from each
- *     service's tasks (lit = done, dark = remaining). The canvas resizes
- *     with the browser viewport.
- *   • مهامي  — the regular tasks list, embedded via the MyTasksView component.
+ * Two stacked sections, both always visible — no view toggle:
+ *   1. مدينتي — gamified canvas city in a fixed-height drag frame.
+ *      Each project is a building whose floors come from its services and
+ *      whose windows-per-floor come from each service's tasks (lit = done,
+ *      dark = remaining). A "ملء الشاشة" button blows the frame up.
+ *   2. مهامي — the regular tasks list, embedded via the MyTasksView
+ *      component, sits directly under the city.
  *
- * Default view is the city. The /dashboard/my-tasks route now redirects here.
+ * /dashboard/my-tasks redirects here.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Loader2, X, Building2, ListChecks } from "lucide-react";
+import { Loader2, X, Building2 } from "lucide-react";
 import MyTasksView from "@/components/MyTasksView";
 
 interface ApiService {
@@ -105,7 +106,6 @@ function shade(hex: string, amount: number) {
 
 export default function ExecutorCityPage() {
   const { data: session, status } = useSession();
-  const [view, setView] = useState<"city" | "tasks">("city");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [projects, setProjects] = useState<ApiProject[] | null>(null);
   const [selected, setSelected] = useState<BuildingLayout | null>(null);
@@ -124,14 +124,13 @@ export default function ExecutorCityPage() {
   // mouse listeners in a useEffect below.
   const dragStateRef = useRef({ moved: 0 });
 
-  // Fetch projects with services for the city
+  // Fetch projects with services for the city — runs once on mount
   useEffect(() => {
-    if (view !== "city") return;
     fetch("/api/projects?withServices=true")
       .then((r) => r.json())
       .then((d) => setProjects(Array.isArray(d) ? d : []))
       .catch(() => setProjects([]));
-  }, [view]);
+  }, []);
 
   // Track viewport size for responsive canvas
   useEffect(() => {
@@ -256,7 +255,7 @@ export default function ExecutorCityPage() {
 
   // ─── Animation loop ───
   useEffect(() => {
-    if (view !== "city" || !layout) return;
+    if (!layout) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -691,7 +690,7 @@ export default function ExecutorCityPage() {
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [view, layout, hoveredId]);
+  }, [layout, hoveredId]);
 
   function pointToBuilding(clientX: number, clientY: number): BuildingLayout | null {
     if (!layout) return null;
@@ -722,7 +721,6 @@ export default function ExecutorCityPage() {
   // The drag handlers are SCOPED to containerRef and never bound to window
   // or document, so dragging on the page outside the frame is unaffected.
   useEffect(() => {
-    if (view !== "city") return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -765,7 +763,7 @@ export default function ExecutorCityPage() {
       container.removeEventListener("mouseup", onMouseUp);
       container.removeEventListener("mousemove", onMouseMove);
     };
-  }, [view, layout, fullscreen]);
+  }, [layout, fullscreen]);
 
   function handleMove(e: React.MouseEvent<HTMLCanvasElement>) {
     const b = pointToBuilding(e.clientX, e.clientY);
@@ -780,60 +778,19 @@ export default function ExecutorCityPage() {
 
   return (
     <div className="p-8" dir="rtl">
-      {/* Header + view toggle */}
-      <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
-            <Building2 size={24} style={{ color: "#C9A84C" }} />
-            مدينتي
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
-            كل مشروع مبنى — كل خدمة طابق، ونوافذ كل طابق هي مهامها
-          </p>
-        </div>
-
-        {/* View toggle */}
-        <div className="flex p-1 rounded-xl" style={{ backgroundColor: "#F0EEF5", border: "1px solid #E2E0D8" }}>
-          <button
-            type="button"
-            onClick={() => setView("city")}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-            style={
-              view === "city"
-                ? { backgroundColor: "#5E5495", color: "white", boxShadow: "0 2px 6px rgba(94,84,149,0.3)" }
-                : { backgroundColor: "transparent", color: "#6B7280" }
-            }
-          >
-            <Building2 size={16} />
-            مدينتي
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("tasks")}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-            style={
-              view === "tasks"
-                ? { backgroundColor: "#5E5495", color: "white", boxShadow: "0 2px 6px rgba(94,84,149,0.3)" }
-                : { backgroundColor: "transparent", color: "#6B7280" }
-            }
-          >
-            <ListChecks size={16} />
-            مهامي
-          </button>
-        </div>
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
+          <Building2 size={24} style={{ color: "#C9A84C" }} />
+          مدينتي
+        </h1>
+        <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
+          كل مشروع مبنى — كل خدمة طابق، ونوافذ كل طابق هي مهامها
+        </p>
       </div>
 
-      {/* Tasks view — embed the existing tasks page content */}
-      {view === "tasks" && (
-        <div className="-mx-8 -mt-2">
-          <MyTasksView />
-        </div>
-      )}
-
-      {/* City view */}
-      {view === "city" && (
-        <>
-          {!projects && (
+      {/* ═══ City section (always visible) ═══ */}
+      {!projects && (
             <div className="bg-white rounded-2xl p-12 flex justify-center" style={{ border: "1px solid #E2E0D8" }}>
               <Loader2 size={32} className="animate-spin" style={{ color: "#C9A84C" }} />
             </div>
@@ -983,8 +940,11 @@ export default function ExecutorCityPage() {
               </div>
             </>
           )}
-        </>
-      )}
+
+      {/* ═══ Tasks section (always visible, directly under the city) ═══ */}
+      <div className="mt-8 -mx-8">
+        <MyTasksView />
+      </div>
 
       {/* Click popup */}
       {selected && (
