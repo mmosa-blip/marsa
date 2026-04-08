@@ -24,6 +24,7 @@ export async function GET(
             serviceTemplate: {
               include: {
                 category: { select: { name: true } },
+                taskTemplates: { select: { defaultDuration: true } },
                 _count: {
                   select: { taskTemplates: true },
                 },
@@ -45,7 +46,22 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(template);
+    // Total duration in days, computed the same way as the listing
+    // endpoint (and the wizard's POST /api/projects).
+    let totalDurationDays = 0;
+    for (const link of template.services) {
+      const tmpl = link.serviceTemplate;
+      const svcDuration =
+        tmpl.defaultDuration ||
+        tmpl.taskTemplates.reduce((sum, tt) => sum + tt.defaultDuration, 0);
+      if (template.workflowType === "SEQUENTIAL") {
+        totalDurationDays += svcDuration;
+      } else {
+        totalDurationDays = Math.max(totalDurationDays, svcDuration);
+      }
+    }
+
+    return NextResponse.json({ ...template, totalDurationDays });
   } catch (error) {
     console.error("Error fetching project template:", error);
     return NextResponse.json(

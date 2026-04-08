@@ -10,7 +10,7 @@
  * ProjectTemplateService rows.
  */
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -29,6 +29,7 @@ import {
   Power,
   PowerOff,
   DollarSign,
+  Clock,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -39,6 +40,10 @@ interface ServiceTemplate {
   defaultDuration: number;
   defaultPrice: number;
   category: { id: string; name: string } | null;
+  // Per-task durations are returned by both /api/project-templates/[id]
+  // and /api/service-catalog/templates so the edit page can recompute
+  // the total project duration on the fly as services are added/removed.
+  taskTemplates?: { defaultDuration: number }[];
   _count: { taskTemplates: number };
 }
 
@@ -68,6 +73,7 @@ interface TemplateData {
   isSystem: boolean;
   services: AttachedService[];
   milestones: MilestoneRow[];
+  totalDurationDays: number;
 }
 
 export default function EditProjectTemplatePage({
@@ -136,6 +142,7 @@ export default function EditProjectTemplatePage({
               afterServiceIndex: m.afterServiceIndex,
             })
           ),
+          totalDurationDays: tpl.totalDurationDays || 0,
         });
         if (Array.isArray(services)) setAllServices(services);
         setLoading(false);
@@ -283,6 +290,29 @@ export default function EditProjectTemplatePage({
           s.category?.name.toLowerCase().includes(pickerSearch.trim().toLowerCase())
     );
 
+  // Live total duration in days. Recomputes whenever the user adds/removes
+  // a service or flips workflowType, so the header pill matches the current
+  // edited state instead of the value the API returned at first load.
+  // Mirrors the same rule as the server: per-service duration =
+  // serviceTemplate.defaultDuration || sum(taskTemplates.defaultDuration);
+  // project total = sum (SEQUENTIAL) or max (INDEPENDENT).
+  const liveTotalDurationDays = useMemo(() => {
+    if (!template) return 0;
+    let total = 0;
+    for (const s of template.services) {
+      const tmpl = s.serviceTemplate;
+      const svcDuration =
+        tmpl.defaultDuration ||
+        (tmpl.taskTemplates || []).reduce((sum, tt) => sum + tt.defaultDuration, 0);
+      if (template.workflowType === "SEQUENTIAL") {
+        total += svcDuration;
+      } else {
+        total = Math.max(total, svcDuration);
+      }
+    }
+    return total;
+  }, [template]);
+
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center" dir="rtl">
@@ -327,6 +357,14 @@ export default function EditProjectTemplatePage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+            style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}
+            title="إجمالي مدة المشروع محسوبة من مدد المهام داخل الخدمات"
+          >
+            <Clock size={13} />
+            {liveTotalDurationDays.toLocaleString("en-US")} يوم
+          </span>
           {template.isSystem && (
             <span
               className="px-3 py-1.5 rounded-full text-xs font-semibold"

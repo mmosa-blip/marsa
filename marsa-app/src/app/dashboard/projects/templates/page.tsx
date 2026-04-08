@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Calendar,
   Copy,
+  Clock,
 } from "lucide-react";
 
 interface ProjectTemplate {
@@ -23,6 +24,7 @@ interface ProjectTemplate {
   createdAt: string;
   createdBy: { name: string } | null;
   _count: { services: number; projects: number };
+  totalDurationDays: number;
 }
 
 export default function ProjectTemplatesPage() {
@@ -246,8 +248,8 @@ export default function ProjectTemplatesPage() {
                 </span>
               </div>
 
-              {/* شارة سير العمل */}
-              <div className="mb-4">
+              {/* شارة سير العمل + المدة الإجمالية */}
+              <div className="mb-4 flex items-center gap-2 flex-wrap">
                 <span
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
                   style={{
@@ -266,6 +268,17 @@ export default function ProjectTemplatesPage() {
                       مستقل
                     </>
                   )}
+                </span>
+                <span
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                  style={{
+                    backgroundColor: "rgba(201,168,76,0.1)",
+                    color: "#C9A84C",
+                  }}
+                  title="إجمالي مدة المشروع محسوبة من مدد المهام في الخدمات"
+                >
+                  <Clock size={14} />
+                  {template.totalDurationDays.toLocaleString("en-US")} يوم
                 </span>
               </div>
 

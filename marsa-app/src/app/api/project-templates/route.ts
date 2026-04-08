@@ -29,6 +29,7 @@ export async function GET(request: Request) {
             serviceTemplate: {
               include: {
                 category: { select: { id: true, name: true, color: true } },
+                taskTemplates: { select: { defaultDuration: true } },
                 _count: { select: { taskTemplates: true } },
               },
             },
@@ -48,7 +49,29 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(templates);
+    // Compute total duration in days for each template, mirroring the
+    // wizard's logic in POST /api/projects:
+    //   - per service: serviceTemplate.defaultDuration when set,
+    //     otherwise the sum of its task templates' defaultDuration
+    //   - project total: sum of service durations when the project
+    //     workflow is SEQUENTIAL, max() when it's INDEPENDENT
+    const templatesWithDuration = templates.map((tpl) => {
+      let totalDurationDays = 0;
+      for (const link of tpl.services) {
+        const tmpl = link.serviceTemplate;
+        const svcDuration =
+          tmpl.defaultDuration ||
+          tmpl.taskTemplates.reduce((sum, tt) => sum + tt.defaultDuration, 0);
+        if (tpl.workflowType === "SEQUENTIAL") {
+          totalDurationDays += svcDuration;
+        } else {
+          totalDurationDays = Math.max(totalDurationDays, svcDuration);
+        }
+      }
+      return { ...tpl, totalDurationDays };
+    });
+
+    return NextResponse.json(templatesWithDuration);
   } catch (error) {
     console.error("Error fetching project templates:", error);
     return NextResponse.json(
