@@ -83,11 +83,11 @@ const adminGroups: NavGroup[] = [
     tGroupKey: "homeAndFollow",
     icon: LayoutDashboard,
     children: [
+      { href: "/dashboard/user-preview", label: "شاشات المنفذين", tKey: "userPreview", roles: ["ADMIN"] },
       { href: "/dashboard", label: "الشاشة الرئيسية", tKey: "home" },
       { href: "/dashboard/opportunities", label: "الفرص", tKey: "opportunities", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
       { href: "/dashboard/reminders", label: "التذكيرات", tKey: "reminders" },
-      { href: "/dashboard/user-preview", label: "شاشات المستخدمين", tKey: "userPreview", roles: ["ADMIN"] },
     ],
   },
   // ═══ Department groups are injected dynamically — see buildAdminGroups() ═══
