@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Users, Eye, X, Search, Shield, User, Briefcase, Wrench, Building2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
+import { Eye, X, Search, Shield, User, Briefcase, Wrench, Building2, Trash2 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface UserItem {
@@ -13,24 +13,39 @@ interface UserItem {
   createdAt: string;
 }
 
+// EXECUTOR comes first because the typical flow on this page is admins
+// previewing what executors see — followed by external providers and the
+// rest of the roles in descending operational relevance.
 const roleConfig: Record<string, { label: string; color: string; bg: string; icon: typeof User }> = {
-  ADMIN:             { label: "مدير النظام",    color: "#DC2626", bg: "#FEF2F2", icon: Shield },
-  MANAGER:           { label: "مدير",           color: "#7C3AED", bg: "#F5F3FF", icon: Shield },
-  CLIENT:            { label: "عميل",           color: "#2563EB", bg: "#EFF6FF", icon: Building2 },
   EXECUTOR:          { label: "منفذ",           color: "#059669", bg: "#ECFDF5", icon: Wrench },
   EXTERNAL_PROVIDER: { label: "مورد",            color: "#D97706", bg: "#FFF7ED", icon: Briefcase },
+  MANAGER:           { label: "مدير",           color: "#7C3AED", bg: "#F5F3FF", icon: Shield },
+  ADMIN:             { label: "مدير النظام",    color: "#DC2626", bg: "#FEF2F2", icon: Shield },
   FINANCE_MANAGER:   { label: "مدير مالي",      color: "#0891B2", bg: "#ECFEFF", icon: Shield },
   TREASURY_MANAGER:  { label: "أمين الصندوق",   color: "#0891B2", bg: "#ECFEFF", icon: Shield },
+  CLIENT:            { label: "عميل",           color: "#2563EB", bg: "#EFF6FF", icon: Building2 },
 };
 
 export default function UserPreviewPage() {
-  const router = useRouter();
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id || "";
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [impersonating, setImpersonating] = useState<string | null>(null);
   const [activeName, setActiveName] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Reusable loader so the delete handler can refresh the list after a soft
+  // delete without duplicating the fetch logic from the mount effect.
+  const loadUsers = useCallback(() => {
+    setLoading(true);
+    fetch("/api/users")
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setUsers(d); })
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
     document.title = "استعراض المستخدمين | مرسى";
@@ -39,12 +54,27 @@ export default function UserPreviewPage() {
     if (cookie) {
       setImpersonating(cookie.split("=")[1]);
     }
+    loadUsers();
+  }, [loadUsers]);
 
-    fetch("/api/users")
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setUsers(d); })
-      .finally(() => setLoading(false));
-  }, []);
+  const handleDelete = async (user: UserItem) => {
+    if (user.id === currentUserId) return;
+    if (!confirm(`هل تريد حذف ${user.name}؟`)) return;
+    setDeletingId(user.id);
+    try {
+      const res = await fetch(`/api/users/${user.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert((j as { error?: string }).error || "تعذّر الحذف");
+        return;
+      }
+      loadUsers();
+    } catch {
+      alert("حدث خطأ");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleImpersonate = async (user: UserItem) => {
     try {
@@ -172,17 +202,31 @@ export default function UserPreviewPage() {
                           <p className="text-xs" style={{ color: "#94A3B8" }}>{user.email}</p>
                         </div>
                       </div>
-                      {impersonating === user.id ? (
-                        <MarsaButton onClick={handleStopImpersonating}
-                          variant="ghost" size="sm" icon={<X size={12} />}
-                          style={{ backgroundColor: config.bg, color: config.color }}>
-                          إيقاف
-                        </MarsaButton>
-                      ) : (
-                        <MarsaButton onClick={() => handleImpersonate(user)} variant="primary" size="sm" icon={<Eye size={12} />}>
-                          استعراض
-                        </MarsaButton>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {impersonating === user.id ? (
+                          <MarsaButton onClick={handleStopImpersonating}
+                            variant="ghost" size="sm" icon={<X size={12} />}
+                            style={{ backgroundColor: config.bg, color: config.color }}>
+                            إيقاف
+                          </MarsaButton>
+                        ) : (
+                          <MarsaButton onClick={() => handleImpersonate(user)} variant="primary" size="sm" icon={<Eye size={12} />}>
+                            استعراض
+                          </MarsaButton>
+                        )}
+                        {user.id !== currentUserId && (
+                          <MarsaButton
+                            onClick={() => handleDelete(user)}
+                            variant="ghost"
+                            size="sm"
+                            iconOnly
+                            disabled={deletingId === user.id}
+                            icon={<Trash2 size={14} />}
+                            title={`حذف ${user.name}`}
+                            style={{ color: "#DC2626", backgroundColor: "rgba(220,38,38,0.06)" }}
+                          />
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
