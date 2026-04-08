@@ -428,6 +428,62 @@ export async function POST(request: Request) {
         }
       }
 
+      // ─── Materialize paymentMilestones as ContractPaymentInstallment rows
+      //     linked to the first task of the NEXT service. This is what
+      //     activates task-level locking: a locked installment locks the
+      //     task it's linked to via Task.linkedInstallment, and unlocking
+      //     happens when finance marks the installment paid.
+      //
+      //     Skipped when:
+      //       - the project has no contract (contractId is null) — the
+      //         installment FK requires a contract
+      //       - the contract already shipped its own installments (those
+      //         take precedence and are wired separately below)
+      //
+      //     Pre-existing ProjectMilestone(type=PAYMENT) + Invoice rows
+      //     created in the per-service loop above are kept untouched for
+      //     backwards compatibility with the cashier/invoice screens.
+      if (
+        project.contractId &&
+        contractInstallments.length === 0 &&
+        paymentMilestones &&
+        paymentMilestones.length > 0
+      ) {
+        // Re-fetch services with their first task (lowest order) so we can
+        // map each milestone's afterServiceIndex → next service → first task.
+        const projectServicesOrdered = await prisma.service.findMany({
+          where: { projectId: project.id, deletedAt: null },
+          select: {
+            id: true,
+            tasks: {
+              select: { id: true },
+              orderBy: { order: "asc" },
+              take: 1,
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        });
+
+        for (let pmi = 0; pmi < paymentMilestones.length; pmi++) {
+          const pm = paymentMilestones[pmi];
+          const nextService = projectServicesOrdered[pm.afterServiceIndex + 1];
+          const firstTaskOfNext = nextService?.tasks[0];
+
+          await prisma.contractPaymentInstallment.create({
+            data: {
+              contractId: project.contractId,
+              title: pm.title,
+              amount: pm.amount,
+              order: pmi,
+              isLocked: true,
+              // Link directly at creation when there's a successor task —
+              // this is the bridge that makes Task.linkedInstallment work.
+              ...(firstTaskOfNext ? { linkedTaskId: firstTaskOfNext.id } : {}),
+            },
+          });
+        }
+      }
+
       // ─── Create payment milestones from contract installments (replaces manual milestones) ───
       if (contractInstallments.length > 0) {
         for (let ci = 0; ci < contractInstallments.length; ci++) {

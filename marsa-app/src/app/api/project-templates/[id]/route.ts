@@ -32,6 +32,9 @@ export async function GET(
           },
           orderBy: { sortOrder: "asc" },
         },
+        milestones: {
+          orderBy: { order: "asc" },
+        },
       },
     });
 
@@ -64,7 +67,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, description, workflowType, isActive, services } = body;
+    const { name, description, workflowType, isActive, services, milestones } = body;
 
     const existing = await prisma.projectTemplate.findUnique({
       where: { id },
@@ -109,6 +112,35 @@ export async function PATCH(
       });
     }
 
+    // Same delete-and-recreate strategy for payment milestones. Each row
+    // carries title + amount + afterServiceIndex; the wizard reads these
+    // verbatim into its paymentMilestones state when a project is created
+    // from this template, and the POST /api/projects flow then materializes
+    // them as ContractPaymentInstallment rows that gate the next service's
+    // first task.
+    if (milestones && Array.isArray(milestones)) {
+      await prisma.projectTemplateMilestone.deleteMany({
+        where: { projectTemplateId: id },
+      });
+
+      if (milestones.length > 0) {
+        await prisma.projectTemplateMilestone.createMany({
+          data: milestones.map(
+            (
+              m: { title: string; amount: number; afterServiceIndex: number; order?: number },
+              index: number
+            ) => ({
+              projectTemplateId: id,
+              title: m.title,
+              amount: m.amount,
+              afterServiceIndex: m.afterServiceIndex,
+              order: m.order ?? index,
+            })
+          ),
+        });
+      }
+    }
+
     const template = await prisma.projectTemplate.update({
       where: { id },
       data: updateData,
@@ -118,6 +150,9 @@ export async function PATCH(
             serviceTemplate: true,
           },
           orderBy: { sortOrder: "asc" },
+        },
+        milestones: {
+          orderBy: { order: "asc" },
         },
         createdBy: { select: { name: true } },
       },

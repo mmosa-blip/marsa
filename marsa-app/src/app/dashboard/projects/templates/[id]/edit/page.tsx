@@ -28,7 +28,9 @@ import {
   Loader2,
   Power,
   PowerOff,
+  DollarSign,
 } from "lucide-react";
+import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 
 interface ServiceTemplate {
@@ -46,6 +48,17 @@ interface AttachedService {
   serviceTemplate: ServiceTemplate;
 }
 
+// Local id used only on the client to track row identity in React lists
+// before the row is persisted (real DB rows get a server-assigned cuid).
+interface MilestoneRow {
+  localId: string;
+  title: string;
+  amount: number;
+  // Index of the service AFTER which the milestone is collected. The
+  // server uses this to find the next service's first task and lock it.
+  afterServiceIndex: number;
+}
+
 interface TemplateData {
   id: string;
   name: string;
@@ -54,6 +67,7 @@ interface TemplateData {
   isActive: boolean;
   isSystem: boolean;
   services: AttachedService[];
+  milestones: MilestoneRow[];
 }
 
 export default function EditProjectTemplatePage({
@@ -114,6 +128,14 @@ export default function EditProjectTemplatePage({
               serviceTemplate: s.serviceTemplate,
             })
           ),
+          milestones: (tpl.milestones || []).map(
+            (m: { id: string; title: string; amount: number; afterServiceIndex: number }) => ({
+              localId: m.id,
+              title: m.title,
+              amount: m.amount,
+              afterServiceIndex: m.afterServiceIndex,
+            })
+          ),
         });
         if (Array.isArray(services)) setAllServices(services);
         setLoading(false);
@@ -165,6 +187,48 @@ export default function EditProjectTemplatePage({
     });
   };
 
+  // ── Milestone list ops ──
+  const addMilestone = () => {
+    setTemplate((prev) => {
+      if (!prev) return prev;
+      // Default to placing the new milestone after the first service so
+      // there's always at least one valid afterServiceIndex to start from.
+      return {
+        ...prev,
+        milestones: [
+          ...prev.milestones,
+          {
+            localId: `new-${Date.now()}-${Math.random()}`,
+            title: `الدفعة ${prev.milestones.length + 1}`,
+            amount: 0,
+            afterServiceIndex: 0,
+          },
+        ],
+      };
+    });
+  };
+  const updateMilestone = (
+    localId: string,
+    field: keyof Omit<MilestoneRow, "localId">,
+    value: string | number
+  ) => {
+    setTemplate((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        milestones: prev.milestones.map((m) =>
+          m.localId === localId ? { ...m, [field]: value } : m
+        ),
+      };
+    });
+  };
+  const removeMilestone = (localId: string) => {
+    setTemplate((prev) => {
+      if (!prev) return prev;
+      return { ...prev, milestones: prev.milestones.filter((m) => m.localId !== localId) };
+    });
+  };
+
   // ── Save ──
   const handleSave = async () => {
     if (!template) return;
@@ -186,6 +250,12 @@ export default function EditProjectTemplatePage({
           services: template.services.map((s, i) => ({
             serviceTemplateId: s.serviceTemplateId,
             sortOrder: i,
+          })),
+          milestones: template.milestones.map((m, i) => ({
+            title: m.title.trim(),
+            amount: m.amount,
+            afterServiceIndex: m.afterServiceIndex,
+            order: i,
           })),
         }),
       });
@@ -455,6 +525,115 @@ export default function EditProjectTemplatePage({
                 </button>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Payment Milestones */}
+      <div className="bg-white rounded-2xl p-6 mt-6" style={{ border: "1px solid #E2E0D8" }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
+              <DollarSign size={18} style={{ color: "#059669" }} />
+              دفعات القالب
+            </h2>
+            <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+              تُنشأ كل دفعة بعد خدمة محددة، وعند توليد المشروع تقفل أول مهمة في الخدمة التالية حتى تُستلم الدفعة
+            </p>
+          </div>
+          <MarsaButton
+            variant="primary"
+            size="sm"
+            icon={<Plus size={14} />}
+            onClick={addMilestone}
+            disabled={template.services.length === 0}
+            title={template.services.length === 0 ? "أضف خدمة واحدة على الأقل أولاً" : undefined}
+          >
+            إضافة دفعة
+          </MarsaButton>
+        </div>
+
+        {template.milestones.length === 0 ? (
+          <div className="text-center py-10 rounded-xl" style={{ backgroundColor: "#FAFAF8", border: "1px dashed #E2E0D8" }}>
+            <DollarSign size={32} className="mx-auto mb-2" style={{ color: "#D1D5DB" }} />
+            <p className="text-sm" style={{ color: "#6B7280" }}>لا توجد دفعات في هذا القالب</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {template.milestones.map((m) => (
+              <div
+                key={m.localId}
+                className="p-3 rounded-xl"
+                style={{ backgroundColor: "rgba(5,150,105,0.04)", border: "1px solid rgba(5,150,105,0.18)" }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <DollarSign size={14} style={{ color: "#059669" }} />
+                  <input
+                    type="text"
+                    value={m.title}
+                    onChange={(e) => updateMilestone(m.localId, "title", e.target.value)}
+                    placeholder="عنوان الدفعة"
+                    className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
+                    style={{ border: "1px solid rgba(5,150,105,0.25)", color: "#1C1B2E" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeMilestone(m.localId)}
+                    className="p-1.5 rounded-lg transition-colors hover:bg-red-50"
+                    style={{ color: "#DC2626" }}
+                    title="إزالة الدفعة"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] mb-1 font-semibold" style={{ color: "#6B7280" }}>
+                      المبلغ
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={m.amount || ""}
+                        onChange={(e) => updateMilestone(m.localId, "amount", parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        dir="ltr"
+                        className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
+                        style={{ border: "1px solid rgba(5,150,105,0.25)", color: "#059669", fontWeight: 600 }}
+                      />
+                      <SarSymbol size={12} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] mb-1 font-semibold" style={{ color: "#6B7280" }}>
+                      بعد الخدمة
+                    </label>
+                    <select
+                      value={m.afterServiceIndex}
+                      onChange={(e) =>
+                        updateMilestone(m.localId, "afterServiceIndex", parseInt(e.target.value, 10))
+                      }
+                      className="w-full px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
+                      style={{ border: "1px solid rgba(5,150,105,0.25)", color: "#1C1B2E" }}
+                    >
+                      {template.services.map((s, i) => (
+                        <option key={s.serviceTemplateId} value={i}>
+                          {i + 1}. {s.serviceTemplate.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: "1px solid #F0EDE6" }}>
+              <span className="text-sm font-bold" style={{ color: "#1C1B2E" }}>إجمالي دفعات القالب</span>
+              <span className="text-base font-bold" style={{ color: "#059669" }}>
+                {template.milestones.reduce((s, m) => s + (m.amount || 0), 0).toLocaleString("en-US")} <SarSymbol size={14} />
+              </span>
+            </div>
           </div>
         )}
       </div>

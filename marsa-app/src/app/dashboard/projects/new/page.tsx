@@ -160,13 +160,6 @@ interface DocTypeOption {
   displayOrder: number;
 }
 
-interface InstallmentRow {
-  id: string;
-  title: string;
-  amount: number;
-  dueDate: string; // YYYY-MM-DD
-}
-
 interface ManagerOption {
   id: string;
   name: string;
@@ -261,13 +254,14 @@ export default function NewProjectPage() {
   const [totalPriceOverride, setTotalPriceOverride] = useState<string>("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
-  // ─── Payment Milestones (Step 2) ───
+  // ─── Payment milestones — defined inline within the services step ───
+  // The wizard collapsed the old standalone "جدول الدفعات" step into this
+  // single source. Each milestone has { title, amount, afterServiceIndex }
+  // and the server materializes them as ContractPaymentInstallment rows
+  // that lock the next service's first task.
   const [paymentMilestones, setPaymentMilestones] = useState<PaymentMilestone[]>([]);
 
-  // ─── Step 3 state — payment installments (flat list, separate from inter-service milestones) ───
-  const [installments, setInstallments] = useState<InstallmentRow[]>([]);
-
-  // ─── Step 4 state — required documents wizard ───
+  // ─── Step 3 state — required documents wizard ───
   const [docTypes, setDocTypes] = useState<DocTypeOption[]>([]);
   const [loadingDocTypes, setLoadingDocTypes] = useState(false);
   const [docTypesError, setDocTypesError] = useState("");
@@ -275,16 +269,16 @@ export default function NewProjectPage() {
   const [pendingDocs, setPendingDocs] = useState<Record<string, { fileUrl?: string; textData?: string; skipped?: boolean }>>({});
   const [currentDocIndex, setCurrentDocIndex] = useState(0);
 
-  // ─── Step 5 — optional company branches (Investment department only) ───
+  // ─── Step 4 — optional company branches (Investment department only) ───
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [branchesExpanded, setBranchesExpanded] = useState(false);
 
-  // ─── Step 6 state — assign project manager (optional) ───
+  // ─── Step 5 state — assign project manager (optional) ───
   const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [loadingManagers, setLoadingManagers] = useState(false);
   const [selectedManagerId, setSelectedManagerId] = useState("");
 
-  // ─── Step 7 (review) state ───
+  // ─── Step 6 (review) state ───
   const [serviceDetails, setServiceDetails] = useState<Record<string, ServiceDetail>>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
@@ -309,7 +303,7 @@ export default function NewProjectPage() {
 
   // ─── Fetch document types when entering step 4 (filtered by department) ───
   useEffect(() => {
-    if (currentStep !== 4 || !departmentId) return;
+    if (currentStep !== 3 || !departmentId) return;
     setLoadingDocTypes(true);
     setDocTypesError("");
     fetch(`/api/doc-types?departmentId=${departmentId}`)
@@ -330,7 +324,7 @@ export default function NewProjectPage() {
 
   // ─── Fetch managers when entering step 6 ───
   useEffect(() => {
-    if (currentStep !== 6 || managers.length > 0) return;
+    if (currentStep !== 5 || managers.length > 0) return;
     setLoadingManagers(true);
     fetch("/api/users?transferTargets=true")
       .then((r) => r.json())
@@ -593,7 +587,7 @@ export default function NewProjectPage() {
   }, []);
 
   useEffect(() => {
-    if (currentStep === 5 && categories.length === 0) {
+    if (currentStep === 4 && categories.length === 0) {
       fetchCatalog();
     }
   }, [currentStep, categories.length, fetchCatalog]);
@@ -698,7 +692,7 @@ export default function NewProjectPage() {
 
   // ─── Fetch service details for review (step 7) ───
   useEffect(() => {
-    if (currentStep === 7) {
+    if (currentStep === 6) {
       setLoadingDetails(true);
       const idsToFetch = selectedServices
         .map((s) => s.serviceTemplateId)
@@ -777,22 +771,14 @@ export default function NewProjectPage() {
 
       let projectId: string | null = null;
 
-      // Step-3 installments are flat (no afterServiceIndex), so anchor them all
-      // to position 0 in the existing paymentMilestones format expected by the API.
-      const installmentMilestones = installments.map((i) => ({
-        title: i.title,
-        amount: i.amount,
-        afterServiceIndex: 0,
-        dueDate: i.dueDate || undefined,
+      // Payment milestones come from the inline blocks between services on
+      // the services step — they're the single source of truth now that the
+      // standalone "جدول الدفعات" step has been removed.
+      const allPaymentMilestones = paymentMilestones.map((p) => ({
+        title: p.title,
+        amount: p.amount,
+        afterServiceIndex: p.afterServiceIndex,
       }));
-      const allPaymentMilestones = [
-        ...paymentMilestones.map((p) => ({
-          title: p.title,
-          amount: p.amount,
-          afterServiceIndex: p.afterServiceIndex,
-        })),
-        ...installmentMilestones,
-      ];
 
       if (useTemplateGenerate) {
         const res = await fetch("/api/projects/generate", {
@@ -922,7 +908,7 @@ export default function NewProjectPage() {
   };
 
   // ─── Navigation ───
-  const handleNext = () => setCurrentStep((s) => Math.min(7, s + 1));
+  const handleNext = () => setCurrentStep((s) => Math.min(6, s + 1));
   const handlePrev = () => setCurrentStep((s) => Math.max(1, s - 1));
 
   // ─── Validation ───
@@ -938,22 +924,25 @@ export default function NewProjectPage() {
     !!contractForm.endDate &&
     (contractMode === "new" || !!contractForm.uploadedFileUrl.trim());
   const step2Valid = !!selectedContractId || inlineContractValid;
-  // Step 3 — payment schedule: optional, but each row must be complete
-  const step3Valid = installments.every(
-    (i) => i.title.trim() && i.amount > 0 && i.dueDate
-  );
-  // Step 4 — required documents must be uploaded (or skipped if optional)
+  // Step 3 — required documents must be uploaded (or skipped if optional)
   const requiredDocTypes = docTypes.filter((d) => d.isRequired);
-  const step4Valid = requiredDocTypes.every((d) => {
+  const step3Valid = requiredDocTypes.every((d) => {
     const entry = pendingDocs[d.id];
     return entry && (entry.fileUrl || entry.textData);
   });
-  // Step 5 — at least one service (template or manual)
-  const step5Valid = selectedServices.length >= 1 || (templateApplied && !!selectedTemplateId);
-  // Step 6 — manager is optional
-  const step6Valid = true;
-  // Step 7 — save-as-template name if checked
-  const step7Valid = !saveAsTemplate || templateName.trim().length > 0;
+  // Step 4 — at least one service (template or manual), AND every service
+  // must have a non-zero price unless the price is locked from a contract.
+  // This prevents users from advancing with "total = 0" which would silently
+  // create a project with zero-priced services.
+  const allServicePricesSet =
+    !!contractAmount || selectedServices.every((s) => s.price > 0);
+  const step4Valid =
+    (selectedServices.length >= 1 || (templateApplied && !!selectedTemplateId)) &&
+    allServicePricesSet;
+  // Step 5 — manager is optional
+  const step5Valid = true;
+  // Step 6 — save-as-template name if checked
+  const step6Valid = !saveAsTemplate || templateName.trim().length > 0;
 
   const canGoNext = () => {
     if (currentStep === 1) return step1Valid;
@@ -961,37 +950,20 @@ export default function NewProjectPage() {
     if (currentStep === 3) return step3Valid;
     if (currentStep === 4) return step4Valid;
     if (currentStep === 5) return step5Valid;
-    if (currentStep === 6) return step6Valid;
     return false;
   };
 
   // ─── Step labels ───
+  // The old standalone "جدول الدفعات" step was folded into step 4
+  // (الخدمات) — payment milestones are added inline between services.
   const steps = [
     { num: 1, label: "البيانات الأساسية" },
     { num: 2, label: "العقد" },
-    { num: 3, label: "جدول الدفعات" },
-    { num: 4, label: "المستندات" },
-    { num: 5, label: "الخدمات" },
-    { num: 6, label: "مدير المشروع" },
-    { num: 7, label: "مراجعة وتأكيد" },
+    { num: 3, label: "المستندات" },
+    { num: 4, label: "الخدمات" },
+    { num: 5, label: "مدير المشروع" },
+    { num: 6, label: "مراجعة وتأكيد" },
   ];
-
-  // ─── Installment row helpers ───
-  const addInstallment = () => {
-    setInstallments((prev) => [
-      ...prev,
-      { id: `inst-${Date.now()}-${Math.random()}`, title: `الدفعة ${prev.length + 1}`, amount: 0, dueDate: "" },
-    ]);
-  };
-  const updateInstallment = (id: string, field: keyof InstallmentRow, value: string | number) => {
-    setInstallments((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, [field]: value } : i))
-    );
-  };
-  const removeInstallment = (id: string) => {
-    setInstallments((prev) => prev.filter((i) => i.id !== id));
-  };
-  const installmentsTotal = installments.reduce((sum, i) => sum + (i.amount || 0), 0);
 
   // ─── Branch helpers ───
   const addBranch = () => {
@@ -1495,8 +1467,8 @@ export default function NewProjectPage() {
           </div>
           )}
 
-          {/* Workflow Type — STEP 5 */}
-          {currentStep === 5 && (
+          {/* Workflow Type — STEP 4 */}
+          {currentStep === 4 && (
           <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
             <div className="flex items-center gap-2 mb-5">
               <Layers size={20} style={{ color: "#C9A84C" }} />
@@ -1575,8 +1547,8 @@ export default function NewProjectPage() {
           </div>
           )}
 
-          {/* Use Template — STEP 5 */}
-          {currentStep === 5 && (
+          {/* Use Template — STEP 4 */}
+          {currentStep === 4 && (
           <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
             <div className="flex items-center gap-2 mb-5">
               <BookTemplate size={20} style={{ color: "#C9A84C" }} />
@@ -1613,100 +1585,8 @@ export default function NewProjectPage() {
           </div>
           )}
 
-          {/* ─── STEP 3: Payment Schedule ─── */}
+          {/* ─── STEP 3: Required Documents ─── */}
           {currentStep === 3 && (
-            <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <CreditCard size={20} style={{ color: "#C9A84C" }} />
-                <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>جدول الدفعات</h2>
-              </div>
-              <p className="text-xs mb-5" style={{ color: "#6B7280" }}>
-                أضف الدفعات المتفق عليها مع العميل (يمكن تركها فارغة وإضافتها لاحقاً)
-              </p>
-
-              {installments.length > 0 && (
-                <div className="space-y-3 mb-4">
-                  {installments.map((row, idx) => (
-                    <div key={row.id} className="p-3 rounded-xl" style={{ border: "1px solid #E2E0D8", backgroundColor: "#FAFAFA" }}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-[10px] font-bold w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}>
-                          {idx + 1}
-                        </span>
-                        <input
-                          type="text"
-                          value={row.title}
-                          onChange={(e) => updateInstallment(row.id, "title", e.target.value)}
-                          placeholder="عنوان الدفعة"
-                          className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
-                          style={{ border: "1px solid #E2E0D8" }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeInstallment(row.id)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[10px] mb-1" style={{ color: "#6B7280" }}>المبلغ</label>
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={row.amount || ""}
-                              onChange={(e) => updateInstallment(row.id, "amount", parseFloat(e.target.value) || 0)}
-                              placeholder="0.00"
-                              dir="ltr"
-                              className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
-                              style={{ border: "1px solid #E2E0D8" }}
-                            />
-                            <SarSymbol size={12} />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] mb-1" style={{ color: "#6B7280" }}>تاريخ الاستحقاق</label>
-                          <input
-                            type="date"
-                            value={row.dueDate}
-                            onChange={(e) => updateInstallment(row.id, "dueDate", e.target.value)}
-                            className="w-full px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
-                            style={{ border: "1px solid #E2E0D8" }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={addInstallment}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium border border-dashed transition-all"
-                style={{ color: "#5E5495", borderColor: "rgba(94,84,149,0.3)" }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(94,84,149,0.04)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
-              >
-                <Plus size={14} />
-                <span>إضافة دفعة</span>
-              </button>
-
-              {installments.length > 0 && (
-                <div className="mt-4 pt-3 flex items-center justify-between" style={{ borderTop: "1px solid #E2E0D8" }}>
-                  <span className="text-sm font-bold" style={{ color: "#1C1B2E" }}>إجمالي الدفعات</span>
-                  <span className="text-base font-bold" style={{ color: "#C9A84C" }}>
-                    {installmentsTotal.toLocaleString("en-US")} <SarSymbol size={14} />
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ─── STEP 4: Required Documents ─── */}
-          {currentStep === 4 && (
             <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
               <div className="flex items-center gap-2 mb-2">
                 <FileText size={20} style={{ color: "#C9A84C" }} />
@@ -1925,8 +1805,8 @@ export default function NewProjectPage() {
             </div>
           )}
 
-          {/* ─── STEP 6: Assign Project Manager (optional) ─── */}
-          {currentStep === 6 && (
+          {/* ─── STEP 5: Assign Project Manager (optional) ─── */}
+          {currentStep === 5 && (
             <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
               <div className="flex items-center gap-2 mb-2">
                 <Briefcase size={20} style={{ color: "#C9A84C" }} />
@@ -1998,8 +1878,8 @@ export default function NewProjectPage() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════ STEP 5 — Services Catalog ══════════════════════════════════════════════ */}
-      {currentStep === 5 && (
+      {/* ══════════════════════════════════════════════ STEP 4 — Services Catalog ══════════════════════════════════════════════ */}
+      {currentStep === 4 && (
         <div className="flex gap-6">
           {/* Left: Service Catalog */}
           <div className="flex-1 min-w-0">
@@ -2168,6 +2048,17 @@ export default function NewProjectPage() {
                 )}
               </div>
 
+              {/* Zero-priced services warning */}
+              {!priceFromContract && selectedServices.length > 0 && !allServicePricesSet && (
+                <div
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4 text-sm"
+                  style={{ backgroundColor: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}
+                >
+                  <AlertCircle size={14} />
+                  <span>أدخل سعر كل خدمة قبل المتابعة — قوالب الخدمات لا تحمل سعراً افتراضياً</span>
+                </div>
+              )}
+
               {/* Contract amount notice */}
               {priceFromContract && (
                 <div
@@ -2229,22 +2120,37 @@ export default function NewProjectPage() {
                                 {service.taskCount} مهمة
                               </span>
                             </div>
-                            {/* Editable price - disabled if from contract */}
+                            {/* Editable price - disabled if from contract.
+                                When the value is 0 we show it explicitly
+                                (instead of an empty input) plus a red border
+                                so users notice they need to enter a price —
+                                otherwise the underlying state is 0 and the
+                                services total stays 0 silently. */}
                             {!priceFromContract && (
                               <div className="flex items-center gap-1.5">
-                                <DollarSign size={12} className="text-gray-400" />
+                                <DollarSign size={12} style={{ color: service.price === 0 ? "#DC2626" : "#9CA3AF" }} />
                                 <input
                                   type="number"
                                   min="0"
                                   step="0.01"
-                                  value={service.price || ""}
+                                  value={Number.isFinite(service.price) ? service.price : 0}
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) =>
                                     updateServicePrice(idx, parseFloat(e.target.value) || 0)
                                   }
                                   className="w-24 px-2 py-1 text-xs rounded-lg border outline-none"
-                                  style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}
+                                  style={{
+                                    borderColor: service.price === 0 ? "#DC2626" : "#E8E6F0",
+                                    color: service.price === 0 ? "#DC2626" : "#1C1B2E",
+                                    backgroundColor: service.price === 0 ? "rgba(220,38,38,0.04)" : "white",
+                                  }}
                                 />
                                 <SarSymbol size={12} />
+                                {service.price === 0 && (
+                                  <span className="text-[10px] font-semibold" style={{ color: "#DC2626" }}>
+                                    أدخل السعر
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
@@ -2469,8 +2375,8 @@ export default function NewProjectPage() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════ STEP 7 — Review & Confirm ══════════════════════════════════════════════ */}
-      {currentStep === 7 && (
+      {/* ══════════════════════════════════════════════ STEP 6 — Review & Confirm ══════════════════════════════════════════════ */}
+      {currentStep === 6 && (
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Summary */}
           <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
@@ -2552,7 +2458,7 @@ export default function NewProjectPage() {
               <MarsaButton variant="secondary" icon={<Edit3 size={14} />}
                 onClick={() => {
                   setTemplateApplied(false);
-                  setCurrentStep(5);
+                  setCurrentStep(4);
                 }}
               >
                 تعديل الخدمات
@@ -2814,7 +2720,7 @@ export default function NewProjectPage() {
               <ChevronLeft size={16} />
             </MarsaButton>
           ) : (
-            <MarsaButton variant="gold" size="lg" onClick={handleSubmit} disabled={submitting || !step7Valid} loading={submitting}
+            <MarsaButton variant="gold" size="lg" onClick={handleSubmit} disabled={submitting || !step6Valid} loading={submitting}
               icon={!submitting ? <FolderKanban size={16} /> : undefined}
             >
               {submitting ? t.common.loading : t.common.create}
