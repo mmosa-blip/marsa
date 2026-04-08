@@ -197,13 +197,11 @@ export default function NewProjectPage() {
   const [inlineClientSaving, setInlineClientSaving] = useState(false);
   const [inlineClientError, setInlineClientError] = useState("");
 
+  // Project name is computed automatically from template + client and is
+  // not directly editable on the create page (the user can rename the
+  // project later from the project detail page). The state still backs
+  // the step-7 preview and is what gets sent to the API.
   const [projectName, setProjectName] = useState("");
-  // Tracks whether the user has manually edited the name field. The
-  // auto-fill effect (template + client → "{template} - {client}") only
-  // runs while this is false; once the user types, their value is left
-  // alone even if they later swap template or client.
-  const [projectNameTouched, setProjectNameTouched] = useState(false);
-  const [description, setDescription] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [departments, setDepartments] = useState<{id:string;name:string;nameEn:string|null;color:string|null}[]>([]);
   const [workflowType, setWorkflowType] = useState<"SEQUENTIAL" | "INDEPENDENT">("SEQUENTIAL");
@@ -358,16 +356,24 @@ export default function NewProjectPage() {
       .finally(() => setLoadingTemplates(false));
   }, []);
 
-  // ─── Auto-fill project name from "{template name} - {client name}" ───
-  // Runs whenever the picked template or client changes. Stops as soon
-  // as the user manually edits the field — their value wins forever.
+  // ─── Auto-compute project name from "{template name} - {client name}" ───
+  // The user no longer types the name on this page — it's derived from
+  // the picked template and client and refreshes whenever either changes.
+  // Falls back to the client name alone if no template is picked.
   useEffect(() => {
-    if (projectNameTouched) return;
-    if (!selectedTemplateId || !selectedClient) return;
-    const tpl = projectTemplates.find((t) => t.id === selectedTemplateId);
-    if (!tpl) return;
-    setProjectName(`${tpl.name} - ${selectedClient.name}`);
-  }, [selectedTemplateId, selectedClient, projectTemplates, projectNameTouched]);
+    if (!selectedClient) {
+      setProjectName("");
+      return;
+    }
+    if (selectedTemplateId) {
+      const tpl = projectTemplates.find((t) => t.id === selectedTemplateId);
+      if (tpl) {
+        setProjectName(`${tpl.name} - ${selectedClient.name}`);
+        return;
+      }
+    }
+    setProjectName(selectedClient.name);
+  }, [selectedTemplateId, selectedClient, projectTemplates]);
 
   // ─── Fetch signed contracts when client is selected ───
   useEffect(() => {
@@ -820,7 +826,6 @@ export default function NewProjectPage() {
           body: JSON.stringify({
             clientId: selectedClient!.id,
             name: projectName,
-            description: description || null,
             workflowType,
             totalPrice: finalTotal,
             departmentId: departmentId || undefined,
@@ -921,8 +926,11 @@ export default function NewProjectPage() {
   const handlePrev = () => setCurrentStep((s) => Math.max(1, s - 1));
 
   // ─── Validation ───
-  // Step 1 — basic info: client, project name, department
-  const step1Valid = !!selectedClient && !!projectName.trim() && !!departmentId;
+  // Step 1 — basic info: client + department. The project name is
+  // computed automatically from the picked template + client (or just
+  // the client name when no template is selected) and is no longer
+  // user-entered, so it doesn't gate this step.
+  const step1Valid = !!selectedClient && !!departmentId;
   // Step 2 — contract: existing picked OR inline form complete for chosen mode
   const inlineContractValid =
     contractMode !== "" &&
@@ -1450,36 +1458,22 @@ export default function NewProjectPage() {
               </h2>
             </div>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: "#2D3748" }}>
-                  {t.projects.projectName} *
-                </label>
-                <input
-                  type="text"
-                  value={projectName}
-                  onChange={(e) => { setProjectName(e.target.value); setProjectNameTouched(true); }}
-                  placeholder="أدخل اسم المشروع"
-                  className="w-full px-4 py-3 rounded-xl border text-sm outline-none transition-all focus:ring-2"
-                  style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}
-                  onFocus={(e) => (e.target.style.borderColor = "#C9A84C")}
-                  onBlur={(e) => (e.target.style.borderColor = "#E8E6F0")}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: "#2D3748" }}>
-                  وصف المشروع
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  placeholder="وصف مختصر للمشروع..."
-                  className="w-full px-4 py-3 rounded-xl border text-sm outline-none transition-all focus:ring-2 resize-none"
-                  style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}
-                  onFocus={(e) => (e.target.style.borderColor = "#C9A84C")}
-                  onBlur={(e) => (e.target.style.borderColor = "#E8E6F0")}
-                />
-              </div>
+              {/* Auto-computed project name preview — display only.
+                  Renames happen later from the project detail page. */}
+              {projectName && (
+                <div
+                  className="p-3 rounded-xl flex items-center gap-2"
+                  style={{ backgroundColor: "rgba(94,84,149,0.05)", border: "1px dashed rgba(94,84,149,0.25)" }}
+                >
+                  <FolderKanban size={16} style={{ color: "#5E5495" }} />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold mb-0.5" style={{ color: "#6B7280" }}>
+                      اسم المشروع (يُحتسب تلقائياً من القالب + العميل)
+                    </p>
+                    <p className="text-sm font-bold truncate" style={{ color: "#1C1B2E" }}>{projectName}</p>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-medium mb-2" style={{ color: "#2D3748" }}>
                   <Building2 size={14} style={{ color: "#C9A84C" }} />
@@ -2510,7 +2504,6 @@ export default function NewProjectPage() {
                 <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
                   {projectName}
                 </p>
-                {description && <p className="text-xs text-gray-400 mt-1">{description}</p>}
               </div>
               <div className="p-4 rounded-xl" style={{ backgroundColor: "rgba(27, 42, 74, 0.03)" }}>
                 <p className="text-xs text-gray-400 mb-1">نوع سير العمل</p>

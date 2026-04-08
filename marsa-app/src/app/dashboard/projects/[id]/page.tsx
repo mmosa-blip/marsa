@@ -26,6 +26,8 @@ import {
   ExternalLink,
   Hash,
   FolderOpen,
+  Pencil,
+  Check,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -131,6 +133,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // Project code edit modal — admins/managers can change the project's
   // contract number from here, which regenerates projectCode server-side.
   const [showCodeModal, setShowCodeModal] = useState(false);
+  // Inline rename: admins can edit the project name from the header.
+  // The auto-name from the create page was "{template} - {client}" — this
+  // is the only place to override that after the project exists.
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
   const [codeContractInput, setCodeContractInput] = useState("");
   const [codeSaving, setCodeSaving] = useState(false);
   const [codeError, setCodeError] = useState("");
@@ -277,8 +285,103 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
             )}
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>{project.name}</h1>
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              {editingName ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={nameInput}
+                    autoFocus
+                    onChange={(e) => setNameInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") { setEditingName(false); setNameInput(""); }
+                      if (e.key === "Enter") {
+                        const trimmed = nameInput.trim();
+                        if (!trimmed || nameSaving) return;
+                        (async () => {
+                          setNameSaving(true);
+                          try {
+                            const res = await fetch(`/api/projects/${id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ name: trimmed }),
+                            });
+                            if (res.ok) {
+                              setProject((prev) => prev ? { ...prev, name: trimmed } : prev);
+                              setEditingName(false);
+                              setNameInput("");
+                            } else {
+                              const j = await res.json().catch(() => ({}));
+                              alert((j as { error?: string }).error || "تعذّر التعديل");
+                            }
+                          } finally {
+                            setNameSaving(false);
+                          }
+                        })();
+                      }
+                    }}
+                    disabled={nameSaving}
+                    className="text-2xl font-bold px-3 py-1 rounded-lg outline-none focus:ring-2 focus:ring-amber-200 min-w-[280px]"
+                    style={{ color: "#1C1B2E", border: "1px solid #E2E0D8" }}
+                  />
+                  <button
+                    type="button"
+                    disabled={nameSaving || !nameInput.trim()}
+                    onClick={async () => {
+                      const trimmed = nameInput.trim();
+                      if (!trimmed) return;
+                      setNameSaving(true);
+                      try {
+                        const res = await fetch(`/api/projects/${id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ name: trimmed }),
+                        });
+                        if (res.ok) {
+                          setProject((prev) => prev ? { ...prev, name: trimmed } : prev);
+                          setEditingName(false);
+                          setNameInput("");
+                        } else {
+                          const j = await res.json().catch(() => ({}));
+                          alert((j as { error?: string }).error || "تعذّر التعديل");
+                        }
+                      } finally {
+                        setNameSaving(false);
+                      }
+                    }}
+                    className="p-2 rounded-lg disabled:opacity-50"
+                    style={{ backgroundColor: "#22C55E", color: "white" }}
+                    title="حفظ"
+                  >
+                    <Check size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEditingName(false); setNameInput(""); }}
+                    disabled={nameSaving}
+                    className="p-2 rounded-lg"
+                    style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}
+                    title="إلغاء"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
+                  {project.name}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => { setNameInput(project.name); setEditingName(true); }}
+                      className="p-1.5 rounded-lg transition-colors hover:bg-gray-100"
+                      style={{ color: "#9CA3AF" }}
+                      title="تعديل اسم المشروع"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
+                </h1>
+              )}
               <span className="px-3 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
               <span className="flex items-center gap-1 text-xs" style={{ color: pr.color }}>
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: pr.color }} />
