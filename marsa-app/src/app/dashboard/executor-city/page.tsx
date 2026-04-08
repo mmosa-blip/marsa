@@ -127,6 +127,9 @@ export default function ExecutorCityPage() {
   // and also on fullscreen toggle). The canvas takes max(containerWidth, 1400,
   // natural building width) so it always fills the visible frame at minimum.
   const [containerWidth, setContainerWidth] = useState(0);
+  // Project picker — null = "كل مهامي" mode (only the user's own tasks).
+  // When set, MyTasksView switches to "all tasks of this project" mode.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
 
   // Fetch projects with services for the city — runs once on mount
   useEffect(() => {
@@ -910,9 +913,87 @@ export default function ExecutorCityPage() {
         </div>
       )}
 
-      {/* Tasks — takes the remaining height and scrolls internally */}
-      <div className="flex-1 min-h-0 overflow-y-auto mt-3">
-        <MyTasksView />
+      {/* Project picker — chips of projects the executor is involved in.
+          The default chip "كل مهامي" keeps the legacy behavior (the user's
+          own tasks across every project); picking a project switches the
+          MyTasksView below to "all tasks of this project" mode. */}
+      {projects && projects.length > 0 && (
+        <div className="flex-shrink-0 px-4 lg:px-6 mt-3">
+          <div
+            className="flex items-center gap-2 overflow-x-auto pb-2"
+            style={{ scrollbarWidth: "thin" }}
+          >
+            <button
+              type="button"
+              onClick={() => setPickedProjectId(null)}
+              className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+              style={
+                pickedProjectId === null
+                  ? {
+                      backgroundColor: "#5E5495",
+                      color: "white",
+                      boxShadow: "0 2px 6px rgba(94,84,149,0.3)",
+                      border: "1px solid #5E5495",
+                    }
+                  : {
+                      backgroundColor: "white",
+                      color: "#6B7280",
+                      border: "1px solid #E2E0D8",
+                    }
+              }
+            >
+              كل مهامي
+            </button>
+            {projects.map((p) => {
+              const active = pickedProjectId === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPickedProjectId(p.id)}
+                  title={p.name}
+                  className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 max-w-[200px]"
+                  style={
+                    active
+                      ? {
+                          backgroundColor: "#5E5495",
+                          color: "white",
+                          boxShadow: "0 2px 6px rgba(94,84,149,0.3)",
+                          border: "1px solid #5E5495",
+                        }
+                      : {
+                          backgroundColor: "white",
+                          color: "#1C1B2E",
+                          border: "1px solid #E2E0D8",
+                        }
+                  }
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: active ? "#FFFFFF" : (p.department?.color || "#C9A84C") }}
+                  />
+                  <span className="truncate">{p.name}</span>
+                  <span
+                    className="text-[10px] font-bold flex-shrink-0"
+                    style={{ color: active ? "rgba(255,255,255,0.8)" : "#9CA3AF" }}
+                  >
+                    {p.completedTasks}/{p.totalTasks}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Tasks — takes the remaining height and scrolls internally.
+          Re-mount via key when the picked project changes so the embedded
+          tasks view fully resets its filters/pagination/state. */}
+      <div className="flex-1 min-h-0 overflow-y-auto mt-1">
+        <MyTasksView
+          key={pickedProjectId || "__all__"}
+          projectId={pickedProjectId || undefined}
+        />
       </div>
 
       {/* Click popup */}

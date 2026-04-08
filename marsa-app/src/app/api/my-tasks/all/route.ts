@@ -23,6 +23,10 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const dateFrom = searchParams.get("dateFrom") || "";
     const dateTo = searchParams.get("dateTo") || "";
+    // When set, the response switches from "my tasks" to "all tasks of this
+    // project" — the executor city's project picker uses this so an employee
+    // can see the full board for a project they're working on.
+    const projectId = searchParams.get("projectId") || "";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.max(1, Math.min(100, parseInt(searchParams.get("limit") || "15", 10)));
 
@@ -31,10 +35,31 @@ export async function GET(request: NextRequest) {
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
 
-    // Single-assignee model: executor sees only tasks directly assigned to them
+    // Project-mode permission gate: a non-admin/manager must have at least
+    // one task in the project (as primary assignee or as a TaskAssignment
+    // collaborator). Otherwise we'd be leaking project tasks to anyone who
+    // can guess a project id.
+    if (projectId && !["ADMIN", "MANAGER"].includes(session.user.role)) {
+      const hasAccess = await prisma.task.findFirst({
+        where: {
+          projectId,
+          OR: [
+            { assigneeId: session.user.id },
+            { assignments: { some: { userId: session.user.id } } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (!hasAccess) {
+        return NextResponse.json({ error: "ليس لديك صلاحية" }, { status: 403 });
+      }
+    }
+
+    // Default mode: only the user's own tasks. Project mode: every task in
+    // the project regardless of assignee.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = {
-      assigneeId: session.user.id,
+      ...(projectId ? { projectId } : { assigneeId: session.user.id }),
       project: {
         deletedAt: null,
         ...(project && { name: { contains: project } }),
@@ -89,6 +114,7 @@ export async function GET(request: NextRequest) {
             },
           },
           service: { select: { id: true, name: true } },
+          assignee: { select: { id: true, name: true } },
           linkedInstallment: { select: { isLocked: true, title: true } },
           timeSummary: true,
           assignments: { include: { user: { select: { id: true, name: true } } } },

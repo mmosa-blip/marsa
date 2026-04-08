@@ -62,6 +62,8 @@ interface Task {
   dueDate: string | null;
   updatedAt: string;
   assignedAt: string | null;
+  assigneeId?: string | null;
+  assignee?: { id: string; name: string } | null;
   canStart: boolean;
   blockReason?: string | null;
   startedById?: string | null;
@@ -138,7 +140,15 @@ const getElapsedMinutes = (from: string): number => {
   return Math.max(0, Math.round((Date.now() - new Date(from).getTime()) / 60000));
 };
 
-export default function MyTasksView() {
+interface MyTasksViewProps {
+  // When set, the view switches to "all tasks of this project" mode:
+  // every task in the project is fetched (not just the user's own), and
+  // tasks owned by other users are rendered read-only with an assignee
+  // badge instead of action buttons.
+  projectId?: string;
+}
+
+export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   const { data: session } = useSession();
   const { t } = useLang();
   const { refreshCounts } = useSidebarCounts();
@@ -273,6 +283,7 @@ export default function MyTasksView() {
     if (search) params.set("search", search);
     if (dateFrom) params.set("dateFrom", dateFrom);
     if (dateTo) params.set("dateTo", dateTo);
+    if (projectId) params.set("projectId", projectId);
     params.set("page", String(page));
     params.set("limit", "15");
 
@@ -283,7 +294,7 @@ export default function MyTasksView() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [activeTab, statusFilter, priorityFilter, projectFilter, serviceFilter, timeFilter, search, dateFrom, dateTo, page]);
+  }, [activeTab, statusFilter, priorityFilter, projectFilter, serviceFilter, timeFilter, search, dateFrom, dateTo, page, projectId]);
 
   useEffect(() => {
     const timer = setTimeout(fetchTasks, search ? 300 : 0);
@@ -304,6 +315,7 @@ export default function MyTasksView() {
     params.set("status", "DONE,CANCELLED");
     params.set("page", String(completedPage));
     params.set("limit", "15");
+    if (projectId) params.set("projectId", projectId);
     fetch(`/api/my-tasks/all?${params}`)
       .then((r) => r.json())
       .then((d: ApiResponse) => {
@@ -311,7 +323,7 @@ export default function MyTasksView() {
         setCompletedLoading(false);
       })
       .catch(() => setCompletedLoading(false));
-  }, [completedPage]);
+  }, [completedPage, projectId]);
 
   // Fetch completed when expanded or page changes
   useEffect(() => {
@@ -323,7 +335,10 @@ export default function MyTasksView() {
   // Refresh completed count on actions + data changes
   const [completedTotal, setCompletedTotal] = useState(0);
   useEffect(() => {
-    fetch("/api/my-tasks/all?status=DONE,CANCELLED&limit=1")
+    const url = projectId
+      ? `/api/my-tasks/all?status=DONE,CANCELLED&limit=1&projectId=${encodeURIComponent(projectId)}`
+      : "/api/my-tasks/all?status=DONE,CANCELLED&limit=1";
+    fetch(url)
       .then((r) => r.json())
       .then((d: ApiResponse) => setCompletedTotal(d?.total || 0))
       .catch(() => {});
@@ -332,7 +347,7 @@ export default function MyTasksView() {
       fetchCompletedTasks();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actionLoading, bulkLoading, data]);
+  }, [actionLoading, bulkLoading, data, projectId]);
 
   const rawTasks = data?.tasks || [];
   // On the "active" tab we hide tasks that can't start yet (sequential
@@ -359,13 +374,14 @@ export default function MyTasksView() {
 
   useEffect(() => {
     const statuses = ["TODO", "IN_PROGRESS", "DONE"];
+    const projectQs = projectId ? `&projectId=${encodeURIComponent(projectId)}` : "";
     Promise.all([
       ...statuses.map((s) =>
-        fetch(`/api/my-tasks/all?status=${s}&limit=1`)
+        fetch(`/api/my-tasks/all?status=${s}&limit=1${projectQs}`)
           .then((r) => r.json())
           .then((d: ApiResponse) => ({ status: s, count: d?.total || 0 }))
       ),
-      fetch("/api/my-tasks/all?limit=999")
+      fetch(`/api/my-tasks/all?limit=999${projectQs}`)
         .then((r) => r.json())
         .then((d: ApiResponse) => {
           const serviceIds = new Set((d.tasks || []).map((t) => t.service?.id).filter(Boolean));
@@ -380,7 +396,7 @@ export default function MyTasksView() {
       });
       setStats(newStats as typeof stats);
     }).catch(() => {});
-  }, [actionLoading, bulkLoading]);
+  }, [actionLoading, bulkLoading, projectId]);
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     if (actionLoading) return;
@@ -926,6 +942,13 @@ export default function MyTasksView() {
                       task.status !== "CANCELLED" &&
                       new Date(task.dueDate) < new Date();
                     const isSelected = selectedTasks.has(task.id);
+                    // In project-mode the list contains foreign tasks too —
+                    // tasks owned by other executors. We render them read-only:
+                    // no checkbox, no actions, no detail panel.
+                    const isForeign =
+                      !!projectId &&
+                      !!task.assigneeId &&
+                      task.assigneeId !== currentUserId;
 
                     return (
                     <React.Fragment key={task.id}>
@@ -937,13 +960,14 @@ export default function MyTasksView() {
                           borderRight: task.isTransferred ? "3px solid #5E5495" : undefined,
                         }}
                       >
-                        {/* Checkbox */}
+                        {/* Checkbox — disabled for foreign tasks (project mode) */}
                         <td className="px-3 py-4">
                           <input
                             type="checkbox"
                             checked={isSelected}
+                            disabled={isForeign}
                             onChange={() => toggleSelect(task.id)}
-                            className="w-4 h-4 rounded cursor-pointer accent-[#1B2A4A]"
+                            className="w-4 h-4 rounded cursor-pointer accent-[#1B2A4A] disabled:opacity-30 disabled:cursor-not-allowed"
                           />
                         </td>
                         {/* Title */}
@@ -1067,25 +1091,45 @@ export default function MyTasksView() {
                             return <span className="text-xs" style={{ color: "#94A3B8" }}>—</span>;
                           })()}
                         </td>
-                        {/* Actions */}
+                        {/* Actions — for foreign tasks we show only the
+                            assignee badge instead, since the current user can
+                            neither act on them nor select them. */}
                         <td className="px-5 py-4">
-                          <div className="flex items-center justify-center gap-1">
-                            {getActionButton(task)}
-                            {task.status !== "DONE" && task.status !== "CANCELLED" && !task.isTransferred && (
-                              <MarsaButton
-                                onClick={() => setTransferModal(task.id)}
-                                variant="outline" size="xs" icon={<ArrowLeftRight size={13} />}
-                                style={{ backgroundColor: "rgba(94,84,149,0.1)", border: "1px solid transparent" }}
-                                title={t.tasks.transfer}
+                          {isForeign ? (
+                            <div className="flex items-center justify-center">
+                              <span
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold"
+                                style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495" }}
+                                title={`مسند إلى: ${task.assignee?.name || "—"}`}
                               >
-                                {t.tasks.transfer}
-                              </MarsaButton>
-                            )}
-                          </div>
+                                <span
+                                  className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[8px] font-bold text-white"
+                                  style={{ backgroundColor: "#5E5495" }}
+                                >
+                                  {(task.assignee?.name || "?").trim().slice(0, 1)}
+                                </span>
+                                {task.assignee?.name || "—"}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1">
+                              {getActionButton(task)}
+                              {task.status !== "DONE" && task.status !== "CANCELLED" && !task.isTransferred && (
+                                <MarsaButton
+                                  onClick={() => setTransferModal(task.id)}
+                                  variant="outline" size="xs" icon={<ArrowLeftRight size={13} />}
+                                  style={{ backgroundColor: "rgba(94,84,149,0.1)", border: "1px solid transparent" }}
+                                  title={t.tasks.transfer}
+                                >
+                                  {t.tasks.transfer}
+                                </MarsaButton>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
-                      {/* ── TASK DETAIL PANEL ── */}
-                      {task.status !== "DONE" && task.status !== "CANCELLED" && (
+                      {/* ── TASK DETAIL PANEL ── (skipped for foreign tasks) */}
+                      {!isForeign && task.status !== "DONE" && task.status !== "CANCELLED" && (
                         <tr>
                           <td colSpan={9} className="px-5 pb-4 pt-0">
                             <div className="border-t pt-3" style={{ borderColor: "#F0EDE6" }}>
