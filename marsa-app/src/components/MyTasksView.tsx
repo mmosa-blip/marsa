@@ -634,10 +634,6 @@ export default function MyTasksView() {
     }
   };
 
-  // Current + Next task computation
-  const currentTask = tasks.find((t) => t.status === "IN_PROGRESS");
-  const nextTask = tasks.find((t) => t.status === "TODO" && t.id !== currentTask?.id);
-
   // Pending acceptance — ONLY tasks that arrived via an admin-approved transfer.
   // Auto-assigned tasks always have acceptedAt set, so the (!acceptedAt + assigned)
   // filter naturally isolates transferred-and-not-yet-accepted tasks.
@@ -737,71 +733,6 @@ export default function MyTasksView() {
           <CircleDot size={12} style={{ color: "#C9A84C" }} />
           تظهر فقط المهام الجاهزة للبدء
         </p>
-      )}
-
-      {/* Current + Next Task Panel */}
-      {(currentTask || nextTask) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {/* Current task */}
-          <div className="bg-white rounded-2xl p-5 relative overflow-hidden" style={{ border: "2px solid rgba(234,88,12,0.3)" }}>
-            <div className="absolute top-0 right-0 px-3 py-1 rounded-bl-2xl text-[10px] font-bold" style={{ backgroundColor: "#EA580C", color: "#fff" }}>
-              المهمة الحالية
-            </div>
-            <div className="flex items-center gap-2 mb-2 mt-3">
-              <Clock size={16} style={{ color: "#EA580C" }} />
-              <span className="text-xs font-semibold" style={{ color: "#EA580C" }}>قيد التنفيذ</span>
-            </div>
-            {currentTask ? (
-              <>
-                <p className="text-base font-bold mb-1" style={{ color: "#1C1B2E" }}>
-                  {currentTask.title}
-                </p>
-                {currentTask.service && (
-                  <p className="text-xs mb-2" style={{ color: "#6B7280" }}>
-                    {currentTask.service.name}
-                  </p>
-                )}
-                {currentTask.project && (
-                  <p className="text-xs" style={{ color: "#9CA3AF" }}>
-                    📁 {currentTask.project.name}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm py-4" style={{ color: "#9CA3AF" }}>لا توجد مهمة قيد التنفيذ — ابدأ مهمة من قائمة المهام أدناه</p>
-            )}
-          </div>
-
-          {/* Next task */}
-          <div className="bg-white rounded-2xl p-5 relative overflow-hidden" style={{ border: "2px solid rgba(201,168,76,0.3)" }}>
-            <div className="absolute top-0 right-0 px-3 py-1 rounded-bl-2xl text-[10px] font-bold" style={{ backgroundColor: "#C9A84C", color: "#fff" }}>
-              المهمة القادمة
-            </div>
-            <div className="flex items-center gap-2 mb-2 mt-3">
-              <ChevronLeft size={16} style={{ color: "#C9A84C" }} />
-              <span className="text-xs font-semibold" style={{ color: "#C9A84C" }}>التالية</span>
-            </div>
-            {nextTask ? (
-              <>
-                <p className="text-base font-bold mb-1" style={{ color: "#1C1B2E" }}>
-                  {nextTask.title}
-                </p>
-                {nextTask.service && (
-                  <p className="text-xs mb-2" style={{ color: "#6B7280" }}>
-                    {nextTask.service.name}
-                  </p>
-                )}
-                {nextTask.project && (
-                  <p className="text-xs" style={{ color: "#9CA3AF" }}>
-                    📁 {nextTask.project.name}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm py-4" style={{ color: "#9CA3AF" }}>لا توجد مهام قادمة</p>
-            )}
-          </div>
-        </div>
       )}
 
       {/* Stats */}
