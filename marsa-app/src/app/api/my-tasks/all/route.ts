@@ -107,7 +107,18 @@ export async function GET(request: NextRequest) {
               client: { select: { id: true, name: true } },
               services: {
                 include: {
-                  tasks: { select: { id: true, status: true, order: true, assigneeId: true } }
+                  tasks: {
+                    // executionMode is needed by computeCanStart to skip
+                    // INDEPENDENT/PARALLEL siblings when looking for the
+                    // immediate previous SEQUENTIAL task in the same service.
+                    select: {
+                      id: true,
+                      status: true,
+                      order: true,
+                      assigneeId: true,
+                      executionMode: true,
+                    },
+                  },
                 },
                 orderBy: { createdAt: "asc" }
               }
@@ -164,31 +175,81 @@ export async function GET(request: NextRequest) {
       prisma.task.count({ where }),
     ]);
 
+    // canStart honors three signals (in order):
+    //   1. payment lock — always wins
+    //   2. task.executionMode (INDEPENDENT / PARALLEL / SEQUENTIAL — default)
+    //   3. explicit task.dependsOnId
+    //
+    // Conceptually:
+    //   - INDEPENDENT  → no dependency, runnable any time
+    //   - dependsOnId  → only that specific parent must be DONE
+    //   - PARALLEL     → no order chain, but the previous service must be done
+    //   - SEQUENTIAL   → previous service must be done AND the immediate
+    //                    previous SEQUENTIAL task in the same service must be
+    //                    DONE (we skip over INDEPENDENT/PARALLEL siblings —
+    //                    they aren't part of the linear chain)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const computeCanStart = (task: any): { canStart: boolean; blockReason: string | null } => {
-      // Check payment lock first
       if (task.linkedInstallment?.isLocked) {
         return { canStart: false, blockReason: "payment" };
       }
 
+      if (task.executionMode === "INDEPENDENT") {
+        return { canStart: true, blockReason: null };
+      }
+
       const project = task.project;
+      const services = project?.services || [];
+
+      // Explicit dependency wins over the order-based fallback.
+      if (task.dependsOnId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let parent: any = null;
+        for (const s of services) {
+          const found = s.tasks.find((t: { id: string }) => t.id === task.dependsOnId);
+          if (found) { parent = found; break; }
+        }
+        if (parent && parent.status !== "DONE") {
+          return { canStart: false, blockReason: "sequential" };
+        }
+        return { canStart: true, blockReason: null };
+      }
+
       if (!project || !task.serviceId) return { canStart: true, blockReason: null };
 
-      const services = project.services || [];
-      const currentServiceIdx = services.findIndex((s: any) => s.id === task.serviceId);
+      const currentServiceIdx = services.findIndex((s: { id: string }) => s.id === task.serviceId);
 
-      // Check previous service is fully done
+      // Previous service must be fully DONE before any task in the next
+      // service can run — applies to PARALLEL and SEQUENTIAL alike. INDEPENDENT
+      // already returned above.
       if (currentServiceIdx > 0) {
         const prevService = services[currentServiceIdx - 1];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const allPrevDone = prevService.tasks.every((t: any) => t.status === "DONE");
         if (!allPrevDone) return { canStart: false, blockReason: "sequential" };
       }
 
-      // Check previous tasks in same service are done
+      // PARALLEL skips the per-task order chain inside the service.
+      if (task.executionMode === "PARALLEL") {
+        return { canStart: true, blockReason: null };
+      }
+
+      // SEQUENTIAL (default): wait for the immediate previous SEQUENTIAL task
+      // in the same service. INDEPENDENT/PARALLEL siblings are skipped — they
+      // aren't part of the linear chain.
       const currentService = services[currentServiceIdx];
       if (currentService) {
-        const prevTasks = currentService.tasks.filter((t: any) => t.order < task.order);
-        const allPrevDone = prevTasks.every((t: any) => t.status === "DONE");
-        if (!allPrevDone) return { canStart: false, blockReason: "sequential" };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sequentialPrev = (currentService.tasks as any[])
+          .filter((t) =>
+            t.order < task.order &&
+            t.executionMode !== "INDEPENDENT" &&
+            t.executionMode !== "PARALLEL"
+          )
+          .sort((a, b) => b.order - a.order)[0];
+        if (sequentialPrev && sequentialPrev.status !== "DONE") {
+          return { canStart: false, blockReason: "sequential" };
+        }
       }
 
       return { canStart: true, blockReason: null };

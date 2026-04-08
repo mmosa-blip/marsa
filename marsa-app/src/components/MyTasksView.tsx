@@ -354,9 +354,15 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   // dependency or payment lock) — they're not actionable so they only
   // clutter the queue. They still appear under "متأخرة"/"اليوم" if they
   // qualify by date, and under "مكتملة" once they're done.
-  const tasks = activeTab === "active"
-    ? rawTasks.filter((t) => t.canStart !== false)
-    : rawTasks;
+  //
+  // Project mode (projectId set) is the exception: the executor is looking
+  // at the full project board and explicitly wants to see waiting tasks
+  // alongside the ready ones. We surface every task and rely on the
+  // per-row "في الانتظار" indicator to mark the blocked ones.
+  const tasks =
+    activeTab === "active" && !projectId
+      ? rawTasks.filter((t) => t.canStart !== false)
+      : rawTasks;
 
   // Reset pagination whenever the user switches tab
   useEffect(() => {
@@ -739,15 +745,19 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
         })}
       </div>
 
-      {/* Active-tab notice — explains that blocked (sequential / payment-locked)
-          tasks are intentionally hidden so the queue stays focused. */}
+      {/* Active-tab notice — wording differs by mode:
+          - my-tasks mode: blocked tasks are hidden, so we say so
+          - project mode: blocked tasks are visible but marked, so we explain
+            that linked tasks wait for their predecessor */}
       {activeTab === "active" && (
         <p
           className="text-xs mb-4 flex items-center gap-1.5"
           style={{ color: "#6B7280" }}
         >
           <CircleDot size={12} style={{ color: "#C9A84C" }} />
-          تظهر فقط المهام الجاهزة للبدء
+          {projectId
+            ? "المهام المرتبطة تنتظر انتهاء المهمة التي قبلها — المستقلة جاهزة للبدء"
+            : "تظهر فقط المهام الجاهزة للبدء"}
         </p>
       )}
 
