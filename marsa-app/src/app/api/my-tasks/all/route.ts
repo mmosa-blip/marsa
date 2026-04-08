@@ -39,6 +39,12 @@ export async function GET(request: NextRequest) {
     // one task in the project (as primary assignee or as a TaskAssignment
     // collaborator). Otherwise we'd be leaking project tasks to anyone who
     // can guess a project id.
+    //
+    // On gate failure we return an empty list (200) instead of 403 so the
+    // client UI degrades to "no tasks" rather than an error toast or stuck
+    // loading state. The picker chips in the executor city can show
+    // projects the user only has TaskAssignment access to, so a 403 here
+    // would surface as a confusing error in those cases.
     if (projectId && !["ADMIN", "MANAGER"].includes(session.user.role)) {
       const hasAccess = await prisma.task.findFirst({
         where: {
@@ -51,7 +57,7 @@ export async function GET(request: NextRequest) {
         select: { id: true },
       });
       if (!hasAccess) {
-        return NextResponse.json({ error: "ليس لديك صلاحية" }, { status: 403 });
+        return NextResponse.json({ tasks: [], total: 0, page: 1, totalPages: 0 });
       }
     }
 
