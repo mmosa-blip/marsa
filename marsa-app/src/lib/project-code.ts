@@ -6,6 +6,12 @@
  *
  * Example: 2026 003 02 017 0042  →  2026003020170042
  *
+ * Year semantics — the YYYY segment is the **contract year**, not the
+ * system creation year. Resolution priority:
+ *   1. explicit `year` argument (used by tests / future backfills)
+ *   2. linked Contract.startDate year
+ *   3. current year (project has no contract, or contract has no startDate)
+ *
  * Each segment falls back to zeros when its source field is missing
  * (no client, no department, no linked contract, etc.) so the code is
  * always well-formed and the same width — easier to align in UI.
@@ -31,8 +37,9 @@ export interface GenerateProjectCodeArgs {
   // Optional override for seq — used during regeneration so the project
   // keeps its existing tail instead of getting a brand-new sequence.
   seqOverride?: number | null;
-  // Optional override for the year — defaults to "now". Lets a future
-  // backfill or test pin a deterministic year.
+  // Optional override for the year. When omitted, the generator derives
+  // the year from the linked contract's startDate, falling back to the
+  // current year.
   year?: number;
 }
 
@@ -45,9 +52,6 @@ export async function generateProjectCode(
   prisma: PrismaClient,
   args: GenerateProjectCodeArgs
 ): Promise<GenerateProjectCodeResult> {
-  const year = args.year ?? new Date().getFullYear();
-  const yearStr = String(year);
-
   // ── Client number (3 digits) ──
   const client = await prisma.user.findUnique({
     where: { id: args.clientId },
@@ -65,19 +69,30 @@ export async function generateProjectCode(
     deptNo = String(dept?.deptNumber ?? 0).padStart(2, "0");
   }
 
-  // ── Contract number (3 digits) ──
-  // Override (if passed) takes precedence — used by the edit-contract-number
-  // flow where the new value isn't persisted yet.
-  let contractNo = "000";
-  if (args.contractNumberOverride != null) {
-    contractNo = String(args.contractNumberOverride).padStart(3, "0");
-  } else if (args.contractId) {
+  // ── Contract data (single fetch for both number AND startDate) ──
+  // Override (if passed) takes precedence on the number — used by the
+  // edit-contract-number flow where the new value isn't persisted yet.
+  let contractNo = args.contractNumberOverride != null
+    ? String(args.contractNumberOverride).padStart(3, "0")
+    : "000";
+  let yearFromContract: number | null = null;
+  if (args.contractId) {
     const contract = await prisma.contract.findUnique({
       where: { id: args.contractId },
-      select: { contractNumber: true },
+      select: { contractNumber: true, startDate: true },
     });
-    contractNo = String(contract?.contractNumber ?? 0).padStart(3, "0");
+    if (args.contractNumberOverride == null) {
+      contractNo = String(contract?.contractNumber ?? 0).padStart(3, "0");
+    }
+    if (contract?.startDate) {
+      yearFromContract = new Date(contract.startDate).getFullYear();
+    }
   }
+
+  // ── Year (4 digits) ──
+  // explicit override > contract.startDate year > now
+  const year = args.year ?? yearFromContract ?? new Date().getFullYear();
+  const yearStr = String(year);
 
   // ── Sequence (4 digits) ──
   let seq: number;

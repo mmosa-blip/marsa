@@ -136,7 +136,6 @@ export async function PATCH(
           contractId: id,
           contractNumberOverride: parsed,
           seqOverride: p.projectSeq,
-          year: p.createdAt.getFullYear(),
         });
         await prisma.project.update({
           where: { id: p.id },

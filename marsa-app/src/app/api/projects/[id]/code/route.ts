@@ -85,14 +85,14 @@ export async function PATCH(
       data: { contractNumber: parsed },
     });
 
-    // 2. Regenerate this project's code, preserving its seq.
+    // 2. Regenerate this project's code, preserving its seq. Year is
+    //    derived from the linked contract's startDate inside the generator.
     const { code } = await generateProjectCode(prisma, {
       clientId: project.clientId,
       departmentId: project.departmentId,
       contractId: project.contractId,
       contractNumberOverride: parsed,
       seqOverride: project.projectSeq,
-      year: project.createdAt.getFullYear(),
     });
     const updated = await prisma.project.update({
       where: { id },
@@ -114,7 +114,6 @@ export async function PATCH(
         contractId: project.contractId,
         contractNumberOverride: parsed,
         seqOverride: s.projectSeq,
-        year: s.createdAt.getFullYear(),
       });
       await prisma.project.update({
         where: { id: s.id },
