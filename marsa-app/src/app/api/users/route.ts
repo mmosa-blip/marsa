@@ -48,7 +48,12 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const isActive = searchParams.get("isActive");
 
-    const where: Record<string, unknown> = {};
+    // Always exclude soft-deleted rows. Without this, users that have been
+    // deleted via DELETE /api/users/[id] (which sets deletedAt + isActive=false)
+    // would still appear in the listing — the user-preview page would look
+    // like the delete button did nothing because the same row keeps coming
+    // back on every reload.
+    const where: Record<string, unknown> = { deletedAt: null };
 
     if (role) {
       where.role = role;
