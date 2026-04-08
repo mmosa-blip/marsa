@@ -213,6 +213,22 @@ export async function DELETE(
       );
     }
 
+    // ─── Detach the user from every active relation BEFORE soft delete ───
+    // A soft delete leaves the row in place, but every link that still
+    // points at the user (assigned tasks, service permissions, qualified
+    // template lists, multi-executor task assignments…) would keep them
+    // surfacing in queues, pickers and assignment logic. Wipe each one
+    // here so the user cleanly disappears from the operational system
+    // even though the audit row sticks around. Each statement is
+    // independent — pgbouncer doesn't allow interactive transactions.
+    await prisma.task.updateMany({
+      where: { assigneeId: id, status: { notIn: ["DONE", "CANCELLED"] } },
+      data: { assigneeId: null },
+    });
+    await prisma.userService.deleteMany({ where: { userId: id } });
+    await prisma.serviceTemplateEmployee.deleteMany({ where: { userId: id } });
+    await prisma.taskAssignment.deleteMany({ where: { userId: id } });
+
     // Soft delete only — never hard delete users
     await prisma.user.update({
       where: { id },
