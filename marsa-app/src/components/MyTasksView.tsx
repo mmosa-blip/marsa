@@ -357,12 +357,17 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   // clutter the queue. They still appear under "متأخرة"/"اليوم" if they
   // qualify by date, and under "مكتملة" once they're done.
   //
-  // Project mode (projectId set) is the exception: the executor is looking
-  // at the full project board and explicitly wants to see waiting tasks
-  // alongside the ready ones. We surface every task and rely on the
-  // per-row "في الانتظار" indicator to mark the blocked ones.
+  // Two exceptions surface every task (including blocked ones):
+  //   1. Project mode (projectId prop) — the executor is browsing the
+  //      full project board from /dashboard/executor-city.
+  //   2. The user picked a specific project from the toolbar dropdown
+  //      (projectFilter) — they're focused on one project and want to
+  //      see waiting tasks too.
+  // In both cases the per-row badges below mark the blocked rows so
+  // the user can tell at a glance which ones aren't ready yet.
+  const showAllStates = !!projectId || !!projectFilter;
   const tasks =
-    activeTab === "active" && !projectId
+    activeTab === "active" && !showAllStates
       ? rawTasks.filter((t) => t.canStart !== false)
       : rawTasks;
 
@@ -757,7 +762,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
           style={{ color: "#6B7280" }}
         >
           <CircleDot size={12} style={{ color: "#C9A84C" }} />
-          {projectId
+          {showAllStates
             ? "المهام المرتبطة تنتظر انتهاء المهمة التي قبلها — المستقلة جاهزة للبدء"
             : "تظهر فقط المهام الجاهزة للبدء"}
         </p>
@@ -984,10 +989,32 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                         </td>
                         {/* Title */}
                         <td className="px-5 py-4">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-semibold" style={{ color: "#1C1B2E" }}>
                               {task.title}
                             </p>
+                            {/* Block-state badges — surfaced when canStart=false
+                                so executors can tell at a glance why a row
+                                isn't actionable yet (sequential predecessor
+                                vs. unpaid linked installment). */}
+                            {task.canStart === false && task.blockReason === "sequential" && (
+                              <span
+                                className="px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
+                                style={{ backgroundColor: "rgba(234,88,12,0.1)", color: "#EA580C" }}
+                                title="هذه المهمة تنتظر انتهاء المهمة السابقة في نفس الخدمة أو في الخدمة التي قبلها"
+                              >
+                                ⏳ تنتظر مهمة سابقة
+                              </span>
+                            )}
+                            {task.canStart === false && task.blockReason === "payment" && (
+                              <span
+                                className="px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
+                                style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#DC2626" }}
+                                title="هذه المهمة مرتبطة بدفعة مقفلة — تُفتح تلقائياً عند تسديد الدفعة"
+                              >
+                                🔒 تنتظر دفعة
+                              </span>
+                            )}
                             {task.isTransferred && task.transferInfo && (
                               <span
                                 className="px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
