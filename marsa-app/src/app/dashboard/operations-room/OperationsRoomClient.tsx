@@ -261,6 +261,8 @@ export default function OperationsRoomClient() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null);
   const [assigning, setAssigning] = useState(false);
+  // Multi-select state for the assign modal — reset whenever the modal opens.
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
 
   // ── Auth gate ──
   useEffect(() => {
@@ -409,8 +411,12 @@ export default function OperationsRoomClient() {
   };
 
   // ── Assign action ──
-  const performAssign = async (userId: string) => {
+  // Multi-executor: posts the full set of selected userIds in one request.
+  // The server distributes tasks round-robin per service for project/service
+  // types and adds collaborators via TaskAssignment for the task type.
+  const performAssign = async () => {
     if (!assignTarget) return;
+    if (selectedUserIds.size === 0) return;
     setAssigning(true);
     try {
       const res = await fetch("/api/operations/assign", {
@@ -419,7 +425,7 @@ export default function OperationsRoomClient() {
         body: JSON.stringify({
           type: assignTarget.type,
           targetId: assignTarget.targetId,
-          userId,
+          userIds: Array.from(selectedUserIds),
         }),
       });
       if (!res.ok) {
@@ -429,11 +435,31 @@ export default function OperationsRoomClient() {
       }
       refreshOverview();
       setAssignTarget(null);
+      setSelectedUserIds(new Set());
     } catch (err) {
       alert(err instanceof Error ? err.message : "حدث خطأ");
     } finally {
       setAssigning(false);
     }
+  };
+
+  // Reset the multi-select set whenever the modal target changes (open/close).
+  const openAssign = (target: AssignTarget) => {
+    setSelectedUserIds(new Set());
+    setAssignTarget(target);
+  };
+  const closeAssign = () => {
+    if (assigning) return;
+    setAssignTarget(null);
+    setSelectedUserIds(new Set());
+  };
+  const toggleUserSelect = (userId: string) => {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
   };
 
   if (status === "loading") return null;
@@ -561,7 +587,7 @@ export default function OperationsRoomClient() {
                               variant="secondary"
                               size="xs"
                               icon={<UserPlus size={11} />}
-                              onClick={() => setAssignTarget({ type: "project", targetId: proj.id, label: proj.name })}
+                              onClick={() => openAssign({ type: "project", targetId: proj.id, label: proj.name })}
                             >
                               ربط منفذ
                             </MarsaButton>
@@ -611,7 +637,7 @@ export default function OperationsRoomClient() {
                                         variant="secondary"
                                         size="xs"
                                         icon={<UserPlus size={11} />}
-                                        onClick={() => setAssignTarget({
+                                        onClick={() => openAssign({
                                           type: "service",
                                           targetId: svc.id,
                                           label: `${svc.name} — ${proj.name}`,
@@ -667,7 +693,7 @@ export default function OperationsRoomClient() {
                                                 variant="secondary"
                                                 size="xs"
                                                 icon={<UserPlus size={10} />}
-                                                onClick={() => setAssignTarget({ type: "task", targetId: task.id, label: task.title })}
+                                                onClick={() => openAssign({ type: "task", targetId: task.id, label: task.title })}
                                               >
                                                 إسناد
                                               </MarsaButton>
@@ -692,41 +718,49 @@ export default function OperationsRoomClient() {
         </div>
       )}
 
-      {/* ─── ASSIGN MODAL (shared) ─── */}
+      {/* ─── ASSIGN MODAL (shared, multi-select) ─── */}
       {assignTarget && overview && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => !assigning && setAssignTarget(null)}
+          onClick={closeAssign}
         >
           <div
-            className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto"
+            className="bg-white rounded-2xl w-full max-w-md flex flex-col"
+            style={{ maxHeight: "85vh" }}
             dir="rtl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-5 sticky top-0 bg-white" style={{ borderBottom: "1px solid #F0EDE6" }}>
+            {/* Header */}
+            <div className="p-5 flex-shrink-0" style={{ borderBottom: "1px solid #F0EDE6" }}>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-base font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
                   <UserPlus size={18} style={{ color: "#C9A84C" }} />
-                  ربط منفذ
+                  {assignTarget.type === "task" ? "إسناد لعدة منفذين" : "ربط عدة منفذين"}
                 </h2>
                 <button
                   type="button"
-                  onClick={() => !assigning && setAssignTarget(null)}
+                  onClick={closeAssign}
                   className="p-1.5 rounded-lg"
                   style={{ color: "#9CA3AF" }}
                 >
                   <X size={18} />
                 </button>
               </div>
-              <p className="text-xs" style={{ color: "#6B7280" }}>
-                {assignTarget.type === "project" && "ربط منفذ بكل خدمات المشروع: "}
-                {assignTarget.type === "service" && "ربط منفذ بالخدمة: "}
+              <p className="text-xs mb-1" style={{ color: "#6B7280" }}>
+                {assignTarget.type === "project" && "ربط منفذين بكل خدمات المشروع: "}
+                {assignTarget.type === "service" && "ربط منفذين بالخدمة: "}
                 {assignTarget.type === "task" && "إسناد المهمة: "}
                 <span className="font-bold" style={{ color: "#1C1B2E" }}>{assignTarget.label}</span>
               </p>
+              <p className="text-[11px]" style={{ color: "#9CA3AF" }}>
+                {assignTarget.type === "task"
+                  ? "أول منفذ يصبح المسؤول الرئيسي والباقون يظهرون كمتعاونين."
+                  : "تُوزَّع المهام بالتساوي بين المنفذين المختارين (round-robin)."}
+              </p>
             </div>
 
-            <div className="p-4 space-y-2">
+            {/* List */}
+            <div className="p-4 space-y-2 overflow-y-auto flex-1 min-h-0">
               {overview.executors.length === 0 && (
                 <p className="text-center text-xs py-4" style={{ color: "#9CA3AF" }}>لا يوجد منفذون متاحون</p>
               )}
@@ -735,16 +769,30 @@ export default function OperationsRoomClient() {
                   ex.loadPercent >= 90 ? "#DC2626" :
                   ex.loadPercent >= 60 ? "#EA580C" :
                   ex.loadPercent >= 30 ? "#C9A84C" : "#22C55E";
+                const selected = selectedUserIds.has(ex.id);
                 return (
                   <button
                     key={ex.id}
                     type="button"
                     disabled={assigning}
-                    onClick={() => performAssign(ex.id)}
+                    onClick={() => toggleUserSelect(ex.id)}
                     className="w-full p-3 rounded-xl text-right transition-all hover:shadow-sm disabled:opacity-50"
-                    style={{ border: "1px solid #E2E0D8", backgroundColor: "white" }}
+                    style={{
+                      border: selected ? "2px solid #C9A84C" : "1px solid #E2E0D8",
+                      backgroundColor: selected ? "rgba(201,168,76,0.06)" : "white",
+                    }}
                   >
                     <div className="flex items-center gap-3">
+                      {/* Checkbox indicator */}
+                      <div
+                        className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-colors"
+                        style={{
+                          backgroundColor: selected ? "#C9A84C" : "white",
+                          border: selected ? "2px solid #C9A84C" : "2px solid #D1D5DB",
+                        }}
+                      >
+                        {selected && <CheckCircle2 size={12} style={{ color: "white" }} />}
+                      </div>
                       <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: "#5E5495" }}>
                         {ex.initials}
                       </div>
@@ -775,11 +823,23 @@ export default function OperationsRoomClient() {
               })}
             </div>
 
-            {assigning && (
-              <div className="p-3 flex justify-center" style={{ borderTop: "1px solid #F0EDE6" }}>
-                <Loader2 size={20} className="animate-spin" style={{ color: "#C9A84C" }} />
-              </div>
-            )}
+            {/* Sticky footer with submit */}
+            <div className="p-4 flex-shrink-0 flex items-center justify-between gap-3" style={{ borderTop: "1px solid #F0EDE6" }}>
+              <span className="text-xs" style={{ color: "#6B7280" }}>
+                {selectedUserIds.size === 0
+                  ? "لم يُحدَّد أحد"
+                  : `تم تحديد ${selectedUserIds.size.toLocaleString("en-US")} منفذ`}
+              </span>
+              <MarsaButton
+                variant="primary"
+                size="sm"
+                disabled={assigning || selectedUserIds.size === 0}
+                icon={assigning ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                onClick={performAssign}
+              >
+                {assigning ? "جاري التنفيذ…" : "تنفيذ الإسناد"}
+              </MarsaButton>
+            </div>
           </div>
         </div>
       )}
