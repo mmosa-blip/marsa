@@ -2629,7 +2629,7 @@ export default function NewProjectPage() {
         </div>
 
         <div>
-          {currentStep < 7 ? (
+          {currentStep < 6 ? (
             <MarsaButton variant="primary" size="lg" onClick={handleNext} disabled={!canGoNext()}>
               التالي
               <ChevronLeft size={16} />
