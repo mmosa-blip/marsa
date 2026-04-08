@@ -198,6 +198,11 @@ export default function NewProjectPage() {
   const [inlineClientError, setInlineClientError] = useState("");
 
   const [projectName, setProjectName] = useState("");
+  // Tracks whether the user has manually edited the name field. The
+  // auto-fill effect (template + client → "{template} - {client}") only
+  // runs while this is false; once the user types, their value is left
+  // alone even if they later swap template or client.
+  const [projectNameTouched, setProjectNameTouched] = useState(false);
   const [description, setDescription] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [departments, setDepartments] = useState<{id:string;name:string;nameEn:string|null;color:string|null}[]>([]);
@@ -352,6 +357,17 @@ export default function NewProjectPage() {
       .catch(() => {})
       .finally(() => setLoadingTemplates(false));
   }, []);
+
+  // ─── Auto-fill project name from "{template name} - {client name}" ───
+  // Runs whenever the picked template or client changes. Stops as soon
+  // as the user manually edits the field — their value wins forever.
+  useEffect(() => {
+    if (projectNameTouched) return;
+    if (!selectedTemplateId || !selectedClient) return;
+    const tpl = projectTemplates.find((t) => t.id === selectedTemplateId);
+    if (!tpl) return;
+    setProjectName(`${tpl.name} - ${selectedClient.name}`);
+  }, [selectedTemplateId, selectedClient, projectTemplates, projectNameTouched]);
 
   // ─── Fetch signed contracts when client is selected ───
   useEffect(() => {
@@ -1441,7 +1457,7 @@ export default function NewProjectPage() {
                 <input
                   type="text"
                   value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
+                  onChange={(e) => { setProjectName(e.target.value); setProjectNameTouched(true); }}
                   placeholder="أدخل اسم المشروع"
                   className="w-full px-4 py-3 rounded-xl border text-sm outline-none transition-all focus:ring-2"
                   style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}
