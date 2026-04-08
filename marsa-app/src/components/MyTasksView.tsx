@@ -381,34 +381,32 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
     setSelectedTasks(new Set());
   }, [data]);
 
-  // Stats counts from all tasks
+  // Stats counts. We pull every task in one shot (limit=999) and count
+  // them client-side instead of making 4 separate HTTP calls per status.
+  // The previous design fired 4 status-filtered requests in parallel and
+  // any one of them returning an error (e.g. a 403 in project mode) silently
+  // left the stats at zero. One request is simpler, more accurate, and
+  // matches the project filter automatically.
   const [stats, setStats] = useState({ TODO: 0, IN_PROGRESS: 0, DONE: 0 });
   const [myServicesCount, setMyServicesCount] = useState(0);
 
   useEffect(() => {
-    const statuses = ["TODO", "IN_PROGRESS", "DONE"];
     const projectQs = projectId ? `&projectId=${encodeURIComponent(projectId)}` : "";
-    Promise.all([
-      ...statuses.map((s) =>
-        fetch(`/api/my-tasks/all?status=${s}&limit=1${projectQs}`)
-          .then((r) => r.json())
-          .then((d: ApiResponse) => ({ status: s, count: d?.total || 0 }))
-      ),
-      fetch(`/api/my-tasks/all?limit=999${projectQs}`)
-        .then((r) => r.json())
-        .then((d: ApiResponse) => {
-          const serviceIds = new Set((d.tasks || []).map((t) => t.service?.id).filter(Boolean));
-          setMyServicesCount(serviceIds.size);
-        }),
-    ]).then((results) => {
-      const newStats: Record<string, number> = { TODO: 0, IN_PROGRESS: 0, DONE: 0 };
-      results.forEach((r) => {
-        if (r && typeof r === "object" && "status" in r) {
-          newStats[r.status] = r.count;
+    fetch(`/api/my-tasks/all?limit=999${projectQs}`)
+      .then((r) => r.json())
+      .then((d: ApiResponse) => {
+        const allTasks = d?.tasks || [];
+        const newStats = { TODO: 0, IN_PROGRESS: 0, DONE: 0 };
+        for (const t of allTasks) {
+          if (t.status === "TODO") newStats.TODO++;
+          else if (t.status === "IN_PROGRESS") newStats.IN_PROGRESS++;
+          else if (t.status === "DONE") newStats.DONE++;
         }
-      });
-      setStats(newStats as typeof stats);
-    }).catch(() => {});
+        setStats(newStats);
+        const serviceIds = new Set(allTasks.map((t) => t.service?.id).filter(Boolean));
+        setMyServicesCount(serviceIds.size);
+      })
+      .catch(() => {});
   }, [actionLoading, bulkLoading, projectId]);
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
