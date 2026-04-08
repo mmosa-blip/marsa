@@ -30,6 +30,7 @@ interface ApiService {
 interface ApiProject {
   id: string;
   name: string;
+  projectCode: string | null;
   status: string;
   endDate: string | null;
   progress: number;
@@ -951,8 +952,8 @@ export default function ExecutorCityPage() {
                   key={p.id}
                   type="button"
                   onClick={() => setPickedProjectId(p.id)}
-                  title={p.name}
-                  className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 max-w-[200px]"
+                  title={p.projectCode ? `${p.projectCode} — ${p.name}` : p.name}
+                  className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 max-w-[260px]"
                   style={
                     active
                       ? {
@@ -973,6 +974,17 @@ export default function ExecutorCityPage() {
                     style={{ backgroundColor: active ? "#FFFFFF" : (p.department?.color || "#C9A84C") }}
                   />
                   <span className="truncate">{p.name}</span>
+                  {p.projectCode && (
+                    <span
+                      className="text-[9px] font-mono font-bold flex-shrink-0 px-1 py-0.5 rounded"
+                      style={{
+                        backgroundColor: active ? "rgba(255,255,255,0.2)" : "rgba(94,84,149,0.1)",
+                        color: active ? "#FFFFFF" : "#5E5495",
+                      }}
+                    >
+                      {p.projectCode}
+                    </span>
+                  )}
                   <span
                     className="text-[10px] font-bold flex-shrink-0"
                     style={{ color: active ? "rgba(255,255,255,0.8)" : "#9CA3AF" }}
@@ -1007,11 +1019,21 @@ export default function ExecutorCityPage() {
             dir="rtl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
-                <Building2 size={20} style={{ color: "#C9A84C" }} />
-                {selected.name}
-              </h2>
+            <div className="flex items-start justify-between mb-4">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
+                  <Building2 size={20} style={{ color: "#C9A84C" }} />
+                  {selected.name}
+                </h2>
+                {selected.projectCode && (
+                  <span
+                    className="inline-block mt-1 px-2 py-0.5 rounded font-mono text-[11px] font-bold tracking-wider"
+                    style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495", border: "1px solid rgba(94,84,149,0.18)" }}
+                  >
+                    {selected.projectCode}
+                  </span>
+                )}
+              </div>
               <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg" style={{ color: "#9CA3AF" }}>
                 <X size={18} />
               </button>

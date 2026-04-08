@@ -87,7 +87,7 @@ export async function GET(
             priority: true,
             dueDate: true,
             createdAt: true,
-            project: { select: { id: true, name: true } },
+            project: { select: { id: true, name: true, projectCode: true } },
           },
           orderBy: { createdAt: "desc" },
           take: 10,

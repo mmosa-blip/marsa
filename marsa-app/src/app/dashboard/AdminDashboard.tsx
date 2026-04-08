@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 import ExpiringContractsWidget from "@/components/ExpiringContractsWidget";
 import LeaderboardWidget from "@/components/LeaderboardWidget";
 import {
@@ -57,8 +58,8 @@ export default function AdminDashboard({ data, userName }: Props) {
 
   const monthlyRevenue = data.monthlyRevenue as { month: string; revenue: number }[];
   const projectsByStatus = data.projectsByStatus as { active: number; completed: number; delayed: number; onHold: number } | undefined;
-  const delayedProjects = (data.delayedProjects || []) as { id: string; name: string; client: string; delayedTasks: number; maxDelayDays: number }[];
-  const recentOrders = data.recentOrders as { id: string; name: string; client: string; status: string; progress: number }[];
+  const delayedProjects = (data.delayedProjects || []) as { id: string; name: string; projectCode: string | null; client: string; delayedTasks: number; maxDelayDays: number }[];
+  const recentOrders = data.recentOrders as { id: string; name: string; projectCode: string | null; client: string; status: string; progress: number }[];
   const executorPerformance = data.executorPerformance as {
     id: string; name: string; totalTasks: number; completedTasks: number; inProgressTasks: number; rate: number;
   }[];
@@ -247,7 +248,10 @@ export default function AdminDashboard({ data, userName }: Props) {
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-[12px] font-semibold truncate" style={{ color: "#1C1B2E" }}>{p.name}</p>
-                          <p className="text-[10px]" style={{ color: "#6B7280" }}>{p.client}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-[10px]" style={{ color: "#6B7280" }}>{p.client}</p>
+                            <ProjectCodeBadge code={p.projectCode} size="xs" inline />
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: "#FEE2E2", color: "#DC2626" }}>
@@ -310,7 +314,10 @@ export default function AdminDashboard({ data, userName }: Props) {
                       <FolderKanban size={16} style={{ color: "#1C1B2E" }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate" style={{ color: "#1C1B2E" }}>{order.name}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-semibold truncate" style={{ color: "#1C1B2E" }}>{order.name}</p>
+                        <ProjectCodeBadge code={order.projectCode} size="xs" inline />
+                      </div>
                       <p className="text-xs mt-0.5" style={{ color: "#2D3748", opacity: 0.5 }}>{order.client}</p>
                     </div>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0" style={{ backgroundColor: st.bg, color: st.text }}>

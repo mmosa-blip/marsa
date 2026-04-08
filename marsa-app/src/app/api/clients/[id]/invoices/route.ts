@@ -21,7 +21,7 @@ export async function GET(
         include: {
           company: { select: { name: true } },
           payments: { select: { amount: true } },
-          project: { select: { name: true } },
+          project: { select: { id: true, name: true, projectCode: true } },
         },
         orderBy: { createdAt: "desc" },
       }),
@@ -30,7 +30,7 @@ export async function GET(
         include: {
           company: { select: { name: true } },
           payments: { select: { amount: true } },
-          project: { select: { name: true } },
+          project: { select: { id: true, name: true, projectCode: true } },
         },
         orderBy: { createdAt: "desc" },
       }),

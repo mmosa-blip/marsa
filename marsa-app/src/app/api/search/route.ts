@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         name: true,
+        projectCode: true,
         status: true,
         client: { select: { name: true } },
       },
@@ -98,6 +99,7 @@ export async function GET(request: NextRequest) {
     const projects = foundProjects.map((p) => ({
       id: p.id,
       name: p.name,
+      projectCode: p.projectCode,
       status: p.status,
       clientName: p.client.name,
       link: `/dashboard/projects/${p.id}`,
@@ -119,7 +121,7 @@ export async function GET(request: NextRequest) {
         title: true,
         status: true,
         projectId: true,
-        project: { select: { name: true } },
+        project: { select: { name: true, projectCode: true } },
       },
       take: 5,
     });

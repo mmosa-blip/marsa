@@ -28,6 +28,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 
 interface ContractTemplate {
   id: string;
@@ -47,7 +48,7 @@ interface Contract {
   client: { id: string; name: string };
   issuedBy: { id: string; name: string };
   approvedBy: { id: string; name: string } | null;
-  project: { id: string; name: string } | null;
+  project: { id: string; name: string; projectCode?: string | null } | null;
   approvedAt: string | null;
   sentAt: string | null;
   signedAt: string | null;
@@ -690,8 +691,11 @@ export default function ContractsPage() {
                       </td>
                       <td className="px-5 py-4">
                         {c.project ? (
-                          <div className="flex items-center gap-1.5 text-sm" style={{ color: "#2D3748" }}>
-                            <FolderKanban size={14} style={{ color: "#94A3B8" }} />{c.project.name}
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5 text-sm" style={{ color: "#2D3748" }}>
+                              <FolderKanban size={14} style={{ color: "#94A3B8" }} />{c.project.name}
+                            </div>
+                            <ProjectCodeBadge code={c.project.projectCode} size="xs" inline />
                           </div>
                         ) : <span className="text-sm" style={{ color: "#94A3B8" }}>—</span>}
                       </td>

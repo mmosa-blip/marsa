@@ -40,6 +40,7 @@ export async function GET() {
       return {
         id: p.id,
         name: p.name,
+        projectCode: p.projectCode,
         description: p.description,
         status: p.status,
         priority: p.priority,

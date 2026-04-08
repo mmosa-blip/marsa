@@ -23,6 +23,7 @@ import ExpiringContractsWidget from "@/components/ExpiringContractsWidget";
 interface ProjectHealth {
   id: string;
   name: string;
+  projectCode: string | null;
   client: string;
   status: string;
   statusLabel: string;
@@ -215,8 +216,13 @@ export default function DepartmentHealthPage() {
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <p className="text-sm font-bold truncate" style={{ color: "#1C1B2E" }}>{project.name}</p>
+                      {project.projectCode && (
+                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495", border: "1px solid rgba(94,84,149,0.18)" }}>
+                          {project.projectCode}
+                        </span>
+                      )}
                       <span
                         className="px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0"
                         style={{ backgroundColor: `${project.healthColor}12`, color: project.healthColor }}

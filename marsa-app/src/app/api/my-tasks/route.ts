@@ -28,6 +28,7 @@ export async function GET() {
         select: {
           id: true,
           name: true,
+          projectCode: true,
           ...(!isExternalProvider && {
             client: { select: { id: true, name: true } },
           }),

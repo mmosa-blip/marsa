@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         client: { select: { id: true, name: true } },
         issuedBy: { select: { id: true, name: true } },
         approvedBy: { select: { id: true, name: true } },
-        project: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, projectCode: true } },
         installments: { orderBy: { order: "asc" } },
       },
       orderBy: { createdAt: "desc" },
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
         template: { select: { id: true, title: true } },
         client: { select: { id: true, name: true } },
         issuedBy: { select: { id: true, name: true } },
-        project: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, projectCode: true } },
         installments: { orderBy: { order: "asc" } },
       },
     });

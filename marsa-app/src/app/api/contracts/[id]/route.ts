@@ -26,7 +26,7 @@ export async function GET(
         client: { select: { id: true, name: true } },
         issuedBy: { select: { id: true, name: true } },
         approvedBy: { select: { id: true, name: true } },
-        project: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, projectCode: true } },
         installments: { orderBy: { order: "asc" } },
         addenda: {
           orderBy: { order: "asc" },

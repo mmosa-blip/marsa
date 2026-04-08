@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
       return {
         id: p.id,
         name: p.name,
+        projectCode: p.projectCode,
         status: p.status,
         client: p.client.name,
         startDate: p.startDate,

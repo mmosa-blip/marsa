@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       where,
       include: {
         company: { select: { name: true } },
-        project: { select: { name: true, client: { select: { name: true } } } },
+        project: { select: { id: true, name: true, projectCode: true, client: { select: { name: true } } } },
         items: true,
         payments: true,
         createdBy: { select: { name: true } },

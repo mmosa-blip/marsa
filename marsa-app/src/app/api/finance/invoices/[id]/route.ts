@@ -16,7 +16,7 @@ export async function GET(
       where: { id },
       include: {
         company: { select: { name: true, commercialRegister: true } },
-        project: { select: { name: true, client: { select: { name: true, email: true } } } },
+        project: { select: { id: true, name: true, projectCode: true, client: { select: { name: true, email: true } } } },
         items: true,
         payments: { orderBy: { paymentDate: "desc" } },
         createdBy: { select: { name: true } },

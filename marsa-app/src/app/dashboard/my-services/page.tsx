@@ -23,7 +23,7 @@ interface ServiceItem {
   totalTasks: number;
   completedTasks: number;
   projectId: string | null;
-  project: { name: string; status: string } | null;
+  project: { name: string; projectCode?: string | null; status: string } | null;
 }
 
 export default function MyServicesPage() {
@@ -156,6 +156,11 @@ export default function MyServicesPage() {
             >
               <Clock size={13} />
               <span>ضمن مشروع: {service.project.name}</span>
+              {service.project.projectCode && (
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495" }}>
+                  {service.project.projectCode}
+                </span>
+              )}
             </Link>
           </div>
         )}

@@ -121,7 +121,7 @@ interface UserDetails {
     priority: string;
     dueDate: string | null;
     createdAt: string;
-    project: { id: string; name: string };
+    project: { id: string; name: string; projectCode?: string | null };
   }>;
   taskRejections?: Array<{
     id: string;
@@ -835,12 +835,16 @@ export default function UserDetailsPage() {
                           </span>
                         </td>
                         <td className="px-5 py-3">
-                          <span
-                            className="text-sm"
-                            style={{ color: "#2D3748" }}
-                          >
-                            {task.project?.name || "—"}
-                          </span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm" style={{ color: "#2D3748" }}>
+                              {task.project?.name || "—"}
+                            </span>
+                            {task.project?.projectCode && (
+                              <span className="font-mono text-[9px] font-bold" style={{ color: "#5E5495" }}>
+                                {task.project.projectCode}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-5 py-3">
                           <StatusBadge

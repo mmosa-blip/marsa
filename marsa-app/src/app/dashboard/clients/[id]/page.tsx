@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 
 // ===== Types =====
 interface ClientData {
@@ -27,7 +28,7 @@ interface ClientData {
 }
 
 interface ProjectItem {
-  id: string; name: string; status: string; priority: string; startDate: string | null; endDate: string | null;
+  id: string; name: string; projectCode: string | null; status: string; priority: string; startDate: string | null; endDate: string | null;
   progress: number; totalTasks: number; completedTasks: number;
   manager: { name: string } | null;
   invoices: { totalAmount: number; status: string }[];
@@ -40,12 +41,12 @@ interface ServiceItem {
 
 interface TaskItem {
   id: string; title: string; status: string; priority: string; dueDate: string | null;
-  project: { name: string }; service: { name: string } | null; assignee: { name: string } | null;
+  project: { name: string; projectCode?: string | null }; service: { name: string } | null; assignee: { name: string } | null;
 }
 
 interface InvoiceItem {
   id: string; invoiceNumber: string; title: string; totalAmount: number; status: string;
-  dueDate: string; company: { name: string }; project: { name: string } | null;
+  dueDate: string; company: { name: string }; project: { name: string; projectCode?: string | null } | null;
   payments: { amount: number }[];
 }
 
@@ -399,7 +400,7 @@ function ProjectsTab({ projects }: { projects: ProjectItem[] }) {
         return (
           <Link key={p.id} href={`/dashboard/projects/${p.id}`} className="bg-white rounded-2xl p-5 block hover:shadow-md transition-all" style={{ border: "1px solid #E2E0D8" }}>
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3"><h3 className="text-base font-bold" style={{ color: "#1C1B2E" }}>{p.name}</h3><span className="px-2.5 py-1 rounded-full text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></div>
+              <div className="flex items-center gap-3 flex-wrap"><h3 className="text-base font-bold" style={{ color: "#1C1B2E" }}>{p.name}</h3><ProjectCodeBadge code={p.projectCode} size="xs" /><span className="px-2.5 py-1 rounded-full text-[11px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></div>
               {p.manager && <span className="text-xs" style={{ color: "#94A3B8" }}>المدير: {p.manager.name}</span>}
             </div>
             <div className="flex items-center gap-6 text-sm" style={{ color: "#2D3748" }}>
@@ -497,6 +498,7 @@ function TasksTab({ tasks }: { tasks: TaskItem[] }) {
                         <p className="text-sm font-medium mb-1.5" style={{ color: "#1C1B2E" }}>{task.title}</p>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}>{task.project.name}</span>
+                          <ProjectCodeBadge code={task.project.projectCode} size="xs" inline />
                           <span className="text-[10px]" style={{ color: pr.color }}>{pr.label}</span>
                           {task.assignee && <span className="text-[10px]" style={{ color: "#94A3B8" }}>{task.assignee.name}</span>}
                         </div>
@@ -512,7 +514,7 @@ function TasksTab({ tasks }: { tasks: TaskItem[] }) {
         <div className="bg-white rounded-2xl overflow-hidden" style={{ border: "1px solid #E2E0D8" }}>
           <table className="w-full">
             <thead><tr style={{ backgroundColor: "rgba(27,42,74,0.03)", borderBottom: "1px solid #E2E0D8" }}>{["المهمة", "المشروع", "الحالة", "الأولوية", "المسؤول"].map((h, i) => (<th key={i} className="text-right px-4 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.6 }}>{h}</th>))}</tr></thead>
-            <tbody>{tasks.map((task) => { const st = taskStatusConfig[task.status] || taskStatusConfig.TODO; const pr = priorityConfig[task.priority] || priorityConfig.MEDIUM; return (<tr key={task.id} className="hover:bg-gray-50/50" style={{ borderBottom: "1px solid #F0EDE6" }}><td className="px-4 py-3 text-sm font-medium" style={{ color: "#1C1B2E" }}>{task.title}</td><td className="px-4 py-3 text-xs" style={{ color: "#C9A84C" }}>{task.project.name}</td><td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td><td className="px-4 py-3 text-xs" style={{ color: pr.color }}>{pr.label}</td><td className="px-4 py-3 text-xs" style={{ color: "#94A3B8" }}>{task.assignee?.name || "—"}</td></tr>); })}</tbody>
+            <tbody>{tasks.map((task) => { const st = taskStatusConfig[task.status] || taskStatusConfig.TODO; const pr = priorityConfig[task.priority] || priorityConfig.MEDIUM; return (<tr key={task.id} className="hover:bg-gray-50/50" style={{ borderBottom: "1px solid #F0EDE6" }}><td className="px-4 py-3 text-sm font-medium" style={{ color: "#1C1B2E" }}>{task.title}</td><td className="px-4 py-3 text-xs" style={{ color: "#C9A84C" }}><div className="flex flex-col gap-0.5"><span>{task.project.name}</span><ProjectCodeBadge code={task.project.projectCode} size="xs" inline /></div></td><td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td><td className="px-4 py-3 text-xs" style={{ color: pr.color }}>{pr.label}</td><td className="px-4 py-3 text-xs" style={{ color: "#94A3B8" }}>{task.assignee?.name || "—"}</td></tr>); })}</tbody>
           </table>
         </div>
       )}

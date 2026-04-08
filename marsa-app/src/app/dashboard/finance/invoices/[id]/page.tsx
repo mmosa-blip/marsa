@@ -12,7 +12,7 @@ interface Invoice {
   subtotal: number; taxRate: number; taxAmount: number; totalAmount: number;
   status: string; issueDate: string; dueDate: string;
   company: { name: string; commercialRegister: string | null };
-  project: { name: string; client: { name: string; email: string } } | null;
+  project: { name: string; projectCode?: string | null; client: { name: string; email: string } } | null;
   items: { id: string; description: string; quantity: number; unitPrice: number; total: number }[];
   payments: { id: string; amount: number; method: string; referenceNumber: string | null; notes: string | null; paymentDate: string }[];
   createdBy: { name: string };
@@ -265,7 +265,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <h3 className="text-base font-bold mb-4" style={{ color: "#1C1B2E" }}>معلومات إضافية</h3>
             <div className="space-y-3">
               <div className="flex items-center gap-2"><Clock size={14} style={{ color: "#94A3B8" }} /><span className="text-xs" style={{ color: "#2D3748" }}>أنشأها: {invoice.createdBy.name}</span></div>
-              {invoice.project && <div className="flex items-center gap-2"><FileText size={14} style={{ color: "#94A3B8" }} /><span className="text-xs" style={{ color: "#2D3748" }}>المشروع: {invoice.project.name}</span></div>}
+              {invoice.project && <div className="flex items-center gap-2 flex-wrap"><FileText size={14} style={{ color: "#94A3B8" }} /><span className="text-xs" style={{ color: "#2D3748" }}>المشروع: {invoice.project.name}</span>{invoice.project.projectCode && (<span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495" }}>{invoice.project.projectCode}</span>)}</div>}
               {invoice.company.commercialRegister && <div className="text-xs" style={{ color: "#94A3B8" }}>السجل التجاري: {invoice.company.commercialRegister}</div>}
             </div>
           </div>

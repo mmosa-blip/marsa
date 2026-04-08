@@ -36,6 +36,7 @@ import {
   Building2,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 
 interface OverviewTask {
   id: string;
@@ -56,6 +57,7 @@ interface OverviewService {
 interface OverviewProject {
   id: string;
   name: string;
+  projectCode: string | null;
   department: { id: string; name: string; color: string | null } | null;
   progress: number;
   taskStats: { late: number; active: number; done: number };
@@ -550,6 +552,7 @@ export default function OperationsRoomClient() {
                               <span className="text-sm font-semibold truncate" style={{ color: "#1C1B2E" }} title={proj.name}>
                                 {proj.name}
                               </span>
+                              <ProjectCodeBadge code={proj.projectCode} size="xs" />
                               {/* progress */}
                               <span className="text-[10px] font-bold" style={{ color: "#6B7280" }}>{proj.progress}%</span>
                               <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#F0EEF5" }}>

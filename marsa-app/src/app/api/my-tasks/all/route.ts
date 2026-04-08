@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               name: true,
+              projectCode: true,
               isQuickService: true,
               client: { select: { id: true, name: true } },
               services: {

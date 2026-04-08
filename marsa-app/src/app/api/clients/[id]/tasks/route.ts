@@ -18,7 +18,7 @@ export async function GET(
     const tasks = await prisma.task.findMany({
       where: { project: { clientId: id } },
       include: {
-        project: { select: { name: true } },
+        project: { select: { id: true, name: true, projectCode: true } },
         service: { select: { name: true } },
         assignee: { select: { name: true } },
       },

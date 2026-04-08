@@ -51,7 +51,7 @@ interface Invoice {
   issueDate: string;
   dueDate: string;
   company: { name: string } | null;
-  project: { name: string } | null;
+  project: { name: string; projectCode?: string | null } | null;
   items: InvoiceItem[];
   payments: Payment[];
 }
@@ -245,6 +245,11 @@ export default function MyInvoicesPage() {
                           <span className="text-xs" style={{ color: "#C9A84C" }}>
                             {invoice.project.name}
                           </span>
+                          {invoice.project.projectCode && (
+                            <span className="text-[10px] font-mono px-1 py-0.5 rounded" style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495" }}>
+                              {invoice.project.projectCode}
+                            </span>
+                          )}
                         </>
                       )}
                     </div>

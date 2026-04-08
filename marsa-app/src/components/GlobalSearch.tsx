@@ -17,7 +17,7 @@ import SarSymbol from "@/components/SarSymbol";
 interface SearchResults {
   users: { id: string; name: string; email: string; role: string; link: string }[];
   clients: { id: string; name: string; commercialRegister: string | null; ownerName: string; link: string }[];
-  projects: { id: string; name: string; status: string; clientName: string; link: string }[];
+  projects: { id: string; name: string; projectCode: string | null; status: string; clientName: string; link: string }[];
   tasks: { id: string; title: string; status: string; projectName: string; link: string }[];
   invoices: { id: string; invoiceNumber: string; title: string; totalAmount: number; status: string; link: string }[];
 }
@@ -45,7 +45,8 @@ const categories = [
     label: "المشاريع",
     icon: FolderKanban,
     color: "#22C55E",
-    getName: (item: SearchResults["projects"][0]) => item.name,
+    getName: (item: SearchResults["projects"][0]) =>
+      item.projectCode ? `${item.name}  ·  ${item.projectCode}` : item.name,
     getSubtitle: (item: SearchResults["projects"][0]) => `${item.clientName} - ${item.status}`,
   },
   {

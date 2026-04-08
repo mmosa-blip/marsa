@@ -26,6 +26,7 @@ export async function GET(
     interface HealthProject {
       id: string;
       name: string;
+      projectCode: string | null;
       status: string;
       endDate: Date | null;
       createdAt: Date;
@@ -90,6 +91,7 @@ export async function GET(
       return {
         id: p.id,
         name: p.name,
+        projectCode: p.projectCode,
         client: p.client?.name || "—",
         status: p.status,
         statusLabel,

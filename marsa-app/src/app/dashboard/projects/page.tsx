@@ -23,10 +23,12 @@ import {
 import { exportToExcel } from "@/lib/export-utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 
 interface Project {
   id: string;
   name: string;
+  projectCode: string | null;
   status: string;
   priority: string;
   workflowType: string;
@@ -253,7 +255,10 @@ export default function ProjectsPage() {
                       <FolderKanban size={20} style={{ color: "#1C1B2E" }} />
                     </div>
                     <div>
-                      <h3 className="font-bold" style={{ color: "#1C1B2E" }}>{project.name}</h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold" style={{ color: "#1C1B2E" }}>{project.name}</h3>
+                        <ProjectCodeBadge code={project.projectCode} size="xs" />
+                      </div>
                       <div className="flex items-center gap-3 mt-1">
                         <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: stColors.bg, color: stColors.text }}>
                           {stLabel}

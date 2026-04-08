@@ -23,6 +23,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 import { useSession } from "next-auth/react";
 import { useLang } from "@/contexts/LanguageContext";
 import { useSidebarCounts } from "@/contexts/SidebarCountsContext";
@@ -73,6 +74,7 @@ interface Task {
   project: {
     id: string;
     name: string;
+    projectCode?: string | null;
     isQuickService?: boolean;
     client: { id: string; name: string } | null;
   } | null;
@@ -1016,12 +1018,15 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                         </td>
                         {/* Project */}
                         <td className="px-5 py-4">
-                          <span className="text-sm flex items-center gap-1.5" style={{ color: "#2D3748" }}>
-                            {task.project?.name || "—"}
-                            {task.project?.isQuickService && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold" style={{ backgroundColor: "rgba(201,168,76,0.15)", color: "#C9A84C" }}>سريعة</span>
-                            )}
-                          </span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm flex items-center gap-1.5" style={{ color: "#2D3748" }}>
+                              {task.project?.name || "—"}
+                              {task.project?.isQuickService && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold" style={{ backgroundColor: "rgba(201,168,76,0.15)", color: "#C9A84C" }}>سريعة</span>
+                              )}
+                            </span>
+                            <ProjectCodeBadge code={task.project?.projectCode} size="xs" inline />
+                          </div>
                         </td>
                         {/* Client */}
                         <td className="px-5 py-4">
@@ -1484,12 +1489,15 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                                   )}
                                 </td>
                                 <td className="px-5 py-3.5">
-                                  <span className="text-sm flex items-center gap-1.5" style={{ color: "#6B7280" }}>
-                                    {task.project?.name || "—"}
-                                    {task.project?.isQuickService && (
-                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold" style={{ backgroundColor: "rgba(201,168,76,0.15)", color: "#C9A84C" }}>سريعة</span>
-                                    )}
-                                  </span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-sm flex items-center gap-1.5" style={{ color: "#6B7280" }}>
+                                      {task.project?.name || "—"}
+                                      {task.project?.isQuickService && (
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold" style={{ backgroundColor: "rgba(201,168,76,0.15)", color: "#C9A84C" }}>سريعة</span>
+                                      )}
+                                    </span>
+                                    <ProjectCodeBadge code={task.project?.projectCode} size="xs" inline />
+                                  </div>
                                 </td>
                                 <td className="px-5 py-3.5">
                                   <span className="text-sm" style={{ color: "#6B7280" }}>

@@ -16,6 +16,7 @@ import {
   Activity,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 
 const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
   DRAFT: { label: "مسودة", bg: "#F3F4F6", text: "#6B7280" },
@@ -56,7 +57,7 @@ interface DashboardData {
     upcomingReminders: { id: string; title: string; type: string; dueDate: string; priority: string }[];
   };
   recentProjects: {
-    id: string; name: string; status: string; priority: string;
+    id: string; name: string; projectCode: string | null; status: string; priority: string;
     progress: number;
   }[];
   recentServices: {
@@ -216,9 +217,12 @@ export default function ClientDashboard({ userName }: Props) {
                 const st = statusConfig[p.status] || statusConfig.DRAFT;
                 return (
                   <Link key={p.id} href={`/dashboard/my-projects`} className="block p-4 rounded-xl transition-all duration-200 hover:bg-gray-50/80" style={{ border: "1px solid #F0EDE6" }}>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-semibold" style={{ color: "#1C1B2E" }}>{p.name}</p>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
+                    <div className="flex items-center justify-between mb-2 gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <p className="text-sm font-semibold truncate" style={{ color: "#1C1B2E" }}>{p.name}</p>
+                        <ProjectCodeBadge code={p.projectCode} size="xs" inline />
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
                     </div>
                     <div className="flex items-center gap-3 mb-2">
                       <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#F0EEF5" }}>

@@ -37,6 +37,7 @@ interface DocType {
 interface ProjectInfo {
   id: string;
   name: string;
+  projectCode: string | null;
   departmentId: string | null;
   department: { id: string; name: string } | null;
 }
@@ -329,7 +330,14 @@ export default function DocumentUploadWizardPage({
             <div>
               <h1 className="text-2xl font-bold text-gray-800">رفع المستندات</h1>
               {project && (
-                <p className="text-sm text-gray-600 mt-1">{project.name}</p>
+                <p className="text-sm text-gray-600 mt-1 flex items-center gap-2">
+                  <span>{project.name}</span>
+                  {project.projectCode && (
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded" style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495", border: "1px solid rgba(94,84,149,0.18)" }}>
+                      {project.projectCode}
+                    </span>
+                  )}
+                </p>
               )}
             </div>
             <MarsaButton

@@ -21,7 +21,7 @@ export async function GET() {
         items: true,
         payments: true,
         company: { select: { name: true } },
-        project: { select: { name: true } },
+        project: { select: { id: true, name: true, projectCode: true } },
       },
       orderBy: { createdAt: "desc" },
     });

@@ -14,6 +14,7 @@ interface Company {
 interface Project {
   id: string;
   name: string;
+  projectCode?: string | null;
 }
 
 interface InvoiceItem {
@@ -118,7 +119,7 @@ export default function NewInvoicePage() {
               <label className="block text-sm font-medium mb-1.5" style={{ color: "#2D3748" }}>المشروع (اختياري)</label>
               <select value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} className="w-full px-4 py-3 rounded-xl border text-sm outline-none focus:ring-2 bg-white" style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}>
                 <option value="">بدون مشروع</option>
-                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.projectCode ? `${p.projectCode} — ${p.name}` : p.name}</option>)}
               </select>
             </div>
             <div className="md:col-span-2">

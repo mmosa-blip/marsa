@@ -102,7 +102,7 @@ async function getExecutorStats(userId: string) {
     prisma.task.findMany({
       where: { assigneeId: userId },
       include: {
-        project: { select: { id: true, name: true, client: { select: { name: true } } } },
+        project: { select: { id: true, name: true, projectCode: true, client: { select: { name: true } } } },
         service: { select: { name: true } },
       },
       orderBy: { updatedAt: "desc" },
@@ -112,7 +112,7 @@ async function getExecutorStats(userId: string) {
     }),
     prisma.task.findMany({
       where: { assigneeId: userId, updatedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-      include: { project: { select: { name: true } } },
+      include: { project: { select: { id: true, name: true, projectCode: true } } },
       orderBy: { updatedAt: "desc" },
       take: 10,
     }),
@@ -135,7 +135,7 @@ async function getProviderStats(userId: string) {
     prisma.task.findMany({
       where: { assigneeId: userId },
       include: {
-        project: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, projectCode: true } },
         service: { select: { name: true } },
         taskCosts: { where: { providerId: userId }, select: { amount: true, paymentRequest: { select: { id: true, status: true } } } },
       },
@@ -224,6 +224,7 @@ async function getAdminStats() {
   interface DelayedProject {
     id: string;
     name: string;
+    projectCode: string | null;
     client: string;
     delayedTasks: number;
     maxDelayDays: number;
@@ -251,6 +252,7 @@ async function getAdminStats() {
       delayedProjects.push({
         id: p.id,
         name: p.name,
+        projectCode: p.projectCode,
         client: p.client?.name || "غير محدد",
         delayedTasks: overdueTasks.length,
         maxDelayDays: maxDelay,
@@ -290,6 +292,7 @@ async function getAdminStats() {
     return {
       id: p.id,
       name: p.name,
+      projectCode: p.projectCode,
       client: p.client?.name || "غير محدد",
       status: p.status,
       progress: total > 0 ? Math.round((done / total) * 100) : 0,

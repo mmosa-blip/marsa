@@ -90,7 +90,7 @@ export async function GET() {
           status: true,
           updatedAt: true,
           service: { select: { name: true } },
-          project: { select: { name: true } },
+          project: { select: { id: true, name: true, projectCode: true } },
         },
         orderBy: { updatedAt: "desc" },
         take: 5,
@@ -124,6 +124,7 @@ export async function GET() {
       return {
         id: p.id,
         name: p.name,
+        projectCode: p.projectCode,
         status: p.status,
         priority: p.priority,
         progress,

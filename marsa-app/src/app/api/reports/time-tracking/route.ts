@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         assignee: { select: { id: true, name: true } },
-        project: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, projectCode: true } },
         service: { select: { id: true, name: true } },
         timeSummary: true,
       },

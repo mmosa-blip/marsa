@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         issueDate: { gte: from, lte: to },
       },
       include: {
-        project: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, projectCode: true } },
         client: { select: { id: true, name: true } },
       },
     });
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
             task: {
               select: {
                 projectId: true,
-                project: { select: { id: true, name: true } },
+                project: { select: { id: true, name: true, projectCode: true } },
               },
             },
           },
@@ -79,13 +79,14 @@ export async function GET(request: NextRequest) {
     const expenses = Object.values(expensesByProvider);
 
     // Profitability per project
-    const projectRevenue: Record<string, { name: string; revenue: number; expenses: number }> = {};
+    const projectRevenue: Record<string, { name: string; projectCode: string | null; revenue: number; expenses: number }> = {};
 
     for (const inv of paidInvoices) {
       if (inv.projectId && inv.project) {
         if (!projectRevenue[inv.projectId]) {
           projectRevenue[inv.projectId] = {
             name: inv.project.name,
+            projectCode: inv.project.projectCode ?? null,
             revenue: 0,
             expenses: 0,
           };
@@ -97,9 +98,10 @@ export async function GET(request: NextRequest) {
     for (const pr of paidPayments) {
       const projId = pr.taskCost?.task?.projectId;
       const projName = pr.taskCost?.task?.project?.name;
+      const projCode = pr.taskCost?.task?.project?.projectCode ?? null;
       if (projId && projName) {
         if (!projectRevenue[projId]) {
-          projectRevenue[projId] = { name: projName, revenue: 0, expenses: 0 };
+          projectRevenue[projId] = { name: projName, projectCode: projCode, revenue: 0, expenses: 0 };
         }
         projectRevenue[projId].expenses += pr.amount;
       }
@@ -109,6 +111,7 @@ export async function GET(request: NextRequest) {
       ([id, data]) => ({
         id,
         name: data.name,
+        projectCode: data.projectCode,
         revenue: data.revenue,
         expenses: data.expenses,
         profit: data.revenue - data.expenses,

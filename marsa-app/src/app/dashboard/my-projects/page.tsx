@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { FolderKanban, Loader2, Users2, ChevronLeft, CheckCircle2, Clock, ListChecks } from "lucide-react";
+import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 
 interface TaskFromAPI {
   id: string;
@@ -12,6 +13,7 @@ interface TaskFromAPI {
   project: {
     id: string;
     name: string;
+    projectCode?: string | null;
     client: { id: string; name: string } | null;
     services?: {
       id: string;
@@ -24,6 +26,7 @@ interface TaskFromAPI {
 interface ProjectSummary {
   id: string;
   name: string;
+  projectCode: string | null;
   clientName: string;
   myTasksCount: number;
   myDoneCount: number;
@@ -67,6 +70,7 @@ export default function MyProjectsPage() {
               p = {
                 id: t.project.id,
                 name: t.project.name,
+                projectCode: t.project.projectCode || null,
                 clientName: t.project.client?.name || "",
                 myTasksCount: 0,
                 myDoneCount: 0,
@@ -137,11 +141,14 @@ export default function MyProjectsPage() {
               return (
                 <Link key={proj.id as string} href={`/dashboard/my-projects/${proj.id}`}>
                   <div className="rounded-2xl p-6 transition-all duration-300 cursor-pointer bg-white" style={{ border: "1px solid #E2E0D8" }}>
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-1.5">
                       <h3 className="text-base font-bold flex-1 ml-2" style={{ color: "#2D3748" }}>{proj.name as string}</h3>
                       <ChevronLeft size={18} style={{ color: "#C9A84C" }} />
                     </div>
-                    <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <ProjectCodeBadge code={proj.projectCode as string | null} size="xs" />
+                      <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
+                    </div>
                     <div className="mt-4 mb-2">
                       <div className="w-full h-2 rounded-full" style={{ backgroundColor: "#F0EEF5" }}>
                         <div className="h-2 rounded-full" style={{ width: `${progress}%`, backgroundColor: progress === 100 ? "#059669" : "#C9A84C" }} />
@@ -186,9 +193,12 @@ export default function MyProjectsPage() {
                   onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.03)"; e.currentTarget.style.borderColor = "#E8E6F0"; }}
                 >
                   {/* Title */}
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-start justify-between mb-1.5">
                     <h3 className="text-base font-bold flex-1 ml-2" style={{ color: "#2D3748" }}>{proj.name}</h3>
                     <ChevronLeft size={18} style={{ color: "#C9A84C" }} />
+                  </div>
+                  <div className="mb-3">
+                    <ProjectCodeBadge code={proj.projectCode} size="xs" />
                   </div>
 
                   {/* Client */}

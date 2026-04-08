@@ -37,6 +37,7 @@ export async function GET() {
       select: {
         id: true,
         name: true,
+        projectCode: true,
         department: { select: { id: true, name: true, color: true } },
         services: {
           where: { deletedAt: null },
@@ -77,6 +78,7 @@ export async function GET() {
       return {
         id: p.id,
         name: p.name,
+        projectCode: p.projectCode,
         department: p.department
           ? { id: p.department.id, name: p.department.name, color: p.department.color }
           : null,

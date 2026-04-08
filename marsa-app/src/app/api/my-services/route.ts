@@ -45,7 +45,7 @@ export async function GET() {
     const services = await prisma.service.findMany({
       where: { clientId: userId },
       include: {
-        project: { select: { name: true, status: true } },
+        project: { select: { id: true, name: true, projectCode: true, status: true } },
         tasks: { select: { status: true } },
       },
       orderBy: { createdAt: "desc" },

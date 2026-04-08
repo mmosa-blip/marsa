@@ -28,6 +28,7 @@ interface FinancialData {
   profitability: {
     id: string;
     name: string;
+    projectCode?: string | null;
     revenue: number;
     expenses: number;
     profit: number;
@@ -68,6 +69,7 @@ interface ProjectsData {
   projects: {
     id: string;
     name: string;
+    projectCode?: string | null;
     status: string;
     client: string;
     startDate: string | null;
@@ -456,7 +458,14 @@ function FinancialTab({ data }: { data: FinancialData }) {
               <tbody>
                 {profitability.map((p) => (
                   <tr key={p.id} className="hover:bg-[#FAFAF8]" style={{ borderBottom: "1px solid #F0EDE6" }}>
-                    <td className="px-5 py-3 text-sm font-medium" style={{ color: "#1C1B2E" }}>{p.name}</td>
+                    <td className="px-5 py-3 text-sm font-medium" style={{ color: "#1C1B2E" }}>
+                      <div className="flex flex-col gap-0.5">
+                        <span>{p.name}</span>
+                        {p.projectCode && (
+                          <span className="font-mono text-[9px] font-bold" style={{ color: "#5E5495" }}>{p.projectCode}</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-5 py-3 text-sm" style={{ color: "#059669" }}>{formatAmount(p.revenue)} <SarSymbol size={14} /></td>
                     <td className="px-5 py-3 text-sm" style={{ color: "#DC2626" }}>{formatAmount(p.expenses)} <SarSymbol size={14} /></td>
                     <td className="px-5 py-3 text-sm font-bold" style={{ color: p.profit >= 0 ? "#059669" : "#DC2626" }}>
@@ -806,7 +815,14 @@ function ProjectsTab({ data, filterDept }: { data: ProjectsData; filterDept: str
                   const pr = priorityLabels[p.priority] || { label: p.priority, bg: "#F3F4F6", text: "#6B7280" };
                   return (
                     <tr key={p.id} className="hover:bg-[#FAFAF8]" style={{ borderBottom: "1px solid #F0EDE6" }}>
-                      <td className="px-5 py-3 text-sm font-semibold" style={{ color: "#1C1B2E" }}>{p.name}</td>
+                      <td className="px-5 py-3 text-sm font-semibold" style={{ color: "#1C1B2E" }}>
+                        <div className="flex flex-col gap-0.5">
+                          <span>{p.name}</span>
+                          {p.projectCode && (
+                            <span className="font-mono text-[9px] font-bold" style={{ color: "#5E5495" }}>{p.projectCode}</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-5 py-3 text-sm" style={{ color: "#2D3748" }}>{p.client}</td>
                       <td className="px-5 py-3">
                         <span className="px-3 py-1 rounded-lg text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 
 interface Task {
   id: string;
@@ -41,6 +42,7 @@ interface Milestone {
 interface Project {
   id: string;
   name: string;
+  projectCode: string | null;
   description: string | null;
   status: string;
   priority: string;
@@ -153,7 +155,10 @@ export default function MyProjectDetailPage() {
       <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: "1px solid #E2E0D8" }}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h1 className="text-xl font-bold mb-1" style={{ color: "#1C1B2E" }}>{project.name}</h1>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h1 className="text-xl font-bold" style={{ color: "#1C1B2E" }}>{project.name}</h1>
+              <ProjectCodeBadge code={project.projectCode} size="sm" />
+            </div>
             {project.description && (
               <p className="text-sm" style={{ color: "#6B7280" }}>{project.description}</p>
             )}

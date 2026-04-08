@@ -11,13 +11,14 @@ interface Task {
   status: string;
   priority: string;
   dueDate: string | null;
-  project: { id: string; name: string } | null;
+  project: { id: string; name: string; projectCode?: string | null } | null;
   service: { id: string; name: string } | null;
 }
 
 interface Project {
   id: string;
   name: string;
+  projectCode?: string | null;
   status: string;
   progress: number;
   client: { name: string } | null;
@@ -177,7 +178,14 @@ export default function MyWorkspacePage() {
                       <p className="text-sm font-medium" style={{ color: "#1C1B2E" }}>{task.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         {task.project && (
-                          <span className="text-xs" style={{ color: "#94A3B8" }}>{task.project.name}</span>
+                          <span className="text-xs flex items-center gap-1" style={{ color: "#94A3B8" }}>
+                            {task.project.name}
+                            {task.project.projectCode && (
+                              <span className="font-mono text-[9px] px-1 py-0.5 rounded" style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495" }}>
+                                {task.project.projectCode}
+                              </span>
+                            )}
+                          </span>
                         )}
                         {task.service && (
                           <span className="text-xs" style={{ color: "#94A3B8" }}>• {task.service.name}</span>
@@ -214,9 +222,16 @@ export default function MyWorkspacePage() {
             <Link key={project.id} href={`/dashboard/my-projects/${project.id}`}>
               <div className="bg-white rounded-2xl p-4 hover:shadow-md transition-all"
                 style={{ border: "1px solid #E2E0D8" }}>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold text-sm" style={{ color: "#1C1B2E" }}>{project.name}</p>
-                  <span className="text-sm font-bold" style={{ color: project.progress >= 75 ? "#059669" : "#C9A84C" }}>
+                <div className="flex items-center justify-between mb-2 gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <p className="font-semibold text-sm" style={{ color: "#1C1B2E" }}>{project.name}</p>
+                    {project.projectCode && (
+                      <span className="font-mono text-[9px] px-1 py-0.5 rounded" style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495" }}>
+                        {project.projectCode}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold flex-shrink-0" style={{ color: project.progress >= 75 ? "#059669" : "#C9A84C" }}>
                     {project.progress}%
                   </span>
                 </div>

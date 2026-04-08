@@ -118,7 +118,7 @@ export default function TimeReportsPage() {
   const [dateTo, setDateTo] = useState("");
 
   // Dropdown options
-  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projects, setProjects] = useState<{ id: string; name: string; projectCode: string | null }[]>([]);
   const [executors, setExecutors] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
@@ -127,7 +127,7 @@ export default function TimeReportsPage() {
     fetch("/api/projects")
       .then((r) => r.json())
       .then((d) => {
-        if (Array.isArray(d)) setProjects(d.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name })));
+        if (Array.isArray(d)) setProjects(d.map((p: { id: string; name: string; projectCode?: string | null }) => ({ id: p.id, name: p.name, projectCode: p.projectCode ?? null })));
       })
       .catch(() => {});
     // Fetch executors
@@ -263,7 +263,7 @@ export default function TimeReportsPage() {
         >
           <option value="">{t.reports.filterByProject}</option>
           {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
+            <option key={p.id} value={p.id}>{p.projectCode ? `${p.projectCode} — ${p.name}` : p.name}</option>
           ))}
         </select>
         <select
