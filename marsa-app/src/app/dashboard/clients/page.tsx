@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   Users2, Search, Filter, Building2, FolderKanban,
   Briefcase, DollarSign, UserPlus, TrendingUp,
@@ -26,6 +27,12 @@ const authLabels: Record<string, { label: string; color: string; bg: string; ico
 };
 
 export default function ClientsPage() {
+  const { data: session } = useSession();
+  // Client deletion is restricted to ADMIN/MANAGER server-side. Mirror the
+  // same gate in the UI so EXECUTORs (and other roles) don't see a button
+  // that would only ever return a 403.
+  const canDeleteClients =
+    session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -214,20 +221,22 @@ export default function ClientsPage() {
                   </div>
                 </div>
               </Link>
-              {confirmId === client.id ? (
-                <div className="absolute top-3 left-3 flex items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-lg z-10" style={{ border: "1px solid #FCA5A5" }}>
-                  <span className="text-xs font-medium" style={{ color: "#DC2626" }}>تأكيد الحذف؟</span>
-                  <MarsaButton variant="danger" size="xs" onClick={() => handleDelete(client.id)} disabled={deletingId === client.id}>
-                    {deletingId === client.id ? "..." : "نعم"}
-                  </MarsaButton>
-                  <MarsaButton variant="secondary" size="xs" onClick={() => setConfirmId(null)}>
-                    لا
-                  </MarsaButton>
-                </div>
-              ) : (
-                <MarsaButton variant="dangerSoft" size="sm" iconOnly icon={<Trash2 size={15} />}
-                  className="absolute top-3 left-3 hidden group-hover:flex"
-                  onClick={(e) => { e.preventDefault(); setConfirmId(client.id); }} />
+              {canDeleteClients && (
+                confirmId === client.id ? (
+                  <div className="absolute top-3 left-3 flex items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-lg z-10" style={{ border: "1px solid #FCA5A5" }}>
+                    <span className="text-xs font-medium" style={{ color: "#DC2626" }}>تأكيد الحذف؟</span>
+                    <MarsaButton variant="danger" size="xs" onClick={() => handleDelete(client.id)} disabled={deletingId === client.id}>
+                      {deletingId === client.id ? "..." : "نعم"}
+                    </MarsaButton>
+                    <MarsaButton variant="secondary" size="xs" onClick={() => setConfirmId(null)}>
+                      لا
+                    </MarsaButton>
+                  </div>
+                ) : (
+                  <MarsaButton variant="dangerSoft" size="sm" iconOnly icon={<Trash2 size={15} />}
+                    className="absolute top-3 left-3 hidden group-hover:flex"
+                    onClick={(e) => { e.preventDefault(); setConfirmId(client.id); }} />
+                )
               )}
               </div>
             );
