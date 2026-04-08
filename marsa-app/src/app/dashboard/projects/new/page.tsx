@@ -251,7 +251,6 @@ export default function NewProjectPage() {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
-  const [totalPriceOverride, setTotalPriceOverride] = useState<string>("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   // ─── Payment milestones — defined inline within the services step ───
@@ -640,13 +639,6 @@ export default function NewProjectPage() {
     setTemplateApplied(false);
   };
 
-  const updateServicePrice = (index: number, price: number) => {
-    setSelectedServices((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, price } : s))
-    );
-    setTemplateApplied(false);
-  };
-
   // ─── Payment Milestone helpers ───
   const addPaymentMilestone = (afterIndex: number) => {
     setPaymentMilestones((prev) => [
@@ -685,9 +677,12 @@ export default function NewProjectPage() {
   };
   const handleDragEnd = () => setDragIndex(null);
 
-  const calculatedTotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
+  // Project price is now driven entirely by inter-service payment
+  // milestones — individual services no longer carry a price. The total
+  // is the sum of all milestones, unless a contract pins a different
+  // amount (priceFromContract) in which case that wins.
   const paymentMilestonesTotal = paymentMilestones.reduce((sum, p) => sum + p.amount, 0);
-  const finalTotal = contractAmount || (totalPriceOverride ? parseFloat(totalPriceOverride) : calculatedTotal);
+  const finalTotal = contractAmount || paymentMilestonesTotal;
   const priceFromContract = !!contractAmount;
 
   // ─── Fetch service details for review (step 7) ───
@@ -822,7 +817,10 @@ export default function NewProjectPage() {
             managerId: selectedManagerId || undefined,
             services: selectedServices.map((s) => ({
               serviceTemplateId: s.serviceTemplateId,
-              price: s.price,
+              // Services no longer carry a price — the project total
+              // comes from the inter-service payment milestones. The
+              // server schema still requires this field, so we send 0.
+              price: 0,
               sortOrder: s.sortOrder,
             })),
             paymentMilestones: allPaymentMilestones,
@@ -930,15 +928,10 @@ export default function NewProjectPage() {
     const entry = pendingDocs[d.id];
     return entry && (entry.fileUrl || entry.textData);
   });
-  // Step 4 — at least one service (template or manual), AND every service
-  // must have a non-zero price unless the price is locked from a contract.
-  // This prevents users from advancing with "total = 0" which would silently
-  // create a project with zero-priced services.
-  const allServicePricesSet =
-    !!contractAmount || selectedServices.every((s) => s.price > 0);
-  const step4Valid =
-    (selectedServices.length >= 1 || (templateApplied && !!selectedTemplateId)) &&
-    allServicePricesSet;
+  // Step 4 — at least one service (template or manual). Services no
+  // longer carry a price; the project total comes from the inter-service
+  // payment milestones, which are optional and validated separately.
+  const step4Valid = selectedServices.length >= 1 || (templateApplied && !!selectedTemplateId);
   // Step 5 — manager is optional
   const step5Valid = true;
   // Step 6 — save-as-template name if checked
@@ -2048,16 +2041,6 @@ export default function NewProjectPage() {
                 )}
               </div>
 
-              {/* Zero-priced services warning */}
-              {!priceFromContract && selectedServices.length > 0 && !allServicePricesSet && (
-                <div
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4 text-sm"
-                  style={{ backgroundColor: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}
-                >
-                  <AlertCircle size={14} />
-                  <span>أدخل سعر كل خدمة قبل المتابعة — قوالب الخدمات لا تحمل سعراً افتراضياً</span>
-                </div>
-              )}
 
               {/* Contract amount notice */}
               {priceFromContract && (
@@ -2120,39 +2103,6 @@ export default function NewProjectPage() {
                                 {service.taskCount} مهمة
                               </span>
                             </div>
-                            {/* Editable price - disabled if from contract.
-                                When the value is 0 we show it explicitly
-                                (instead of an empty input) plus a red border
-                                so users notice they need to enter a price —
-                                otherwise the underlying state is 0 and the
-                                services total stays 0 silently. */}
-                            {!priceFromContract && (
-                              <div className="flex items-center gap-1.5">
-                                <DollarSign size={12} style={{ color: service.price === 0 ? "#DC2626" : "#9CA3AF" }} />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={Number.isFinite(service.price) ? service.price : 0}
-                                  onFocus={(e) => e.target.select()}
-                                  onChange={(e) =>
-                                    updateServicePrice(idx, parseFloat(e.target.value) || 0)
-                                  }
-                                  className="w-24 px-2 py-1 text-xs rounded-lg border outline-none"
-                                  style={{
-                                    borderColor: service.price === 0 ? "#DC2626" : "#E8E6F0",
-                                    color: service.price === 0 ? "#DC2626" : "#1C1B2E",
-                                    backgroundColor: service.price === 0 ? "rgba(220,38,38,0.04)" : "white",
-                                  }}
-                                />
-                                <SarSymbol size={12} />
-                                {service.price === 0 && (
-                                  <span className="text-[10px] font-semibold" style={{ color: "#DC2626" }}>
-                                    أدخل السعر
-                                  </span>
-                                )}
-                              </div>
-                            )}
                           </div>
                           <button
                             onClick={() => removeService(idx)}
@@ -2239,47 +2189,17 @@ export default function NewProjectPage() {
               {/* Total */}
               {selectedServices.length > 0 && (
                 <div className="mt-5 pt-4" style={{ borderTop: "1px solid #E2E0D8" }}>
-                  {!priceFromContract && (
-                    <>
-                      <div className="flex items-center justify-between text-sm mb-2" style={{ color: "#2D3748" }}>
-                        <span>مجموع الخدمات</span>
-                        <span className="font-medium">{calculatedTotal.toLocaleString("en-US")} <SarSymbol size={14} /></span>
-                      </div>
-                      {paymentMilestonesTotal > 0 && (
-                        <div className="flex items-center justify-between text-sm mb-2" style={{ color: "#059669" }}>
-                          <span>مجموع الدفعات البينية</span>
-                          <span className="font-medium">{paymentMilestonesTotal.toLocaleString("en-US")} <SarSymbol size={14} /></span>
-                        </div>
-                      )}
-                    </>
-                  )}
                   <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: "2px solid #C9A84C" }}>
                     <label className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
                       السعر الإجمالي
                     </label>
-                    {priceFromContract ? (
-                      <span className="text-lg font-bold" style={{ color: "#C9A84C" }}>
-                        {finalTotal.toLocaleString("en-US")} <SarSymbol size={16} />
-                      </span>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={totalPriceOverride}
-                          onChange={(e) => setTotalPriceOverride(e.target.value)}
-                          placeholder={calculatedTotal.toLocaleString("en-US")}
-                          className="w-28 px-3 py-1.5 text-sm rounded-lg border outline-none text-left font-bold"
-                          style={{ borderColor: "#E8E6F0", color: "#C9A84C" }}
-                        />
-                        <SarSymbol size={14} />
-                      </div>
-                    )}
+                    <span className="text-lg font-bold" style={{ color: "#C9A84C" }}>
+                      {finalTotal.toLocaleString("en-US")} <SarSymbol size={16} />
+                    </span>
                   </div>
-                  {!priceFromContract && totalPriceOverride && parseFloat(totalPriceOverride) !== calculatedTotal && (
-                    <p className="text-xs text-gray-400 mt-1 text-left">
-                      تم تعديل السعر يدوياً (الأصلي: {calculatedTotal.toLocaleString("en-US")} <SarSymbol size={12} />)
+                  {!priceFromContract && (
+                    <p className="text-[11px] mt-1.5 text-left" style={{ color: "#9CA3AF" }}>
+                      السعر الإجمالي هو مجموع الدفعات البينية
                     </p>
                   )}
                 </div>
@@ -2520,7 +2440,6 @@ export default function NewProjectPage() {
                               </h4>
                             </div>
                             <div className="flex items-center gap-3 text-xs text-gray-400">
-                              {!priceFromContract && <span>{service.price.toLocaleString("en-US")} <SarSymbol size={12} /></span>}
                               <span>{service.duration ? `${service.duration} يوم` : "—"}</span>
                             </div>
                           </div>
@@ -2637,12 +2556,8 @@ export default function NewProjectPage() {
                 </>
               ) : (
                 <>
-                  <div className="flex items-center justify-between py-2 text-sm" style={{ color: "#2D3748" }}>
-                    <span>مجموع أسعار الخدمات</span>
-                    <span className="font-medium">{calculatedTotal.toLocaleString("en-US")} <SarSymbol size={14} /></span>
-                  </div>
                   {paymentMilestones.length > 0 && (
-                    <div className="pt-2" style={{ borderTop: "1px solid #F3F4F6" }}>
+                    <div className="pb-2">
                       <p className="text-xs text-gray-400 mb-2">الدفعات البينية:</p>
                       {paymentMilestones.map((pm) => (
                         <div key={pm.id} className="flex items-center justify-between py-1 text-sm" style={{ color: "#059669" }}>
