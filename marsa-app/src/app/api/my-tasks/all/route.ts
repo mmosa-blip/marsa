@@ -121,7 +121,13 @@ export async function GET(request: NextRequest) {
                     },
                   },
                 },
-                orderBy: { createdAt: "asc" }
+                // CRITICAL: order by `serviceOrder`, not `createdAt`. The
+                // services list is what computeCanStart uses to figure out
+                // which service comes "before" the current one when checking
+                // sequential dependencies. createdAt drifts as soon as the
+                // user reorders services in the project, leaving the chain
+                // out of sync with the visible order.
+                orderBy: { serviceOrder: "asc" }
               }
             },
           },
