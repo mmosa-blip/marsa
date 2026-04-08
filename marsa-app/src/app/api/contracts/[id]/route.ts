@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { instantiateProjectFromTemplate } from "@/lib/project-instantiation";
 import { createAuditLog, AuditModule } from "@/lib/audit";
 import { can, PERMISSIONS } from "@/lib/permissions";
+import { generateProjectCode } from "@/lib/project-code";
 
 export async function GET(
   _request: NextRequest,
@@ -76,6 +77,83 @@ export async function PATCH(
 
     if (!contract) {
       return NextResponse.json({ error: "العقد غير موجود" }, { status: 404 });
+    }
+
+    // ─── ADMIN/MANAGER: edit contractNumber (renumbering) ───
+    // Allowed even on SIGNED/ACTIVE contracts because the number is purely
+    // organizational metadata. After the update, regenerate projectCode for
+    // every project that uses this contract as its primary contract so the
+    // codes stay consistent with the new number.
+    if (action === "set_contract_number") {
+      if (!isAdmin) {
+        return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
+      }
+      const raw = body.contractNumber;
+      const parsed =
+        raw === null || raw === ""
+          ? null
+          : typeof raw === "number"
+            ? raw
+            : Number(raw);
+      if (parsed !== null && (!Number.isInteger(parsed) || parsed < 0)) {
+        return NextResponse.json(
+          { error: "رقم العقد يجب أن يكون عدداً صحيحاً موجباً" },
+          { status: 400 }
+        );
+      }
+
+      // Uniqueness check (the @unique constraint will reject collisions
+      // with a 500, so we surface a friendlier error early).
+      if (parsed !== null) {
+        const collision = await prisma.contract.findFirst({
+          where: { contractNumber: parsed, id: { not: id } },
+          select: { id: true },
+        });
+        if (collision) {
+          return NextResponse.json(
+            { error: "رقم العقد مستخدم مسبقاً" },
+            { status: 409 }
+          );
+        }
+      }
+
+      const updated = await prisma.contract.update({
+        where: { id },
+        data: { contractNumber: parsed },
+      });
+
+      // Cascade: every project whose primary contract is this one gets a
+      // regenerated projectCode (using its OWN existing seq so the tail
+      // stays stable).
+      const linkedProjects = await prisma.project.findMany({
+        where: { contractId: id },
+        select: { id: true, clientId: true, departmentId: true, projectSeq: true, createdAt: true },
+      });
+      for (const p of linkedProjects) {
+        const { code } = await generateProjectCode(prisma, {
+          clientId: p.clientId,
+          departmentId: p.departmentId,
+          contractId: id,
+          contractNumberOverride: parsed,
+          seqOverride: p.projectSeq,
+          year: p.createdAt.getFullYear(),
+        });
+        await prisma.project.update({
+          where: { id: p.id },
+          data: { projectCode: code },
+        });
+      }
+
+      createAuditLog({
+        userId: session.user.id, userName: session.user.name || undefined, userRole: role,
+        action: "CONTRACT_RENUMBERED", module: AuditModule.CONTRACTS,
+        entityType: "Contract", entityId: id,
+        entityName: contract.template?.title || "عقد",
+        before: { contractNumber: contract.contractNumber },
+        after: { contractNumber: parsed, projectsCascaded: linkedProjects.length },
+      });
+
+      return NextResponse.json(updated);
     }
 
     // ─── Post-signature lock: block edits on signed/active contracts ───

@@ -114,6 +114,45 @@ export default function ContractsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Inline edit for contractNumber — admins/managers can click the
+  // number cell to set it. After save, the server cascades the new
+  // number into every linked project's projectCode.
+  const [editingNumberId, setEditingNumberId] = useState<string | null>(null);
+  const [editingNumberInput, setEditingNumberInput] = useState("");
+  const [editingNumberSaving, setEditingNumberSaving] = useState(false);
+  const saveContractNumber = async (contractId: string) => {
+    if (editingNumberSaving) return;
+    setEditingNumberSaving(true);
+    try {
+      const parsed = editingNumberInput.trim() === "" ? null : Number(editingNumberInput);
+      if (parsed !== null && (!Number.isInteger(parsed) || parsed < 0)) {
+        alert("أدخل عدداً صحيحاً موجباً");
+        setEditingNumberSaving(false);
+        return;
+      }
+      const res = await fetch(`/api/contracts/${contractId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_contract_number", contractNumber: parsed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "تعذّر تحديث رقم العقد");
+        setEditingNumberSaving(false);
+        return;
+      }
+      setContracts((prev) =>
+        prev.map((c) => (c.id === contractId ? { ...c, contractNumber: parsed } : c))
+      );
+      setEditingNumberId(null);
+      setEditingNumberInput("");
+    } catch {
+      alert("حدث خطأ");
+    } finally {
+      setEditingNumberSaving(false);
+    }
+  };
+
   // Client search for issue modal
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [clientSearchResults, setClientSearchResults] = useState<Client[]>([]);
@@ -582,9 +621,60 @@ export default function ContractsPage() {
                   return (
                     <tr key={c.id} className="hover:bg-[#FAFAF8] transition-colors" style={{ borderBottom: "1px solid #F0EDE6" }}>
                       <td className="px-5 py-4">
-                        <span className="text-sm font-bold" style={{ color: "#5E5495" }}>
-                          {c.contractNumber ? `#${c.contractNumber}` : "—"}
-                        </span>
+                        {isAdmin && editingNumberId === c.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              autoFocus
+                              value={editingNumberInput}
+                              onChange={(e) => setEditingNumberInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveContractNumber(c.id);
+                                if (e.key === "Escape") { setEditingNumberId(null); setEditingNumberInput(""); }
+                              }}
+                              disabled={editingNumberSaving}
+                              className="w-20 px-2 py-1 rounded-md border text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-200"
+                              style={{ borderColor: "#E2E0D8" }}
+                              placeholder="—"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => saveContractNumber(c.id)}
+                              disabled={editingNumberSaving}
+                              className="text-[10px] font-bold px-2 py-1 rounded-md"
+                              style={{ backgroundColor: "#22C55E", color: "white" }}
+                              title="حفظ"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setEditingNumberId(null); setEditingNumberInput(""); }}
+                              disabled={editingNumberSaving}
+                              className="text-[10px] font-bold px-2 py-1 rounded-md"
+                              style={{ backgroundColor: "#F3F4F6", color: "#6B7280" }}
+                              title="إلغاء"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isAdmin) return;
+                              setEditingNumberId(c.id);
+                              setEditingNumberInput(c.contractNumber != null ? String(c.contractNumber) : "");
+                            }}
+                            disabled={!isAdmin}
+                            className="text-sm font-bold transition-colors"
+                            style={{ color: "#5E5495", cursor: isAdmin ? "pointer" : "default" }}
+                            title={isAdmin ? "اضغط للتعديل" : undefined}
+                          >
+                            {c.contractNumber ? `#${c.contractNumber}` : "—"}
+                          </button>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">

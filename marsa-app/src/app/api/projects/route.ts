@@ -6,6 +6,7 @@ import { can, PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { createAuditLog, AuditModule } from "@/lib/audit";
 import type { WorkflowType, ProjectPriority, MilestoneStatus } from "@/generated/prisma/client";
 import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment-assign";
+import { generateProjectCode } from "@/lib/project-code";
 
 export async function GET(request: Request) {
   try {
@@ -167,6 +168,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "اسم المشروع والعميل مطلوبان" }, { status: 400 });
     }
 
+    // Generate the human-readable project code BEFORE either create branch.
+    // The same { code, seq } pair is injected into both the full and the
+    // legacy create paths so every new project gets a code consistently.
+    const { code: projectCode, seq: projectSeq } = await generateProjectCode(prisma, {
+      clientId,
+      departmentId,
+      contractId,
+    });
+
     // If services provided, create full project with services, tasks, requirements, and milestones
     if (services && services.length > 0) {
       const now = new Date();
@@ -234,6 +244,8 @@ export async function POST(request: Request) {
           contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
           contractDurationDays: contractDurationDays || null,
           contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
+          projectCode,
+          projectSeq,
         },
       });
 
@@ -536,6 +548,8 @@ export async function POST(request: Request) {
         contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
         contractDurationDays: contractDurationDays || null,
         contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
+        projectCode,
+        projectSeq,
       },
       include: {
         client: { select: { id: true, name: true } },

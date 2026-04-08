@@ -55,6 +55,8 @@ interface ServiceType {
 interface ProjectType {
   id: string;
   name: string;
+  projectCode: string | null;
+  projectSeq: number | null;
   description: string | null;
   status: string;
   priority: string;
@@ -126,6 +128,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [templateName, setTemplateName] = useState("");
   const [saving, setSaving] = useState(false);
   const [showContractPrompt, setShowContractPrompt] = useState(false);
+  // Project code edit modal — admins/managers can change the project's
+  // contract number from here, which regenerates projectCode server-side.
+  const [showCodeModal, setShowCodeModal] = useState(false);
+  const [codeContractInput, setCodeContractInput] = useState("");
+  const [codeSaving, setCodeSaving] = useState(false);
+  const [codeError, setCodeError] = useState("");
   const dragItem = useRef<string | null>(null);
   const dragOverColumn = useRef<string | null>(null);
 
@@ -233,6 +241,42 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       <div className="bg-white rounded-2xl p-6 mb-6 border border-gray-200">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
           <div>
+            {/* Project code — prominent identifier above the name */}
+            {project.projectCode && (
+              <div className="flex items-center gap-2 mb-2">
+                <span
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-mono text-sm font-bold tracking-wider"
+                  style={{
+                    backgroundColor: "rgba(94,84,149,0.08)",
+                    color: "#5E5495",
+                    border: "1px solid rgba(94,84,149,0.2)",
+                  }}
+                  title="رمز المشروع: السنة + العميل + القسم + العقد + التسلسل"
+                >
+                  <Hash size={13} />
+                  {project.projectCode}
+                </span>
+                {isAdmin && project.contract?.id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCodeContractInput(
+                        project.contract?.contractNumber != null
+                          ? String(project.contract.contractNumber)
+                          : ""
+                      );
+                      setCodeError("");
+                      setShowCodeModal(true);
+                    }}
+                    className="text-[11px] font-semibold px-2 py-1 rounded-md transition-colors"
+                    style={{ color: "#6B7280", backgroundColor: "transparent" }}
+                    title="تعديل رقم العقد وإعادة توليد رمز المشروع"
+                  >
+                    تعديل الرقم
+                  </button>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>{project.name}</h1>
               <span className="px-3 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
@@ -680,6 +724,88 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 {saving ? "جاري الحفظ..." : "حفظ القالب"}
               </MarsaButton>
               <MarsaButton variant="secondary" onClick={() => setShowTemplateModal(false)}>
+                إلغاء
+              </MarsaButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit project code (contract number) modal */}
+      {showCodeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => !codeSaving && setShowCodeModal(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
+                <Hash size={18} style={{ color: "#5E5495" }} />
+                تعديل رقم العقد
+              </h3>
+              <MarsaButton variant="ghost" size="sm" iconOnly icon={<X size={20} />} onClick={() => !codeSaving && setShowCodeModal(false)} />
+            </div>
+            <p className="text-xs mb-4" style={{ color: "#6B7280" }}>
+              تغيير رقم العقد سيُعيد توليد رمز المشروع تلقائياً (الجزء الثالث من الرمز).
+            </p>
+            <div className="mb-2">
+              <label className="block text-sm font-medium mb-1" style={{ color: "#374151" }}>رقم العقد</label>
+              <input
+                type="number"
+                min="0"
+                value={codeContractInput}
+                onChange={(e) => { setCodeContractInput(e.target.value); setCodeError(""); }}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-200 text-sm font-mono"
+                placeholder="مثلاً: 17"
+                disabled={codeSaving}
+              />
+            </div>
+            <p className="text-[11px] mb-4" style={{ color: "#9CA3AF" }}>
+              سيتحول إلى 3 أرقام في الرمز (مثلاً 17 → 017). اتركه فارغاً للقيمة الصفرية.
+            </p>
+            {codeError && (
+              <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }}>
+                {codeError}
+              </div>
+            )}
+            <div className="flex gap-3 mt-2">
+              <MarsaButton
+                variant="gold"
+                className="flex-1"
+                disabled={codeSaving}
+                loading={codeSaving}
+                onClick={async () => {
+                  setCodeSaving(true);
+                  setCodeError("");
+                  try {
+                    const parsed = codeContractInput.trim() === "" ? null : Number(codeContractInput);
+                    if (parsed !== null && (!Number.isInteger(parsed) || parsed < 0)) {
+                      setCodeError("أدخل عدداً صحيحاً موجباً");
+                      setCodeSaving(false);
+                      return;
+                    }
+                    const res = await fetch(`/api/projects/${id}/code`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ contractNumber: parsed }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      setCodeError(data.error || "تعذّر تحديث الرقم");
+                      setCodeSaving(false);
+                      return;
+                    }
+                    // Refresh the project so the new code shows up
+                    setShowCodeModal(false);
+                    setCodeSaving(false);
+                    router.refresh();
+                    window.location.reload();
+                  } catch {
+                    setCodeError("حدث خطأ");
+                    setCodeSaving(false);
+                  }
+                }}
+              >
+                حفظ
+              </MarsaButton>
+              <MarsaButton variant="secondary" onClick={() => setShowCodeModal(false)} disabled={codeSaving}>
                 إلغاء
               </MarsaButton>
             </div>
