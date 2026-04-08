@@ -471,7 +471,7 @@ export default function OperationsRoomClient() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
           <Radio size={24} style={{ color: "#C9A84C" }} />
-          غرفة العمليات
+          إدارة العمليات
         </h1>
         <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
           إدارة الإسناد بشكل هرمي: قسم → مشروع → خدمة → مهمة

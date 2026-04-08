@@ -266,7 +266,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               icon={<FolderOpen size={16} />}
               href={`/dashboard/projects/${id}/documents`}
             >
-              📁 مستندات المشروع
+              📁 متطلبات المشروع
             </MarsaButton>
             {isAdmin && (
               <MarsaButton variant="secondary" icon={<Save size={16} />}

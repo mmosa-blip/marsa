@@ -123,7 +123,7 @@ export default function ProjectDocumentsPage() {
         <div className="flex items-center gap-4">
           <MarsaButton href={`/dashboard/projects/${projectId}`} variant="ghost" size="md" iconOnly icon={<ArrowRight size={20} />} />
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>مستندات المشروع</h1>
+            <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>متطلبات المشروع</h1>
             <p className="text-sm mt-0.5" style={{ color: "#6B7280" }}>{docs.length} مستند</p>
           </div>
         </div>

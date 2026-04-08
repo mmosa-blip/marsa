@@ -1143,7 +1143,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                                     size="sm"
                                     icon={<FolderOpen size={14} />}
                                   >
-                                    📁 مستندات المشروع
+                                    📁 متطلبات المشروع
                                   </MarsaButton>
                                 </div>
                               )}
