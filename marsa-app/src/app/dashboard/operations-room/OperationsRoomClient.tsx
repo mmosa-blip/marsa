@@ -28,6 +28,8 @@ import {
   Layers,
   ListChecks,
   AlertTriangle,
+  ChevronUp,
+  Flame,
   UserPlus,
   Radio,
   CheckCircle2,
@@ -50,12 +52,23 @@ interface OverviewService {
   id: string;
   name: string;
   status: string | null;
+  // serviceTemplateId — needed to manage the catalog-level escalation
+  // list directly from the operations room. Null on ad-hoc services
+  // that were created outside the template catalog.
+  serviceTemplateId?: string | null;
   // Distinct executors derived from this service's tasks (server-side now,
   // but we still recompute on the client where needed for resilience).
   executors?: { id: string; name: string }[];
   // UserService rows — the authoritative "qualified employees" pool
   // that the operations room can add to / remove from.
   qualifiedEmployees?: { id: string; name: string; role: string }[];
+  // ServiceTemplate.escalationEmployees, sorted by priority asc. Managed
+  // via /api/service-catalog/templates/[templateId]/escalation.
+  escalationEmployees?: {
+    id: string;
+    priority: number;
+    user: { id: string; name: string; role: string };
+  }[];
   tasks: OverviewTask[];
 }
 interface OverviewProject {
@@ -272,6 +285,12 @@ export default function OperationsRoomClient() {
   // Per-service "add qualified employee" picker state (open + pending user id)
   const [qePicker, setQePicker] = useState<{ serviceId: string; userId: string } | null>(null);
   const [qeMutating, setQeMutating] = useState(false);
+  // Per-service "add escalation employee" picker state. Keyed by
+  // serviceTemplateId (not serviceId) since the underlying table is at
+  // catalog level — one template escalation list is shared by every
+  // project service instance derived from that template.
+  const [escPicker, setEscPicker] = useState<{ templateId: string; userId: string } | null>(null);
+  const [escMutating, setEscMutating] = useState(false);
 
   // ── Auth gate ──
   useEffect(() => {
@@ -330,6 +349,71 @@ export default function OperationsRoomClient() {
       if (res.ok) refreshOverview();
     } finally {
       setQeMutating(false);
+    }
+  };
+
+  // ── Escalation employees (per ServiceTemplate) mutations ──
+  const addEscalationEmployee = async (templateId: string, userId: string) => {
+    if (!userId) return;
+    setEscMutating(true);
+    try {
+      const res = await fetch(
+        `/api/service-catalog/templates/${templateId}/escalation`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId }),
+        }
+      );
+      if (res.ok) {
+        setEscPicker(null);
+        refreshOverview();
+      }
+    } finally {
+      setEscMutating(false);
+    }
+  };
+
+  const removeEscalationEmployee = async (templateId: string, userId: string) => {
+    if (!confirm("إزالة هذا الموظف من قائمة الطوارئ؟")) return;
+    setEscMutating(true);
+    try {
+      const res = await fetch(
+        `/api/service-catalog/templates/${templateId}/escalation?userId=${userId}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) refreshOverview();
+    } finally {
+      setEscMutating(false);
+    }
+  };
+
+  const reorderEscalationEmployee = async (
+    templateId: string,
+    currentOrder: string[],
+    userId: string,
+    direction: "up" | "down"
+  ) => {
+    const idx = currentOrder.indexOf(userId);
+    if (idx === -1) return;
+    if (direction === "up" && idx === 0) return;
+    if (direction === "down" && idx === currentOrder.length - 1) return;
+    const next = [...currentOrder];
+    const swap = direction === "up" ? idx - 1 : idx + 1;
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    setEscMutating(true);
+    try {
+      const res = await fetch(
+        `/api/service-catalog/templates/${templateId}/escalation`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order: next }),
+        }
+      );
+      if (res.ok) refreshOverview();
+    } finally {
+      setEscMutating(false);
     }
   };
 
@@ -781,6 +865,130 @@ export default function OperationsRoomClient() {
                                             </button>
                                           )}
                                         </div>
+
+                                        {/* Escalation employees (template-level).
+                                            Edits travel through the existing
+                                            /api/service-catalog/templates/[id]/escalation
+                                            endpoints — shown inline here so
+                                            admins don't need to jump to the
+                                            catalog page to maintain the late
+                                            task fallback chain. */}
+                                        {svc.serviceTemplateId && (() => {
+                                          const esc = svc.escalationEmployees || [];
+                                          const escOrder = esc.map((e) => e.user.id);
+                                          const tmplId = svc.serviceTemplateId;
+                                          return (
+                                            <div
+                                              className="flex items-center gap-2 px-4 py-2 flex-wrap"
+                                              style={{ borderTop: "1px solid #F8F7F3", backgroundColor: "rgba(234,88,12,0.04)" }}
+                                            >
+                                              <span className="inline-flex items-center gap-1 text-[10px] font-bold" style={{ color: "#9A3412" }}>
+                                                <Flame size={10} />
+                                                موظفو الطوارئ:
+                                              </span>
+                                              {esc.length === 0 && (
+                                                <span className="text-[10px] italic" style={{ color: "#9CA3AF" }}>
+                                                  لا يوجد
+                                                </span>
+                                              )}
+                                              {esc.map((e, idx) => (
+                                                <span
+                                                  key={e.id}
+                                                  className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                                  style={{ backgroundColor: "rgba(234,88,12,0.1)", color: "#9A3412" }}
+                                                >
+                                                  <span
+                                                    className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                                                    style={{ backgroundColor: "#EA580C" }}
+                                                  >
+                                                    {e.priority}
+                                                  </span>
+                                                  {e.user.name}
+                                                  <button
+                                                    type="button"
+                                                    disabled={escMutating || idx === 0}
+                                                    onClick={() =>
+                                                      reorderEscalationEmployee(tmplId, escOrder, e.user.id, "up")
+                                                    }
+                                                    className="hover:text-orange-700 disabled:opacity-30"
+                                                    title="رفع الأولوية"
+                                                  >
+                                                    <ChevronUp size={10} />
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    disabled={escMutating || idx === esc.length - 1}
+                                                    onClick={() =>
+                                                      reorderEscalationEmployee(tmplId, escOrder, e.user.id, "down")
+                                                    }
+                                                    className="hover:text-orange-700 disabled:opacity-30"
+                                                    title="إنزال الأولوية"
+                                                  >
+                                                    <ChevronDown size={10} />
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    disabled={escMutating}
+                                                    onClick={() => removeEscalationEmployee(tmplId, e.user.id)}
+                                                    className="hover:text-red-600"
+                                                    title="إزالة"
+                                                  >
+                                                    <X size={9} />
+                                                  </button>
+                                                </span>
+                                              ))}
+
+                                              {escPicker?.templateId === tmplId ? (
+                                                <div className="flex items-center gap-1">
+                                                  <select
+                                                    value={escPicker.userId}
+                                                    onChange={(e) =>
+                                                      setEscPicker({ templateId: tmplId, userId: e.target.value })
+                                                    }
+                                                    disabled={escMutating}
+                                                    className="text-[10px] px-1.5 py-0.5 rounded border bg-white outline-none"
+                                                    style={{ borderColor: "#FED7AA", color: "#1C1B2E" }}
+                                                  >
+                                                    <option value="">— اختر —</option>
+                                                    {overview?.executors
+                                                      .filter((ex) => !esc.some((e) => e.user.id === ex.id))
+                                                      .map((ex) => (
+                                                        <option key={ex.id} value={ex.id}>
+                                                          {ex.name}
+                                                        </option>
+                                                      ))}
+                                                  </select>
+                                                  <button
+                                                    type="button"
+                                                    disabled={!escPicker.userId || escMutating}
+                                                    onClick={() => addEscalationEmployee(tmplId, escPicker.userId)}
+                                                    className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-500 text-white disabled:bg-gray-200 disabled:text-gray-400"
+                                                  >
+                                                    حفظ
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    disabled={escMutating}
+                                                    onClick={() => setEscPicker(null)}
+                                                    className="text-[10px] px-2 py-0.5 rounded bg-gray-100 text-gray-600"
+                                                  >
+                                                    إلغاء
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setEscPicker({ templateId: tmplId, userId: "" })}
+                                                  className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-orange-100 transition-colors"
+                                                  style={{ color: "#EA580C" }}
+                                                >
+                                                  <UserPlus size={10} />
+                                                  إضافة طوارئ
+                                                </button>
+                                              )}
+                                            </div>
+                                          );
+                                        })()}
 
                                         {svc.tasks.length === 0 && (
                                           <p className="text-center text-[11px] py-2" style={{ color: "#9CA3AF" }}>لا توجد مهام</p>

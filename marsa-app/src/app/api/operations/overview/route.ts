@@ -51,6 +51,25 @@ export async function GET() {
                 user: { select: { id: true, name: true, role: true } },
               },
             },
+            // Escalation employees live on the ServiceTemplate (catalog
+            // level), not on the per-project Service instance. We pull
+            // them via the template relation so the operations room can
+            // manage them inline and still write back through the
+            // existing /api/service-catalog/templates/[id]/escalation
+            // endpoints — serviceTemplateId is surfaced below.
+            serviceTemplateId: true,
+            serviceTemplate: {
+              select: {
+                escalationEmployees: {
+                  orderBy: { priority: "asc" },
+                  select: {
+                    id: true,
+                    priority: true,
+                    user: { select: { id: true, name: true, role: true } },
+                  },
+                },
+              },
+            },
             tasks: {
               select: {
                 id: true,
@@ -113,12 +132,20 @@ export async function GET() {
               role: e.user!.role,
             }));
 
+          const escalationEmployees = (s.serviceTemplate?.escalationEmployees ?? []).map((e) => ({
+            id: e.id,
+            priority: e.priority,
+            user: e.user,
+          }));
+
           return {
             id: s.id,
             name: s.name,
             status: s.status,
+            serviceTemplateId: s.serviceTemplateId,
             executors,
             qualifiedEmployees,
+            escalationEmployees,
             tasks: s.tasks.map((t) => ({
               id: t.id,
               title: t.title,

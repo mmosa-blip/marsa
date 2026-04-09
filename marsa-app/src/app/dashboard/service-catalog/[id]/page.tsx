@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -17,11 +17,6 @@ import {
   ArrowLeftRight,
   Check,
   X,
-  UserPlus,
-  Search,
-  AlertTriangle,
-  ChevronUp,
-  ChevronDown,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -59,23 +54,8 @@ interface TemplateDetail {
   qualifiedEmployees: QualifiedEmployee[];
 }
 
-interface EscalationEmployee {
-  id: string;
-  priority: number;
-  userId: string;
-  user: { id: string; name: string; role: string; email: string };
-}
-
-interface UserOption {
-  id: string;
-  name: string;
-  role: string;
-  email: string;
-}
-
 export default function ServiceTemplateDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const templateId = params.id as string;
 
   const [template, setTemplate] = useState<TemplateDetail | null>(null);
@@ -86,12 +66,6 @@ export default function ServiceTemplateDetailPage() {
   const [editingTask, setEditingTask] = useState<TaskTemplate | null>(null);
   const [taskForm, setTaskForm] = useState({ name: "", description: "", defaultDuration: 1, sortOrder: 0, executionMode: "SEQUENTIAL" as TaskExecutionMode, sameDay: false, isRequired: true });
 
-  // Escalation employees
-  const [escalations, setEscalations] = useState<EscalationEmployee[]>([]);
-  const [showEscModal, setShowEscModal] = useState(false);
-  const [escSearch, setEscSearch] = useState("");
-  const [escResults, setEscResults] = useState<UserOption[]>([]);
-  const [escSearching, setEscSearching] = useState(false);
 
   // Edit template modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -112,14 +86,7 @@ export default function ServiceTemplateDetailPage() {
     }
   }, [templateId]);
 
-  const fetchEscalations = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/service-catalog/templates/${templateId}/escalation`);
-      if (res.ok) setEscalations(await res.json());
-    } catch {}
-  }, [templateId]);
-
-  useEffect(() => { fetchTemplate(); fetchEscalations(); }, [fetchTemplate, fetchEscalations]);
+  useEffect(() => { fetchTemplate(); }, [fetchTemplate]);
 
   // Add task
   const handleSaveTask = async () => {
@@ -143,66 +110,6 @@ export default function ServiceTemplateDetailPage() {
     if (!confirm("هل أنت متأكد من حذف هذه المهمة؟")) return;
     await fetch(`/api/service-catalog/task-templates/${id}`, { method: "DELETE" });
     fetchTemplate();
-  };
-
-  // Search escalation employees
-  const searchEscEmployees = async (q: string) => {
-    setEscSearch(q);
-    if (q.length < 2) { setEscResults([]); return; }
-    setEscSearching(true);
-    try {
-      const res = await fetch(`/api/users/search?q=${q}&roles=ADMIN,MANAGER,EXECUTOR`);
-      if (res.ok) {
-        const data = await res.json();
-        const existingIds = escalations.map(e => e.user.id);
-        setEscResults(data.filter((u: UserOption) => !existingIds.includes(u.id) && ["ADMIN", "MANAGER", "EXECUTOR"].includes(u.role)));
-      }
-    } catch {} finally {
-      setEscSearching(false);
-    }
-  };
-
-  const handleAddEscalation = async (userId: string) => {
-    const res = await fetch(`/api/service-catalog/templates/${templateId}/escalation`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId }),
-    });
-    if (res.ok) {
-      fetchEscalations();
-      setEscSearch("");
-      setEscResults([]);
-    }
-  };
-
-  const handleRemoveEscalation = async (userId: string) => {
-    if (!confirm("هل أنت متأكد من إزالة هذا الموظف من قائمة الطوارئ؟")) return;
-    await fetch(`/api/service-catalog/templates/${templateId}/escalation?userId=${userId}`, {
-      method: "DELETE",
-    });
-    fetchEscalations();
-  };
-
-  const handleReorderEscalation = async (userId: string, direction: "up" | "down") => {
-    const idx = escalations.findIndex(e => e.user.id === userId);
-    if (idx < 0) return;
-    if (direction === "up" && idx === 0) return;
-    if (direction === "down" && idx === escalations.length - 1) return;
-
-    const newOrder = escalations.map(e => e.user.id);
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
-
-    // Optimistic update
-    const newEscalations = [...escalations];
-    [newEscalations[idx], newEscalations[swapIdx]] = [newEscalations[swapIdx], newEscalations[idx]];
-    newEscalations.forEach((e, i) => e.priority = i + 1);
-    setEscalations(newEscalations);
-
-    await fetch(`/api/service-catalog/templates/${templateId}/escalation`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ order: newOrder }),
-    });
-    fetchEscalations();
   };
 
   // Edit template
@@ -263,8 +170,6 @@ export default function ServiceTemplateDetailPage() {
     setTaskForm({ name: task.name, description: task.description || "", defaultDuration: task.defaultDuration, sortOrder: task.sortOrder, executionMode: task.executionMode, sameDay: task.sameDay, isRequired: task.isRequired });
     setShowTaskModal(true);
   };
-
-  const roleLabels: Record<string, string> = { ADMIN: "مدير", MANAGER: "مشرف", EXECUTOR: "منفذ" };
 
   if (loading) {
     return (
@@ -583,85 +488,11 @@ export default function ServiceTemplateDetailPage() {
           </div>
         </div>
 
-        {/* Employees Section - 1/3
-            قسم "الموظفين المؤهلين" مُزال من واجهة قالب الخدمة — الإسناد
-            الآن مركزي عبر غرفة العمليات على مستوى كل خدمة في مشروع. */}
-        <div className="space-y-6">
-          {/* Escalation Employees Section */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100" style={{ borderColor: "#FED7AA" }}>
-            <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "#FED7AA", backgroundColor: "#FFF7ED", borderTopLeftRadius: "1rem", borderTopRightRadius: "1rem" }}>
-              <div className="flex items-center gap-2">
-                <AlertTriangle size={20} style={{ color: "#EA580C" }} />
-                <h2 className="text-base font-bold" style={{ color: "#9A3412" }}>موظفي الطوارئ</h2>
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: "#FFEDD5", color: "#EA580C" }}>
-                  {escalations.length}
-                </span>
-              </div>
-              <MarsaButton
-                onClick={() => { setShowEscModal(true); setEscSearch(""); setEscResults([]); }}
-                variant="ghost" size="sm" iconOnly icon={<UserPlus size={18} />}
-                style={{ color: "#EA580C" }}
-              />
-            </div>
-
-            <div className="p-5">
-              {escalations.length === 0 ? (
-                <div className="text-center py-6">
-                  <AlertTriangle size={32} className="mx-auto mb-2" style={{ color: "#FDBA74" }} />
-                  <p className="text-xs" style={{ color: "#9A3412" }}>لا يوجد موظفين طوارئ</p>
-                  <p className="text-xs text-gray-400 mt-1">يتم تصعيد المهام المتأخرة إليهم تلقائياً</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {escalations.map((esc, idx) => (
-                    <div key={esc.id} className="flex items-center gap-3 p-3 rounded-xl transition-colors" style={{ backgroundColor: "#FFF7ED" }}>
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
-                        style={{ backgroundColor: "#EA580C" }}
-                      >
-                        {esc.priority}
-                      </div>
-                      <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
-                        style={{ backgroundColor: "#F97316" }}
-                      >
-                        {esc.user.name.charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: "#1C1B2E" }}>{esc.user.name}</p>
-                        <p className="text-xs text-gray-400">{roleLabels[esc.user.role] || esc.user.role}</p>
-                      </div>
-                      <div className="flex flex-col gap-0.5">
-                        <button
-                          onClick={() => handleReorderEscalation(esc.user.id, "up")}
-                          disabled={idx === 0}
-                          className="p-1 rounded hover:bg-white transition-colors disabled:opacity-30"
-                          style={{ color: "#EA580C" }}
-                        >
-                          <ChevronUp size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleReorderEscalation(esc.user.id, "down")}
-                          disabled={idx === escalations.length - 1}
-                          className="p-1 rounded hover:bg-white transition-colors disabled:opacity-30"
-                          style={{ color: "#EA580C" }}
-                        >
-                          <ChevronDown size={14} />
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveEscalation(esc.user.id)}
-                        className="p-1 rounded-lg hover:bg-white transition-colors text-gray-300 hover:text-red-500"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* Employees sidebar column removed entirely — both the qualified-
+            employees card and the escalation card have been relocated to
+            the Operations Room (OperationsRoomClient) so assignment and
+            escalation maintenance happen per live service instance. The
+            corresponding API routes are still in use by the ops room. */}
       </div>
 
       {/* Task Modal */}
@@ -788,55 +619,6 @@ export default function ServiceTemplateDetailPage() {
                 إلغاء
               </MarsaButton>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Escalation Employee Modal */}
-      {showEscModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowEscModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-5">
-              <AlertTriangle size={20} style={{ color: "#EA580C" }} />
-              <h3 className="text-lg font-bold" style={{ color: "#9A3412" }}>إضافة موظف طوارئ</h3>
-            </div>
-            <p className="text-xs text-gray-400 mb-4">يتم تصعيد المهام المتأخرة تلقائياً حسب ترتيب الأولوية</p>
-            <div className="relative mb-4">
-              <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={escSearch}
-                onChange={(e) => searchEscEmployees(e.target.value)}
-                className="w-full pr-10 pl-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 text-sm"
-                style={{ borderColor: "#FED7AA" }}
-                placeholder="ابحث باسم الموظف..."
-              />
-            </div>
-            {escSearching && (
-              <div className="flex justify-center py-4">
-                <div className="w-5 h-5 border-2 rounded-full animate-spin" style={{ borderColor: "#EA580C", borderTopColor: "transparent" }} />
-              </div>
-            )}
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {escResults.map((user) => (
-                <div key={user.id} className="flex items-center gap-3 p-3 rounded-xl transition-colors" style={{ backgroundColor: "#FFF7ED" }}>
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ backgroundColor: "#F97316" }}>
-                    {user.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "#1C1B2E" }}>{user.name}</p>
-                    <p className="text-xs text-gray-400">{roleLabels[user.role] || user.role} • {user.email}</p>
-                  </div>
-                  <MarsaButton onClick={() => handleAddEscalation(user.id)} variant="gold" size="xs" iconOnly icon={<Plus size={16} />} style={{ backgroundColor: "#EA580C" }} />
-                </div>
-              ))}
-              {escSearch.length >= 2 && !escSearching && escResults.length === 0 && (
-                <p className="text-center text-gray-400 text-sm py-4">لا توجد نتائج</p>
-              )}
-            </div>
-            <MarsaButton onClick={() => setShowEscModal(false)} variant="secondary" className="w-full mt-4" style={{ borderColor: "#FED7AA" }}>
-              إغلاق
-            </MarsaButton>
           </div>
         </div>
       )}
