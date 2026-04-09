@@ -165,6 +165,8 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   const { t } = useLang();
   const { refreshCounts } = useSidebarCounts();
   const currentUserId = session?.user?.id || "";
+  const currentUserRole = session?.user?.role || "";
+  const isStaff = ["ADMIN", "MANAGER"].includes(currentUserRole);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -616,6 +618,33 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
     }
   };
 
+  // Confirm the full amount of a blocking installment as paid. Backend
+  // enforces ADMIN/MANAGER only — executors hit a 403 and see the error
+  // in an alert; the UI also hides the button from them entirely.
+  const handleFullPayment = async (installmentId: string, amount: number) => {
+    if (actionLoading) return;
+    if (!confirm("تأكيد السداد الكامل لهذه الدفعة؟")) return;
+    setActionLoading(installmentId);
+    try {
+      const res = await fetch(`/api/installments/${installmentId}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      if (res.ok) {
+        fetchTasks();
+        refreshCounts();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert((err as { error?: string }).error || "فشل تأكيد السداد");
+      }
+    } catch {
+      alert("تعذّر الاتصال بالخادم");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const activeTotalTasks = data?.total || 0;
 
   const statCards = [
@@ -720,20 +749,33 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
               </span>
             )}
             {inst && !hasPending && (
-              <button
-                type="button"
-                onClick={() =>
-                  setPartialModal({
-                    installmentId: inst.id,
-                    title: inst.title,
-                    remaining,
-                  })
-                }
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-amber-100 transition-colors"
-                style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}
-              >
-                طلب دفع جزئي
-              </button>
+              <div className="flex items-center gap-1 flex-wrap justify-end">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPartialModal({
+                      installmentId: inst.id,
+                      title: inst.title,
+                      remaining,
+                    })
+                  }
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-amber-100 transition-colors"
+                  style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}
+                >
+                  طلب دفع جزئي
+                </button>
+                {isStaff && (
+                  <button
+                    type="button"
+                    disabled={actionLoading === inst.id}
+                    onClick={() => handleFullPayment(inst.id, inst.amount)}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-green-100 transition-colors disabled:opacity-50"
+                    style={{ backgroundColor: "rgba(5,150,105,0.1)", color: "#059669" }}
+                  >
+                    ✓ تم السداد
+                  </button>
+                )}
+              </div>
             )}
             {hasPending && (
               <span className="text-[10px] font-semibold" style={{ color: "#C9A84C" }}>
