@@ -133,7 +133,12 @@ export async function GET(request: NextRequest) {
                 // sequential dependencies. createdAt drifts as soon as the
                 // user reorders services in the project, leaving the chain
                 // out of sync with the visible order.
-                orderBy: { serviceOrder: "asc" }
+                //
+                // Tie-breaker: when serviceOrder values collide (legacy data
+                // where every row had the schema default of 0), fall back
+                // to createdAt so the ordering stays deterministic across
+                // queries instead of becoming row-id roulette.
+                orderBy: [{ serviceOrder: "asc" }, { createdAt: "asc" }]
               }
             },
           },

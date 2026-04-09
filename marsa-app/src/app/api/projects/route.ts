@@ -262,7 +262,10 @@ export async function POST(request: Request) {
         const svcDuration = tmpl.defaultDuration || tmpl.taskTemplates.reduce((s: number, t) => s + t.defaultDuration, 0);
         const svcPrice = svcInput.price || tmpl.defaultPrice;
 
-        // Create Service
+        // Create Service. serviceOrder MUST be set explicitly — leaving it
+        // at the schema default (0) makes every service in the project share
+        // the same value, which breaks the deterministic ordering that
+        // computeCanStart relies on for the "previous service done" gate.
         const service = await prisma.service.create({
           data: {
             name: tmpl.name,
@@ -274,6 +277,7 @@ export async function POST(request: Request) {
             projectId: project.id,
             serviceTemplateId: svcInput.serviceTemplateId,
             status: "IN_PROGRESS",
+            serviceOrder: si,
           },
         });
 

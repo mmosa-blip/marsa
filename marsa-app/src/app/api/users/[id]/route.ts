@@ -221,8 +221,11 @@ export async function DELETE(
     // here so the user cleanly disappears from the operational system
     // even though the audit row sticks around. Each statement is
     // independent — pgbouncer doesn't allow interactive transactions.
+    // Detach EVERY task — including DONE/CANCELLED ones — so the deleted
+    // user disappears from history listings as well. The startedById and
+    // audit log still preserve who actually executed the work.
     await prisma.task.updateMany({
-      where: { assigneeId: id, status: { notIn: ["DONE", "CANCELLED"] } },
+      where: { assigneeId: id },
       data: { assigneeId: null },
     });
     await prisma.userService.deleteMany({ where: { userId: id } });
