@@ -612,26 +612,30 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
       }
     }
 
+    // canStart=false short-circuits ALL action buttons regardless of the
+    // task's current status. A task may be IN_PROGRESS and still have
+    // canStart=false (e.g. it was started earlier and a predecessor got
+    // reverted, or it's surfaced in project mode while another service
+    // is still running). In every such case we must NOT render "إكمال"
+    // or "ابدأ" — only the inline waiting text.
+    if (task.canStart === false) {
+      return task.blockReason === "payment" ? (
+        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: "#DC2626" }}>
+          <Lock size={12} />
+          🔒 في انتظار دفعة
+        </span>
+      ) : (
+        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: "#D97706" }}>
+          ⏳ في انتظار مهمة سابقة
+        </span>
+      );
+    }
+
     // Multi-executor lock: if IN_PROGRESS and started by someone else
     const startedByOther = task.status === "IN_PROGRESS" && task.startedById && task.startedById !== currentUserId;
 
     switch (task.status) {
       case "TODO":
-        if (task.canStart === false) {
-          // Two distinct waiting states — sequential predecessor or
-          // payment lock. Each renders inline text (not a button) so the
-          // user can't click "إكمال" or "ابدأ" on a task they can't act on.
-          return task.blockReason === "payment" ? (
-            <span className="flex items-center gap-1 text-xs font-medium" style={{ color: "#DC2626" }}>
-              <Lock size={12} />
-              🔒 في انتظار دفعة
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-xs font-medium" style={{ color: "#D97706" }}>
-              ⏳ في انتظار مهمة سابقة
-            </span>
-          );
-        }
         return (
           <MarsaButton
             onClick={() => handleStatusChange(task.id, "IN_PROGRESS")}
