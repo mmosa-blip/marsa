@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { addWorkingDays } from "@/lib/working-days";
 
 interface InstantiateOptions {
   templateId: string;
@@ -67,7 +68,7 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
 
   const now = new Date();
   let totalPrice = 0;
-  const projectEndDate = new Date(now);
+  let projectEndDate = new Date(now);
 
   if (template.workflowType === "SEQUENTIAL") {
     let cumulativeDays = 0;
@@ -77,7 +78,7 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
       cumulativeDays += dur;
       totalPrice += st.defaultPrice ?? 0;
     }
-    projectEndDate.setDate(projectEndDate.getDate() + cumulativeDays);
+    projectEndDate = addWorkingDays(projectEndDate, cumulativeDays);
   } else {
     let maxDur = 0;
     for (const pts of template.services) {
@@ -86,7 +87,7 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
       if (dur > maxDur) maxDur = dur;
       totalPrice += st.defaultPrice ?? 0;
     }
-    projectEndDate.setDate(projectEndDate.getDate() + maxDur);
+    projectEndDate = addWorkingDays(projectEndDate, maxDur);
   }
 
   const project = await prisma.project.create({
@@ -138,8 +139,7 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
         startDate = new Date(template.workflowType === "SEQUENTIAL" ? serviceStartDate : now);
       }
 
-      const dueDate = new Date(startDate);
-      dueDate.setDate(dueDate.getDate() + tt.defaultDuration);
+      const dueDate = addWorkingDays(startDate, tt.defaultDuration);
 
       const assigneeId = employees.length > 0 ? employees[i % employees.length].userId : null;
 
@@ -175,8 +175,7 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
 
     if (template.workflowType === "SEQUENTIAL") {
       const dur = st.defaultDuration ?? taskTemplates.reduce((s, t) => s + t.defaultDuration, 0);
-      serviceStartDate = new Date(serviceStartDate);
-      serviceStartDate.setDate(serviceStartDate.getDate() + dur);
+      serviceStartDate = addWorkingDays(serviceStartDate, dur);
     }
   }
 

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment-assign";
+import { addWorkingDays } from "@/lib/working-days";
 
 export async function POST(request: Request) {
   try {
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
         cumulativeDays += serviceDuration;
         totalPrice += st.defaultPrice ?? 0;
       }
-      projectEndDate.setDate(projectEndDate.getDate() + cumulativeDays);
+      projectEndDate = addWorkingDays(projectEndDate, cumulativeDays);
     } else {
       let maxDuration = 0;
       for (const pts of template.services) {
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
         if (serviceDuration > maxDuration) maxDuration = serviceDuration;
         totalPrice += st.defaultPrice ?? 0;
       }
-      projectEndDate.setDate(projectEndDate.getDate() + maxDuration);
+      projectEndDate = addWorkingDays(projectEndDate, maxDuration);
     }
 
     // إنشاء المشروع - use contract price if available
@@ -173,8 +174,7 @@ export async function POST(request: Request) {
           );
         }
 
-        const dueDate = new Date(startDate);
-        dueDate.setDate(dueDate.getDate() + tt.defaultDuration);
+        const dueDate = addWorkingDays(startDate, tt.defaultDuration);
 
         // Investment: date-priority + load balancing. Others: simple round-robin
         let assigneeId: string | null = null;
@@ -228,8 +228,7 @@ export async function POST(request: Request) {
         const serviceDuration =
           st.defaultDuration ??
           taskTemplates.reduce((sum, t) => sum + t.defaultDuration, 0);
-        serviceStartDate = new Date(serviceStartDate);
-        serviceStartDate.setDate(serviceStartDate.getDate() + serviceDuration);
+        serviceStartDate = addWorkingDays(serviceStartDate, serviceDuration);
       }
     }
 

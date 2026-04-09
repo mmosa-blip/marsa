@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { addWorkingDays } from "@/lib/working-days";
 
 export async function POST(request: Request) {
   try {
@@ -55,8 +56,7 @@ export async function POST(request: Request) {
     let finalProjectId = projectId;
     if (!finalProjectId) {
       const now = new Date();
-      const endDate = new Date(now);
-      endDate.setDate(endDate.getDate() + totalDuration);
+      const endDate = addWorkingDays(now, totalDuration);
 
       const project = await prisma.project.create({
         data: {
@@ -99,8 +99,7 @@ export async function POST(request: Request) {
         startDate = new Date(now);
       }
 
-      const dueDate = new Date(startDate);
-      dueDate.setDate(dueDate.getDate() + tt.defaultDuration);
+      const dueDate = addWorkingDays(startDate, tt.defaultDuration);
 
       // التوزيع الدوري للموظفين
       const assigneeId =

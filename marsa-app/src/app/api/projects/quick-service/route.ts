@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { addWorkingDays } from "@/lib/working-days";
 
 export async function POST(request: Request) {
   try {
@@ -43,8 +44,7 @@ export async function POST(request: Request) {
 
     const now = new Date();
     const totalDuration = template.taskTemplates.reduce((sum, t) => sum + (t.defaultDuration || 1), 0);
-    const endDate = new Date(now);
-    endDate.setDate(endDate.getDate() + totalDuration);
+    const endDate = addWorkingDays(now, totalDuration);
 
     // Create project with service and tasks in a transaction
     const project = await prisma.$transaction(async (tx) => {
@@ -86,10 +86,8 @@ export async function POST(request: Request) {
       let dayOffset = 0;
 
       for (const taskTpl of template.taskTemplates) {
-        const taskStart = new Date(now);
-        taskStart.setDate(taskStart.getDate() + dayOffset);
-        const taskEnd = new Date(taskStart);
-        taskEnd.setDate(taskEnd.getDate() + (taskTpl.defaultDuration || 1));
+        const taskStart = addWorkingDays(now, dayOffset);
+        const taskEnd = addWorkingDays(taskStart, taskTpl.defaultDuration || 1);
 
         const assigneeId = employees.length > 0 ? employees[empIdx % employees.length].userId : null;
 

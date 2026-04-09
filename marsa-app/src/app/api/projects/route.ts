@@ -7,6 +7,7 @@ import { createAuditLog, AuditModule } from "@/lib/audit";
 import type { WorkflowType, ProjectPriority, MilestoneStatus } from "@/generated/prisma/client";
 import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment-assign";
 import { generateProjectCode } from "@/lib/project-code";
+import { addWorkingDays } from "@/lib/working-days";
 
 export async function GET(request: Request) {
   try {
@@ -224,8 +225,7 @@ export async function POST(request: Request) {
         }
       }
 
-      const endDate = new Date(now);
-      endDate.setDate(endDate.getDate() + totalDuration);
+      const endDate = addWorkingDays(now, totalDuration);
 
       // Create project
       const project = await prisma.project.create({
@@ -323,8 +323,7 @@ export async function POST(request: Request) {
             startDate = new Date(serviceStartDate);
           }
 
-          const dueDate = new Date(startDate);
-          dueDate.setDate(dueDate.getDate() + tt.defaultDuration);
+          const dueDate = addWorkingDays(startDate, tt.defaultDuration);
 
           if (tmpl.workflowType === "SEQUENTIAL") {
             taskStartDate = new Date(dueDate);
@@ -438,8 +437,7 @@ export async function POST(request: Request) {
 
         // Update service start for next service (SEQUENTIAL project workflow)
         if (workflowType === "SEQUENTIAL") {
-          serviceStartDate = new Date(serviceStartDate);
-          serviceStartDate.setDate(serviceStartDate.getDate() + svcDuration);
+          serviceStartDate = addWorkingDays(serviceStartDate, svcDuration);
         }
       }
 

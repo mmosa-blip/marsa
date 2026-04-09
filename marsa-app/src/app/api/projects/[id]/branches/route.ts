@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment-assign";
+import { addWorkingDays } from "@/lib/working-days";
 
 // POST /api/projects/[id]/branches
 // Body: { branches: string[] } — branch names (e.g. ["كندا", "بريطانيا"])
@@ -84,8 +85,7 @@ export async function POST(
       let taskStart = new Date(now);
       for (let i = 0; i < branchTemplate.taskTemplates.length; i++) {
         const tt = branchTemplate.taskTemplates[i];
-        const dueDate = new Date(taskStart);
-        dueDate.setDate(dueDate.getDate() + tt.defaultDuration);
+        const dueDate = addWorkingDays(taskStart, tt.defaultDuration);
 
         // Pick assignee — Investment uses its custom logic, others round-robin
         let assigneeId: string | null = null;
