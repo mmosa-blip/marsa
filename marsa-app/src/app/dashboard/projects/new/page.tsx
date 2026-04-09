@@ -2273,6 +2273,50 @@ export default function NewProjectPage() {
                   style={{ backgroundColor: "#E8E6F0" }}
                 />
 
+                {/* ── BEFORE-FIRST-SERVICE payment milestones ── */}
+                {paymentMilestones
+                  .filter((p) => p.afterServiceIndex === -1)
+                  .map((pm) => (
+                    <div key={pm.id} className="relative flex gap-4 mb-0">
+                      <div className="flex flex-col items-center flex-shrink-0" style={{ width: 40 }}>
+                        <div
+                          className="w-7 h-7 rounded-full flex items-center justify-center z-10"
+                          style={{ backgroundColor: "#059669", color: "#fff" }}
+                        >
+                          <DollarSign size={14} />
+                        </div>
+                        <div className="flex-1 w-0.5 my-1" style={{ backgroundColor: "#E8E6F0" }}>
+                          <div className="w-full h-full min-h-[8px]" />
+                        </div>
+                      </div>
+                      <div
+                        className="flex-1 rounded-xl p-3 mb-3"
+                        style={{
+                          backgroundColor: "rgba(5, 150, 105, 0.04)",
+                          border: "1px solid rgba(5, 150, 105, 0.2)",
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CreditCard size={14} style={{ color: "#059669" }} />
+                            <span className="text-sm font-medium" style={{ color: "#059669" }}>
+                              {pm.title}
+                            </span>
+                            <span
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                              style={{ backgroundColor: "rgba(5,150,105,0.1)", color: "#059669" }}
+                            >
+                              قبل بدء المشروع
+                            </span>
+                          </div>
+                          <span className="text-sm font-bold" style={{ color: "#059669" }}>
+                            {pm.amount.toLocaleString("en-US")} <SarSymbol size={14} />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
                 {/* ── SERVICES & PAYMENT MILESTONES ── */}
                 {selectedServices.map((service, idx) => {
                   const detail = serviceDetails[service.serviceTemplateId];
@@ -2428,16 +2472,34 @@ export default function NewProjectPage() {
                 <>
                   {paymentMilestones.length > 0 && (
                     <div className="pb-2">
-                      <p className="text-xs text-gray-400 mb-2">الدفعات البينية:</p>
-                      {paymentMilestones.map((pm) => (
-                        <div key={pm.id} className="flex items-center justify-between py-1 text-sm" style={{ color: "#059669" }}>
-                          <span className="flex items-center gap-1.5">
-                            <CreditCard size={12} />
-                            {pm.title}
-                          </span>
-                          <span className="font-medium">{pm.amount.toLocaleString("en-US")} <SarSymbol size={14} /></span>
-                        </div>
-                      ))}
+                      <p className="text-xs text-gray-400 mb-2">الدفعات:</p>
+                      {/* Sort -1 first, then by afterServiceIndex ascending so
+                          "before start" always leads the list. */}
+                      {[...paymentMilestones]
+                        .sort((a, b) => a.afterServiceIndex - b.afterServiceIndex)
+                        .map((pm) => (
+                          <div
+                            key={pm.id}
+                            className="flex items-center justify-between py-1 text-sm"
+                            style={{ color: "#059669" }}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <CreditCard size={12} />
+                              {pm.title}
+                              {pm.afterServiceIndex === -1 && (
+                                <span
+                                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                  style={{ backgroundColor: "rgba(5,150,105,0.1)", color: "#059669" }}
+                                >
+                                  قبل البدء
+                                </span>
+                              )}
+                            </span>
+                            <span className="font-medium">
+                              {pm.amount.toLocaleString("en-US")} <SarSymbol size={14} />
+                            </span>
+                          </div>
+                        ))}
                     </div>
                   )}
                   <div className="flex items-center justify-between pt-3 text-lg font-bold" style={{ borderTop: "2px solid #C9A84C", color: "#C9A84C" }}>
