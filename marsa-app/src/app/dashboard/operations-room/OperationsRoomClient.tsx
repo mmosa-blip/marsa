@@ -53,6 +53,9 @@ interface OverviewService {
   // Distinct executors derived from this service's tasks (server-side now,
   // but we still recompute on the client where needed for resilience).
   executors?: { id: string; name: string }[];
+  // UserService rows — the authoritative "qualified employees" pool
+  // that the operations room can add to / remove from.
+  qualifiedEmployees?: { id: string; name: string; role: string }[];
   tasks: OverviewTask[];
 }
 interface OverviewProject {
@@ -266,6 +269,9 @@ export default function OperationsRoomClient() {
   const [assigning, setAssigning] = useState(false);
   // Multi-select state for the assign modal — reset whenever the modal opens.
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  // Per-service "add qualified employee" picker state (open + pending user id)
+  const [qePicker, setQePicker] = useState<{ serviceId: string; userId: string } | null>(null);
+  const [qeMutating, setQeMutating] = useState(false);
 
   // ── Auth gate ──
   useEffect(() => {
@@ -293,6 +299,39 @@ export default function OperationsRoomClient() {
       .finally(() => setLoading(false));
   };
   useEffect(() => { refreshOverview(); }, []);
+
+  // ── Qualified employees (per service) mutations ──
+  const addQualifiedEmployee = async (serviceId: string, userId: string) => {
+    if (!userId) return;
+    setQeMutating(true);
+    try {
+      const res = await fetch(`/api/services/${serviceId}/qualified-employees`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      if (res.ok) {
+        setQePicker(null);
+        refreshOverview();
+      }
+    } finally {
+      setQeMutating(false);
+    }
+  };
+
+  const removeQualifiedEmployee = async (serviceId: string, userId: string) => {
+    if (!confirm("إزالة هذا المنفذ من قائمة المؤهلين للخدمة؟")) return;
+    setQeMutating(true);
+    try {
+      const res = await fetch(
+        `/api/services/${serviceId}/qualified-employees/${userId}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) refreshOverview();
+    } finally {
+      setQeMutating(false);
+    }
+  };
 
   // ── Group projects by department ──
   const departments = useMemo(() => {
@@ -654,6 +693,95 @@ export default function OperationsRoomClient() {
                                     {/* Service children: tasks */}
                                     {sOpen && (
                                       <div>
+                                        {/* Qualified employees for this service.
+                                            Uses UserService rows — the authoritative
+                                            pool the projects POST handler consults
+                                            when a service template has no own
+                                            qualifiedEmployees. */}
+                                        <div
+                                          className="flex items-center gap-2 px-4 py-2 flex-wrap"
+                                          style={{ borderTop: "1px solid #F8F7F3", backgroundColor: "rgba(201,168,76,0.04)" }}
+                                        >
+                                          <span className="text-[10px] font-bold" style={{ color: "#5E5495" }}>
+                                            المؤهلون:
+                                          </span>
+                                          {(svc.qualifiedEmployees || []).length === 0 && (
+                                            <span className="text-[10px] italic" style={{ color: "#9CA3AF" }}>
+                                              لا يوجد مؤهلون
+                                            </span>
+                                          )}
+                                          {(svc.qualifiedEmployees || []).map((qe) => (
+                                            <span
+                                              key={qe.id}
+                                              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                              style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}
+                                            >
+                                              {qe.name}
+                                              <button
+                                                type="button"
+                                                onClick={() => removeQualifiedEmployee(svc.id, qe.id)}
+                                                disabled={qeMutating}
+                                                className="hover:text-red-600 transition-colors"
+                                                title="إزالة"
+                                              >
+                                                <X size={9} />
+                                              </button>
+                                            </span>
+                                          ))}
+
+                                          {qePicker?.serviceId === svc.id ? (
+                                            <div className="flex items-center gap-1">
+                                              <select
+                                                value={qePicker.userId}
+                                                onChange={(e) =>
+                                                  setQePicker({ serviceId: svc.id, userId: e.target.value })
+                                                }
+                                                disabled={qeMutating}
+                                                className="text-[10px] px-1.5 py-0.5 rounded border bg-white outline-none"
+                                                style={{ borderColor: "#E2E0D8", color: "#1C1B2E" }}
+                                              >
+                                                <option value="">— اختر —</option>
+                                                {overview?.executors
+                                                  .filter(
+                                                    (ex) =>
+                                                      !(svc.qualifiedEmployees || []).some((qe) => qe.id === ex.id)
+                                                  )
+                                                  .map((ex) => (
+                                                    <option key={ex.id} value={ex.id}>
+                                                      {ex.name}
+                                                    </option>
+                                                  ))}
+                                              </select>
+                                              <button
+                                                type="button"
+                                                disabled={!qePicker.userId || qeMutating}
+                                                onClick={() => addQualifiedEmployee(svc.id, qePicker.userId)}
+                                                className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-white disabled:bg-gray-200 disabled:text-gray-400"
+                                              >
+                                                حفظ
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setQePicker(null)}
+                                                disabled={qeMutating}
+                                                className="text-[10px] px-2 py-0.5 rounded bg-gray-100 text-gray-600"
+                                              >
+                                                إلغاء
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => setQePicker({ serviceId: svc.id, userId: "" })}
+                                              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-amber-100 transition-colors"
+                                              style={{ color: "#C9A84C" }}
+                                            >
+                                              <UserPlus size={10} />
+                                              إضافة مؤهل
+                                            </button>
+                                          )}
+                                        </div>
+
                                         {svc.tasks.length === 0 && (
                                           <p className="text-center text-[11px] py-2" style={{ color: "#9CA3AF" }}>لا توجد مهام</p>
                                         )}

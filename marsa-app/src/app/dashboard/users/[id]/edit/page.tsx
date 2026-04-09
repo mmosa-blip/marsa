@@ -36,9 +36,6 @@ export default function EditUserPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
-  const [userServices, setUserServices] = useState<{id: string; service: {id: string; name: string; category: string | null}}[]>([]);
-  const [allServices, setAllServices] = useState<{id: string; name: string; category: string | null}[]>([]);
-  const [serviceSearch, setServiceSearch] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -96,29 +93,6 @@ export default function EditUserPage() {
         .catch(() => {});
     }
   }, [form.role]);
-
-  useEffect(() => {
-    if (!userId) return;
-    fetch(`/api/users/${userId}/services`).then(r => r.json()).then(d => { if (Array.isArray(d)) setUserServices(d); });
-    fetch("/api/services").then(r => r.json()).then(d => { if (Array.isArray(d)) setAllServices(d); });
-  }, [userId]);
-
-  const handleAddService = async (serviceId: string) => {
-    await fetch(`/api/users/${userId}/services`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ serviceId }),
-    });
-    fetch(`/api/users/${userId}/services`).then(r => r.json()).then(d => { if (Array.isArray(d)) setUserServices(d); });
-  };
-  const handleRemoveService = async (serviceId: string) => {
-    await fetch(`/api/users/${userId}/services`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ serviceId }),
-    });
-    setUserServices(prev => prev.filter(s => s.service.id !== serviceId));
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -516,39 +490,9 @@ export default function EditUserPage() {
         </div>
       </form>
 
-      {(form.role === "EXECUTOR" || form.role === "EXTERNAL_PROVIDER") && (
-        <div className="bg-white rounded-2xl p-6 mt-6" style={{ border: "1px solid #E2E0D8" }}>
-          <h3 className="text-base font-bold mb-4" style={{ color: "#1C1B2E" }}>الخدمات المرتبطة بالمنفذ</h3>
-          <div className="flex gap-2 mb-4">
-            <select value={serviceSearch} onChange={(e) => setServiceSearch(e.target.value)}
-              className="flex-1 rounded-xl px-3 py-2 text-sm outline-none"
-              style={{ border: "1px solid #E2E0D8" }}>
-              <option value="">اختر خدمة للإضافة...</option>
-              {allServices.filter(s => !userServices.find(us => us.service.id === s.id)).map(s => (
-                <option key={s.id} value={s.id}>{s.name}{s.category ? ` - ${s.category}` : ""}</option>
-              ))}
-            </select>
-            <MarsaButton onClick={() => { if (serviceSearch) { handleAddService(serviceSearch); setServiceSearch(""); } }}
-              variant="gold" size="sm">إضافة</MarsaButton>
-          </div>
-          <div className="space-y-2">
-            {userServices.length === 0 ? (
-              <p className="text-sm text-center py-4" style={{ color: "#94A3B8" }}>لا توجد خدمات مرتبطة</p>
-            ) : (
-              userServices.map(us => (
-                <div key={us.id} className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: "#F8F7F4" }}>
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: "#1C1B2E" }}>{us.service.name}</p>
-                    {us.service.category && <p className="text-xs" style={{ color: "#94A3B8" }}>{us.service.category}</p>}
-                  </div>
-                  <MarsaButton onClick={() => handleRemoveService(us.service.id)}
-                    variant="dangerSoft" size="xs">إلغاء الربط</MarsaButton>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+      {/* قسم "الخدمات المرتبطة بالمنفذ" مُزال — الإسناد الآن مركزي عبر
+          غرفة العمليات (OperationsRoomClient) على مستوى الخدمة بدلاً من
+          صفحة تعديل المستخدم. */}
     </div>
   );
 }

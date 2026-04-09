@@ -13,10 +13,8 @@ import {
   ListChecks,
   Plus,
   Trash2,
-  Users,
   ArrowDown,
   ArrowLeftRight,
-  ArrowUp,
   Check,
   X,
   UserPlus,
@@ -88,12 +86,6 @@ export default function ServiceTemplateDetailPage() {
   const [editingTask, setEditingTask] = useState<TaskTemplate | null>(null);
   const [taskForm, setTaskForm] = useState({ name: "", description: "", defaultDuration: 1, sortOrder: 0, executionMode: "SEQUENTIAL" as TaskExecutionMode, sameDay: false, isRequired: true });
 
-  // Employee modal
-  const [showEmpModal, setShowEmpModal] = useState(false);
-  const [empSearch, setEmpSearch] = useState("");
-  const [empResults, setEmpResults] = useState<UserOption[]>([]);
-  const [empSearching, setEmpSearching] = useState(false);
-
   // Escalation employees
   const [escalations, setEscalations] = useState<EscalationEmployee[]>([]);
   const [showEscModal, setShowEscModal] = useState(false);
@@ -129,24 +121,6 @@ export default function ServiceTemplateDetailPage() {
 
   useEffect(() => { fetchTemplate(); fetchEscalations(); }, [fetchTemplate, fetchEscalations]);
 
-  // Search employees
-  const searchEmployees = async (q: string) => {
-    setEmpSearch(q);
-    if (q.length < 2) { setEmpResults([]); return; }
-    setEmpSearching(true);
-    try {
-      const res = await fetch(`/api/users/search?q=${q}&roles=ADMIN,MANAGER,EXECUTOR`);
-      if (res.ok) {
-        const data = await res.json();
-        // Filter out already qualified employees
-        const existingIds = template?.qualifiedEmployees.map(e => e.user.id) || [];
-        setEmpResults(data.filter((u: UserOption) => !existingIds.includes(u.id) && ["ADMIN", "MANAGER", "EXECUTOR"].includes(u.role)));
-      }
-    } catch {} finally {
-      setEmpSearching(false);
-    }
-  };
-
   // Add task
   const handleSaveTask = async () => {
     const method = editingTask ? "PATCH" : "POST";
@@ -168,27 +142,6 @@ export default function ServiceTemplateDetailPage() {
   const handleDeleteTask = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذه المهمة؟")) return;
     await fetch(`/api/service-catalog/task-templates/${id}`, { method: "DELETE" });
-    fetchTemplate();
-  };
-
-  // Add employee
-  const handleAddEmployee = async (userId: string) => {
-    const res = await fetch(`/api/service-catalog/templates/${templateId}/employees`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId }),
-    });
-    if (res.ok) {
-      fetchTemplate();
-      setEmpSearch("");
-      setEmpResults([]);
-    }
-  };
-
-  const handleRemoveEmployee = async (userId: string) => {
-    if (!confirm("هل أنت متأكد من إزالة هذا الموظف؟")) return;
-    await fetch(`/api/service-catalog/templates/${templateId}/employees?userId=${userId}`, {
-      method: "DELETE",
-    });
     fetchTemplate();
   };
 
@@ -630,54 +583,10 @@ export default function ServiceTemplateDetailPage() {
           </div>
         </div>
 
-        {/* Employees Section - 1/3 */}
+        {/* Employees Section - 1/3
+            قسم "الموظفين المؤهلين" مُزال من واجهة قالب الخدمة — الإسناد
+            الآن مركزي عبر غرفة العمليات على مستوى كل خدمة في مشروع. */}
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <Users size={20} style={{ color: "#C9A84C" }} />
-                <h2 className="text-base font-bold" style={{ color: "#1C1B2E" }}>الموظفين المؤهلين</h2>
-              </div>
-              <MarsaButton
-                onClick={() => { setShowEmpModal(true); setEmpSearch(""); setEmpResults([]); }}
-                variant="ghost" size="sm" iconOnly icon={<UserPlus size={18} />}
-                style={{ color: "#C9A84C" }}
-              />
-            </div>
-
-            <div className="p-5">
-              {template.qualifiedEmployees.length === 0 ? (
-                <div className="text-center py-6">
-                  <Users size={32} className="mx-auto mb-2 text-gray-300" />
-                  <p className="text-gray-400 text-xs">لا يوجد موظفين مؤهلين</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {template.qualifiedEmployees.map((emp) => (
-                    <div key={emp.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                        style={{ backgroundColor: template.category.color || "#3B82F6" }}
-                      >
-                        {emp.user.name.charAt(0)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: "#1C1B2E" }}>{emp.user.name}</p>
-                        <p className="text-xs text-gray-400">{roleLabels[emp.user.role] || emp.user.role}</p>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveEmployee(emp.user.id)}
-                        className="p-1 rounded-lg hover:bg-white transition-colors text-gray-300 hover:text-red-500"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Escalation Employees Section */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100" style={{ borderColor: "#FED7AA" }}>
             <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "#FED7AA", backgroundColor: "#FFF7ED", borderTopLeftRadius: "1rem", borderTopRightRadius: "1rem" }}>
@@ -879,50 +788,6 @@ export default function ServiceTemplateDetailPage() {
                 إلغاء
               </MarsaButton>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Employee Modal */}
-      {showEmpModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowEmpModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-5" style={{ color: "#1C1B2E" }}>إضافة موظف مؤهل</h3>
-            <div className="relative mb-4">
-              <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={empSearch}
-                onChange={(e) => searchEmployees(e.target.value)}
-                className="w-full pr-10 pl-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-200 text-sm"
-                placeholder="ابحث باسم الموظف..."
-              />
-            </div>
-            {empSearching && (
-              <div className="flex justify-center py-4">
-                <div className="w-5 h-5 border-2 rounded-full animate-spin" style={{ borderColor: "#C9A84C", borderTopColor: "transparent" }} />
-              </div>
-            )}
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {empResults.map((user) => (
-                <div key={user.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ backgroundColor: "#5E5495" }}>
-                    {user.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "#1C1B2E" }}>{user.name}</p>
-                    <p className="text-xs text-gray-400">{roleLabels[user.role] || user.role} • {user.email}</p>
-                  </div>
-                  <MarsaButton onClick={() => handleAddEmployee(user.id)} variant="gold" size="xs" iconOnly icon={<Plus size={16} />} />
-                </div>
-              ))}
-              {empSearch.length >= 2 && !empSearching && empResults.length === 0 && (
-                <p className="text-center text-gray-400 text-sm py-4">لا توجد نتائج</p>
-              )}
-            </div>
-            <MarsaButton onClick={() => setShowEmpModal(false)} variant="secondary" className="w-full mt-4">
-              إغلاق
-            </MarsaButton>
           </div>
         </div>
       )}

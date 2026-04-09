@@ -45,6 +45,12 @@ export async function GET() {
             id: true,
             name: true,
             status: true,
+            executors: {
+              select: {
+                userId: true,
+                user: { select: { id: true, name: true, role: true } },
+              },
+            },
             tasks: {
               select: {
                 id: true,
@@ -95,11 +101,24 @@ export async function GET() {
           }
           const executors = Array.from(seen, ([id, name]) => ({ id, name }));
 
+          // Qualified employees = UserService rows for this service instance.
+          // This is the authoritative pool the assignment room adds/removes
+          // against — /api/projects/route.ts already uses these rows as the
+          // fallback executor pool when the service template has none.
+          const qualifiedEmployees = s.executors
+            .filter((e) => e.user)
+            .map((e) => ({
+              id: e.user!.id,
+              name: e.user!.name,
+              role: e.user!.role,
+            }));
+
           return {
             id: s.id,
             name: s.name,
             status: s.status,
             executors,
+            qualifiedEmployees,
             tasks: s.tasks.map((t) => ({
               id: t.id,
               title: t.title,
