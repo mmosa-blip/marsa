@@ -2,12 +2,20 @@ import { z } from "zod";
 
 export const emailSchema = z.string().email("صيغة البريد الإلكتروني غير صحيحة").optional().or(z.literal("")).or(z.null());
 
-// Saudi phone: 05xxxxxxxx (10 digits) or +9665xxxxxxxx (13 chars) or 9665xxxxxxxx (12 digits)
+// Phone schemas accept EITHER a Saudi local number (05xxxxxxxx) or any
+// international E.164 number (+CCxxxxxxxxxx). Saudi numbers stay in the
+// 05xxxxxxxx shape so existing DB rows keep matching; every other country
+// is stored in E.164 so the country code is preserved.
 export const phoneAuthSchema = z.string()
-  .transform((val) => normalizeSaudiPhone(val))
-  .refine((val) => /^05\d{8}$/.test(val), "رقم الجوال يجب أن يبدأ بـ 05 ويتكون من 10 أرقام");
+  .transform((val) => normalizePhone(val))
+  .refine((val) => isValidPhone(val), "رقم الجوال غير صالح — أدخل رقماً سعودياً (05xxxxxxxx) أو دولياً بصيغة +رمز الدولة متبوعاً بالرقم");
 
-export const phoneSchema = z.string().regex(/^05\d{8}$/, "رقم الجوال يجب أن يبدأ بـ 05 ويتكون من 10 أرقام").optional().or(z.literal("")).or(z.null());
+export const phoneSchema = z.string()
+  .transform((val) => (val ? normalizePhone(val) : val))
+  .refine((val) => !val || isValidPhone(val), "رقم الجوال غير صالح — أدخل رقماً سعودياً (05xxxxxxxx) أو دولياً بصيغة +رمز الدولة متبوعاً بالرقم")
+  .optional()
+  .or(z.literal(""))
+  .or(z.null());
 
 export const passwordSchema = z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل");
 
@@ -16,24 +24,64 @@ export const positiveNumber = z.number().positive("يجب أن يكون رقما
 export const requiredString = (field: string) => z.string().min(1, `${field} مطلوب`);
 
 /**
- * Normalize Saudi phone number to 05xxxxxxxx format.
- * Accepts: +9665xxxxxxxx, 9665xxxxxxxx, 05xxxxxxxx, 5xxxxxxxx
+ * Normalize a phone number to a canonical form.
+ *
+ * • Saudi numbers collapse to the local "05xxxxxxxx" shape (preserves
+ *   the format that existing User rows were saved with, so login and
+ *   uniqueness lookups keep working after this function was widened to
+ *   accept non-Saudi input).
+ * • Any other international number is returned in E.164 format
+ *   "+CCxxxxxxxxx" (8–15 digits after the +).
+ * • Cleans whitespace, dashes, parentheses, and converts a leading
+ *   "00" international access code to "+".
+ *
+ * Accepts any of these Saudi inputs:
+ *   +9665xxxxxxxx, 009665xxxxxxxx, 9665xxxxxxxx, 05xxxxxxxx, 5xxxxxxxx
+ * Accepts any international input shaped as:
+ *   +CCxxxxxxxxx (preferred)  or  00CCxxxxxxxxx  or  CCxxxxxxxxx
  */
-export function normalizeSaudiPhone(phone: string): string {
-  let cleaned = phone.replace(/[\s\-\(\)]/g, "");
-  if (cleaned.startsWith("+966")) cleaned = "0" + cleaned.slice(4);
-  else if (cleaned.startsWith("966")) cleaned = "0" + cleaned.slice(3);
-  else if (cleaned.startsWith("5") && cleaned.length === 9) cleaned = "0" + cleaned;
+export function normalizePhone(phone: string): string {
+  if (!phone) return "";
+  let cleaned = phone.replace(/[\s\-()]/g, "");
+  // "00" is the international access code in many regions — fold it into "+".
+  if (cleaned.startsWith("00")) cleaned = "+" + cleaned.slice(2);
+
+  // ── Saudi Arabia → collapse to the local 05xxxxxxxx format ──
+  if (cleaned.startsWith("+966")) {
+    const rest = cleaned.slice(4);
+    if (/^5\d{8}$/.test(rest)) return "0" + rest;
+  }
+  if (cleaned.startsWith("966") && /^9665\d{8}$/.test(cleaned)) {
+    return "0" + cleaned.slice(3);
+  }
+  if (/^05\d{8}$/.test(cleaned)) return cleaned;
+  if (/^5\d{8}$/.test(cleaned)) return "0" + cleaned;
+
+  // ── Everything else → E.164. If the caller gave us the digits with a
+  //    country code but no "+", add one (the ambiguity of "starts with
+  //    a country-code digit" is acceptable here because Saudi was
+  //    already handled above).
+  if (cleaned.startsWith("+")) return cleaned;
+  if (/^\d{8,15}$/.test(cleaned)) return "+" + cleaned;
   return cleaned;
 }
 
 /**
- * Validate Saudi phone number format
+ * Validate a phone number: Saudi local (05xxxxxxxx) OR E.164
+ * (+CCxxxxxxxxx, 8–15 digits total after the +).
  */
-export function isValidSaudiPhone(phone: string): boolean {
-  const normalized = normalizeSaudiPhone(phone);
-  return /^05\d{8}$/.test(normalized);
+export function isValidPhone(phone: string): boolean {
+  const normalized = normalizePhone(phone);
+  if (/^05\d{8}$/.test(normalized)) return true;
+  // E.164: + followed by 8–15 digits, leading digit non-zero.
+  if (/^\+[1-9]\d{7,14}$/.test(normalized)) return true;
+  return false;
 }
+
+// ── Legacy aliases (kept so existing imports continue to compile) ──
+// They now accept international numbers too, not only Saudi ones.
+export const normalizeSaudiPhone = normalizePhone;
+export const isValidSaudiPhone = isValidPhone;
 
 // User creation
 export const createUserSchema = z.object({

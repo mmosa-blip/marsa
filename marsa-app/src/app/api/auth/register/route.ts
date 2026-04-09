@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { passwordSchema, normalizeSaudiPhone, isValidSaudiPhone } from "@/lib/validations";
+import { passwordSchema, normalizePhone, isValidPhone } from "@/lib/validations";
 
 export async function POST(request: Request) {
   try {
@@ -16,10 +16,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "رقم الجوال مطلوب" }, { status: 400 });
     }
 
-    const normalizedPhone = normalizeSaudiPhone(phone);
-    if (!isValidSaudiPhone(normalizedPhone)) {
+    const normalizedPhone = normalizePhone(phone);
+    if (!isValidPhone(normalizedPhone)) {
       return NextResponse.json(
-        { error: "رقم الجوال غير صحيح — يجب أن يبدأ بـ 05 ويتكون من 10 أرقام" },
+        { error: "رقم الجوال غير صالح — أدخل رقماً سعودياً (05xxxxxxxx) أو دولياً بصيغة +رمز الدولة" },
         { status: 400 }
       );
     }
