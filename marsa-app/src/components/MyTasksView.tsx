@@ -970,11 +970,15 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                       new Date(task.dueDate) < new Date();
                     const isSelected = selectedTasks.has(task.id);
                     // In project-mode the list contains foreign tasks too —
-                    // tasks owned by other executors. We render them read-only:
-                    // no checkbox, no actions, no detail panel.
+                    // tasks owned by other executors OR sitting unassigned.
+                    // Either way they're "not mine to act on", so render
+                    // them read-only: no checkbox, no actions, no detail
+                    // panel. The previous `!!task.assigneeId` guard let
+                    // orphan rows (assigneeId=null after a user-deletion
+                    // cleanup) slip through and show a misleading "إكمال"
+                    // button that 403s server side.
                     const isForeign =
                       !!projectId &&
-                      !!task.assigneeId &&
                       task.assigneeId !== currentUserId;
 
                     return (

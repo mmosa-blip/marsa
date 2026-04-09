@@ -221,9 +221,22 @@ export async function DELETE(
     // here so the user cleanly disappears from the operational system
     // even though the audit row sticks around. Each statement is
     // independent — pgbouncer doesn't allow interactive transactions.
-    // Detach EVERY task — including DONE/CANCELLED ones — so the deleted
-    // user disappears from history listings as well. The startedById and
-    // audit log still preserve who actually executed the work.
+    // First: any task the user was actively working on gets bounced back
+    // to TODO. If we only nulled assigneeId without resetting the status,
+    // the project would end up with orphan IN_PROGRESS / WAITING /
+    // IN_REVIEW / WAITING_EXTERNAL rows that nobody owns — they'd surface
+    // in project mode with a misleading "إكمال" button that 403s server
+    // side because no one is the assignee anymore.
+    await prisma.task.updateMany({
+      where: {
+        assigneeId: id,
+        status: { in: ["IN_PROGRESS", "WAITING", "IN_REVIEW", "WAITING_EXTERNAL"] },
+      },
+      data: { status: "TODO", startedById: null },
+    });
+    // Then detach EVERY task — including DONE/CANCELLED ones — so the
+    // deleted user disappears from history listings as well. The
+    // audit log still preserves who actually executed the work.
     await prisma.task.updateMany({
       where: { assigneeId: id },
       data: { assigneeId: null },
