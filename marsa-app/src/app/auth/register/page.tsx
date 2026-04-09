@@ -159,7 +159,7 @@ export default function RegisterPage() {
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  placeholder="05xxxxxxxx"
+                  placeholder="+966xxxxxxxxx أو +1xxxxxxxxxx"
                   required
                   className={inputClass}
                   style={{ borderColor: "#E8E6F0", color: "#2D3748" }}

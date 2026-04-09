@@ -7,6 +7,7 @@ import {
   Briefcase, Building2, CreditCard, DollarSign, Wrench, UserCog,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import { isValidPhone } from "@/lib/validations";
 
 type Role = "ADMIN" | "MANAGER" | "FINANCE_MANAGER" | "TREASURY_MANAGER" | "EXECUTOR" | "CLIENT" | "EXTERNAL_PROVIDER";
 
@@ -67,7 +68,7 @@ export default function NewUserPage() {
   const validate = (): string | null => {
     if (!form.name.trim()) return "الاسم مطلوب";
     if (!form.phone.trim()) return "رقم الجوال مطلوب";
-    if (!/^05\d{8}$/.test(form.phone.trim())) return "رقم الجوال غير صالح (05xxxxxxxx)";
+    if (!isValidPhone(form.phone.trim())) return "رقم الجوال غير صالح — أدخل رقماً بصيغة دولية يبدأ بـ + ورمز الدولة";
     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return "البريد الإلكتروني غير صالح";
     if (!form.password) return "كلمة المرور مطلوبة";
     if (form.password.length < 8) return "كلمة المرور يجب أن تكون 8 أحرف على الأقل";
@@ -212,7 +213,7 @@ export default function NewUserPage() {
                 name="phone"
                 value={form.phone}
                 onChange={handleChange}
-                placeholder="05xxxxxxxx"
+                placeholder="+966xxxxxxxxx أو +1xxxxxxxxxx"
                 dir="ltr"
                 className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none text-left"
                 style={inputStyle}

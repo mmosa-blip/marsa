@@ -295,7 +295,7 @@ export default function EditUserPage() {
                 name="phone"
                 value={form.phone}
                 onChange={handleChange}
-                placeholder="05xxxxxxxx"
+                placeholder="+966xxxxxxxxx أو +1xxxxxxxxxx"
                 dir="ltr"
                 className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none text-left"
                 style={inputStyle}

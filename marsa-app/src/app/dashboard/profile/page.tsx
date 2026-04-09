@@ -482,7 +482,7 @@ export default function ProfilePage() {
                   color: "#2D3748",
                   backgroundColor: "#FFFFFF",
                 }}
-                placeholder="05xxxxxxxx"
+                placeholder="+966xxxxxxxxx أو +1xxxxxxxxxx"
                 onFocus={(e) => (e.target.style.borderColor = "#C9A84C")}
                 onBlur={(e) => (e.target.style.borderColor = "#E8E6F0")}
               />

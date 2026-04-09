@@ -12,6 +12,7 @@ import {
   Save,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import { isValidPhone } from "@/lib/validations";
 
 export default function NewClientPage() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function NewClientPage() {
   const validate = (): string | null => {
     if (!form.name.trim()) return "الاسم مطلوب";
     if (!form.phone.trim()) return "رقم الجوال مطلوب";
-    if (!/^05\d{8}$/.test(form.phone.trim())) return "رقم الجوال غير صحيح (05xxxxxxxx)";
+    if (!isValidPhone(form.phone.trim())) return "رقم الجوال غير صالح — أدخل رقماً بصيغة دولية يبدأ بـ + ورمز الدولة";
     if (!form.password) return "كلمة المرور مطلوبة";
     if (form.password.length < 8) return "كلمة المرور يجب أن تكون 8 أحرف على الأقل";
     return null;
@@ -148,7 +149,7 @@ export default function NewClientPage() {
                 name="phone"
                 value={form.phone}
                 onChange={handleChange}
-                placeholder="05xxxxxxxx"
+                placeholder="+966xxxxxxxxx أو +1xxxxxxxxxx"
                 dir="ltr"
                 className={`${inputClass} text-left`}
                 style={{ borderColor: "#E8E6F0", color: "#2D3748" }}

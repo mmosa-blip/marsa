@@ -143,7 +143,7 @@ export const ar = {
     loginTitle: "أهلاً بك في مرسى",
     loginSubtitle: "منصة إدارة أعمالك الاحترافية",
     phone: "رقم الجوال",
-    phonePlaceholder: "05xxxxxxxx",
+    phonePlaceholder: "رقم الجوال مع رمز الدولة",
     email: "البريد الإلكتروني",
     emailPlaceholder: "أدخل بريدك الإلكتروني",
     password: "كلمة المرور",

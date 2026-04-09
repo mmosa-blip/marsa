@@ -7,6 +7,7 @@ import {
   Building2, Users, DollarSign, TrendingUp, StickyNote, Megaphone,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import { isValidPhone } from "@/lib/validations";
 
 interface DepartmentOption { id: string; name: string }
 interface UserOption { id: string; name: string }
@@ -41,7 +42,7 @@ export default function NewOpportunityPage() {
   const validate = (): string | null => {
     if (!form.contactName.trim()) return "اسم العميل المحتمل مطلوب";
     if (!form.contactPhone.trim()) return "رقم الجوال مطلوب";
-    if (!/^05\d{8}$/.test(form.contactPhone.trim())) return "رقم الجوال غير صحيح (05xxxxxxxx)";
+    if (!isValidPhone(form.contactPhone.trim())) return "رقم الجوال غير صالح — أدخل رقماً بصيغة دولية يبدأ بـ + ورمز الدولة";
     if (!form.departmentId) return "القسم مطلوب";
     if (!form.value) return "القيمة المتوقعة مطلوبة";
     if (!form.assigneeId) return "المسؤول مطلوب";
@@ -141,7 +142,7 @@ export default function NewOpportunityPage() {
                 رقم الجوال <span style={{ color: "#DC2626" }}>*</span>
               </label>
               <input type="tel" name="contactPhone" value={form.contactPhone} onChange={handleChange}
-                placeholder="05xxxxxxxx" dir="ltr" className={`${inputClass} text-left`}
+                placeholder="+966xxxxxxxxx أو +1xxxxxxxxxx" dir="ltr" className={`${inputClass} text-left`}
                 style={{ borderColor: "#E8E6F0", color: "#2D3748" }} onFocus={focusStyle} onBlur={blurStyle} />
             </div>
 

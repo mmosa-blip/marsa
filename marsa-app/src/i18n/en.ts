@@ -143,7 +143,7 @@ export const en = {
     loginTitle: "Welcome to Marsa",
     loginSubtitle: "Your professional business management platform",
     phone: "Phone Number",
-    phonePlaceholder: "05xxxxxxxx",
+    phonePlaceholder: "Phone with country code",
     email: "Email",
     emailPlaceholder: "Enter your email",
     password: "Password",
