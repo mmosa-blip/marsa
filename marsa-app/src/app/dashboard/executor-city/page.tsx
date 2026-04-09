@@ -803,10 +803,11 @@ export default function ExecutorCityPage() {
   if (!session) redirect("/auth/login");
 
   return (
-    // h-full chains all the way up: html → body → dashboard outer (h-screen)
-    // → main (h-full overflow-y-auto) → this wrapper (h-full overflow-hidden).
-    // Internal regions own their own scroll; the page itself never overflows.
-    <div className="flex flex-col h-full overflow-hidden" dir="rtl">
+    // Single vertical scroll for the whole page. The city sits at the top
+    // as a fixed-height block; the tasks list flows below it. As the user
+    // scrolls down through the tasks, the city slides up out of view
+    // naturally — no sticky / opacity tricks needed.
+    <div className="flex flex-col h-full overflow-y-auto" dir="rtl">
 
       {/* Header — fixed, compact */}
       <div className="flex-shrink-0 px-6 pt-4 pb-2">
@@ -915,43 +916,25 @@ export default function ExecutorCityPage() {
       )}
 
       {/* Project picker — chips of projects the executor is involved in.
-          The default chip "كل مهامي" keeps the legacy behavior (the user's
-          own tasks across every project); picking a project switches the
-          MyTasksView below to "all tasks of this project" mode. */}
+          Picking a chip switches MyTasksView below into project-focused
+          mode (all tasks of that project, including blocked ones). */}
       {projects && projects.length > 0 && (
         <div className="flex-shrink-0 px-4 lg:px-6 mt-3">
           <div
             className="flex items-center gap-2 overflow-x-auto pb-2"
             style={{ scrollbarWidth: "thin" }}
           >
-            <button
-              type="button"
-              onClick={() => setPickedProjectId(null)}
-              className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
-              style={
-                pickedProjectId === null
-                  ? {
-                      backgroundColor: "#5E5495",
-                      color: "white",
-                      boxShadow: "0 2px 6px rgba(94,84,149,0.3)",
-                      border: "1px solid #5E5495",
-                    }
-                  : {
-                      backgroundColor: "white",
-                      color: "#6B7280",
-                      border: "1px solid #E2E0D8",
-                    }
-              }
-            >
-              كل مهامي
-            </button>
             {projects.map((p) => {
               const active = pickedProjectId === p.id;
               return (
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setPickedProjectId(p.id)}
+                  // Toggle: clicking the active chip deselects it and falls
+                  // back to the default "all my tasks" view. This is the
+                  // way to get back to that state now that the explicit
+                  // "كل مهامي" chip has been removed.
+                  onClick={() => setPickedProjectId(active ? null : p.id)}
                   title={p.projectCode ? `${p.projectCode} — ${p.name}` : p.name}
                   className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 max-w-[260px]"
                   style={
@@ -998,10 +981,12 @@ export default function ExecutorCityPage() {
         </div>
       )}
 
-      {/* Tasks — takes the remaining height and scrolls internally.
+      {/* Tasks — flow naturally below the city. The page-level scroll
+          handles overflow, so as the user scrolls down through the tasks
+          the city slides up and disappears.
           Re-mount via key when the picked project changes so the embedded
           tasks view fully resets its filters/pagination/state. */}
-      <div className="flex-1 min-h-0 overflow-y-auto mt-1">
+      <div className="flex-shrink-0 mt-1">
         <MyTasksView
           key={pickedProjectId || "__all__"}
           projectId={pickedProjectId || undefined}

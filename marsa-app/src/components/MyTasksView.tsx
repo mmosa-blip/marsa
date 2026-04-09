@@ -618,13 +618,18 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
     switch (task.status) {
       case "TODO":
         if (task.canStart === false) {
+          // Two distinct waiting states — sequential predecessor or
+          // payment lock. Each renders inline text (not a button) so the
+          // user can't click "إكمال" or "ابدأ" on a task they can't act on.
           return task.blockReason === "payment" ? (
             <span className="flex items-center gap-1 text-xs font-medium" style={{ color: "#DC2626" }}>
               <Lock size={12} />
-              {t.tasks.lockedByPayment}
+              🔒 في انتظار دفعة
             </span>
           ) : (
-            <span className="text-xs" style={{ color: "#EA580C" }}>{t.tasks.cannotStart}</span>
+            <span className="flex items-center gap-1 text-xs font-medium" style={{ color: "#D97706" }}>
+              ⏳ في انتظار مهمة سابقة
+            </span>
           );
         }
         return (
@@ -634,7 +639,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
             style={{ backgroundColor: "#2563EB" }}
             title={t.tasks.start}
           >
-            {t.tasks.start}
+            ▶ ابدأ
           </MarsaButton>
         );
       case "IN_PROGRESS":
@@ -653,7 +658,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
             style={{ backgroundColor: "#059669" }}
             title={t.tasks.complete}
           >
-            {t.tasks.complete}
+            ✓ إكمال
           </MarsaButton>
         );
       default:
