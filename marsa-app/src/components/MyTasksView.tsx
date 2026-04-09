@@ -1000,28 +1000,6 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                             <p className="text-sm font-semibold" style={{ color: "#1C1B2E" }}>
                               {task.title}
                             </p>
-                            {/* Block-state badges — surfaced when canStart=false
-                                so executors can tell at a glance why a row
-                                isn't actionable yet (sequential predecessor
-                                vs. unpaid linked installment). */}
-                            {task.canStart === false && task.blockReason === "sequential" && (
-                              <span
-                                className="px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
-                                style={{ backgroundColor: "rgba(234,88,12,0.1)", color: "#EA580C" }}
-                                title="هذه المهمة تنتظر انتهاء المهمة السابقة في نفس الخدمة أو في الخدمة التي قبلها"
-                              >
-                                ⏳ تنتظر مهمة سابقة
-                              </span>
-                            )}
-                            {task.canStart === false && task.blockReason === "payment" && (
-                              <span
-                                className="px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
-                                style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#DC2626" }}
-                                title="هذه المهمة مرتبطة بدفعة مقفلة — تُفتح تلقائياً عند تسديد الدفعة"
-                              >
-                                🔒 تنتظر دفعة
-                              </span>
-                            )}
                             {task.isTransferred && task.transferInfo && (
                               <span
                                 className="px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
