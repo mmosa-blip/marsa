@@ -42,6 +42,7 @@ import {
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import { UploadButton } from "@/lib/uploadthing";
+import { addWorkingDays, countWorkingDays } from "@/lib/working-days";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -206,9 +207,6 @@ export default function NewProjectPage() {
   const [workflowType, setWorkflowType] = useState<"SEQUENTIAL" | "INDEPENDENT">("SEQUENTIAL");
 
   // SLA Timeline
-  const [contractStartDate, setContractStartDate] = useState("");
-  const [contractDurationDays, setContractDurationDays] = useState("");
-  const [contractEndDate, setContractEndDate] = useState("");
 
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
@@ -237,17 +235,34 @@ export default function NewProjectPage() {
   const handleContractFormChange = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const next = { ...contractForm, [e.target.name]: e.target.value };
-    if (
-      (e.target.name === "startDate" || e.target.name === "endDate") &&
-      next.startDate &&
-      next.endDate
-    ) {
-      const s = new Date(next.startDate).getTime();
-      const ed = new Date(next.endDate).getTime();
-      const days = Math.ceil((ed - s) / (1000 * 60 * 60 * 24));
-      if (days > 0) next.durationDays = String(days);
+    const field = e.target.name;
+    const next = { ...contractForm, [field]: e.target.value };
+
+    // Two-way relationship between startDate, durationDays, and endDate,
+    // all measured in WORKING days (Sat is the only weekend day):
+    //
+    //   - startDate or durationDays change → recompute endDate forward
+    //   - endDate changes → recompute durationDays from the start
+    //
+    // The user can still edit endDate manually; that just feeds the
+    // duration calculation in reverse instead of being overwritten.
+    if (field === "startDate" || field === "durationDays") {
+      const days = parseInt(next.durationDays);
+      if (next.startDate && Number.isFinite(days) && days > 0) {
+        const start = new Date(next.startDate);
+        const end = addWorkingDays(start, days);
+        next.endDate = end.toISOString().slice(0, 10);
+      }
+    } else if (field === "endDate") {
+      if (next.startDate && next.endDate) {
+        const start = new Date(next.startDate);
+        const end = new Date(next.endDate);
+        if (end > start) {
+          next.durationDays = String(countWorkingDays(start, end));
+        }
+      }
     }
+
     setContractForm(next);
   };
 
@@ -807,9 +822,9 @@ export default function NewProjectPage() {
             name: projectName,
             departmentId: departmentId || undefined,
             contractId: contractIdToUse || undefined,
-            contractStartDate: contractStartDate || undefined,
-            contractDurationDays: contractDurationDays ? parseInt(contractDurationDays) : undefined,
-            contractEndDate: contractEndDate || undefined,
+            contractStartDate: contractForm.startDate || undefined,
+            contractDurationDays: contractForm.durationDays ? parseInt(contractForm.durationDays) : undefined,
+            contractEndDate: contractForm.endDate || undefined,
             managerId: selectedManagerId || undefined,
           }),
         });
@@ -833,9 +848,9 @@ export default function NewProjectPage() {
             totalPrice: finalTotal,
             departmentId: departmentId || undefined,
             contractId: contractIdToUse || undefined,
-            contractStartDate: contractStartDate || undefined,
-            contractDurationDays: contractDurationDays ? parseInt(contractDurationDays) : undefined,
-            contractEndDate: contractEndDate || undefined,
+            contractStartDate: contractForm.startDate || undefined,
+            contractDurationDays: contractForm.durationDays ? parseInt(contractForm.durationDays) : undefined,
+            contractEndDate: contractForm.endDate || undefined,
             managerId: selectedManagerId || undefined,
             services: selectedServices.map((s) => ({
               serviceTemplateId: s.serviceTemplateId,
@@ -1304,6 +1319,8 @@ export default function NewProjectPage() {
                       </div>
                     )}
 
+                    {/* Row 1: start date + working-days duration. The two
+                        feed each other forward — entering both fills row 2. */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>تاريخ البداية *</label>
@@ -1315,25 +1332,30 @@ export default function NewProjectPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>تاريخ الانتهاء *</label>
+                        <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>مدة المشروع (أيام عمل)</label>
                         <input
-                          type="date" name="endDate" value={contractForm.endDate}
+                          type="number" name="durationDays" value={contractForm.durationDays}
                           onChange={handleContractFormChange}
+                          placeholder="مثال: 30" dir="ltr" min="1"
                           className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                           style={{ border: "1px solid #E2E0D8" }}
                         />
+                        <p className="text-[10px] mt-1" style={{ color: "#9CA3AF" }}>السبت عطلة أسبوعية</p>
                       </div>
                     </div>
 
+                    {/* Row 2: end date — auto-computed from start + duration,
+                        but still editable. Editing it back-fills the duration
+                        via countWorkingDays. */}
                     <div>
-                      <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>المدة (يوم)</label>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "#2D3748" }}>تاريخ الانتهاء *</label>
                       <input
-                        type="number" name="durationDays" value={contractForm.durationDays}
+                        type="date" name="endDate" value={contractForm.endDate}
                         onChange={handleContractFormChange}
-                        placeholder="يُحسب تلقائياً من التواريخ" dir="ltr"
                         className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                         style={{ border: "1px solid #E2E0D8" }}
                       />
+                      <p className="text-[10px] mt-1" style={{ color: "#9CA3AF" }}>يُحسب تلقائياً من البداية + المدة، ويمكن تعديله يدوياً</p>
                     </div>
 
                     {contractMode === "new" && (
