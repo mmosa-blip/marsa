@@ -422,10 +422,13 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
         fetchTasks();
         refreshCounts();
       } else {
+        const err = await res.json().catch(() => ({}));
+        alert((err as { error?: string }).error || `فشل تحديث الحالة (HTTP ${res.status})`);
         fetchTasks();
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      alert("تعذّر الاتصال بالخادم");
+      console.error(e);
     } finally {
       setActionLoading(null);
     }
