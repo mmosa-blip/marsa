@@ -2,17 +2,16 @@ import { z } from "zod";
 
 export const emailSchema = z.string().email("صيغة البريد الإلكتروني غير صحيحة").optional().or(z.literal("")).or(z.null());
 
-// Phone schemas accept EITHER a Saudi local number (05xxxxxxxx) or any
-// international E.164 number (+CCxxxxxxxxxx). Saudi numbers stay in the
-// 05xxxxxxxx shape so existing DB rows keep matching; every other country
-// is stored in E.164 so the country code is preserved.
+// Phone schemas normalize every number to canonical E.164 ("+CCxxxxxxx").
+// Saudi numbers are auto-prefixed with +966; any other international
+// number is kept as-is once the leading "+" is resolved.
 export const phoneAuthSchema = z.string()
   .transform((val) => normalizePhone(val))
-  .refine((val) => isValidPhone(val), "رقم الجوال غير صالح — أدخل رقماً سعودياً (05xxxxxxxx) أو دولياً بصيغة +رمز الدولة متبوعاً بالرقم");
+  .refine((val) => isValidPhone(val), "رقم الجوال غير صالح — أدخل رقماً بصيغة دولية يبدأ بـ + ورمز الدولة");
 
 export const phoneSchema = z.string()
   .transform((val) => (val ? normalizePhone(val) : val))
-  .refine((val) => !val || isValidPhone(val), "رقم الجوال غير صالح — أدخل رقماً سعودياً (05xxxxxxxx) أو دولياً بصيغة +رمز الدولة متبوعاً بالرقم")
+  .refine((val) => !val || isValidPhone(val), "رقم الجوال غير صالح — أدخل رقماً بصيغة دولية يبدأ بـ + ورمز الدولة")
   .optional()
   .or(z.literal(""))
   .or(z.null());
@@ -24,58 +23,47 @@ export const positiveNumber = z.number().positive("يجب أن يكون رقما
 export const requiredString = (field: string) => z.string().min(1, `${field} مطلوب`);
 
 /**
- * Normalize a phone number to a canonical form.
+ * Normalize any phone input to canonical E.164 ("+CCxxxxxxxxx").
  *
- * • Saudi numbers collapse to the local "05xxxxxxxx" shape (preserves
- *   the format that existing User rows were saved with, so login and
- *   uniqueness lookups keep working after this function was widened to
- *   accept non-Saudi input).
- * • Any other international number is returned in E.164 format
- *   "+CCxxxxxxxxx" (8–15 digits after the +).
- * • Cleans whitespace, dashes, parentheses, and converts a leading
- *   "00" international access code to "+".
- *
- * Accepts any of these Saudi inputs:
- *   +9665xxxxxxxx, 009665xxxxxxxx, 9665xxxxxxxx, 05xxxxxxxx, 5xxxxxxxx
- * Accepts any international input shaped as:
- *   +CCxxxxxxxxx (preferred)  or  00CCxxxxxxxxx  or  CCxxxxxxxxx
+ * Rules (in order):
+ *   • strip spaces, dashes, parentheses
+ *   • leading "00" (international access code) → "+"
+ *   • leading "05"  → "+966" + the 9 digits after the 0 (Saudi)
+ *   • leading "5" with 9 digits total → "+9665xxxxxxxx" (Saudi)
+ *   • leading "+"  → keep as-is
+ *   • bare digits starting with "966" → "+" prefix
+ *   • anything else → returned unchanged so the validator can reject it
  */
 export function normalizePhone(phone: string): string {
   if (!phone) return "";
   let cleaned = phone.replace(/[\s\-()]/g, "");
-  // "00" is the international access code in many regions — fold it into "+".
+
+  // 00XXXXX → +XXXXX
   if (cleaned.startsWith("00")) cleaned = "+" + cleaned.slice(2);
 
-  // ── Saudi Arabia → collapse to the local 05xxxxxxxx format ──
-  if (cleaned.startsWith("+966")) {
-    const rest = cleaned.slice(4);
-    if (/^5\d{8}$/.test(rest)) return "0" + rest;
-  }
-  if (cleaned.startsWith("966") && /^9665\d{8}$/.test(cleaned)) {
-    return "0" + cleaned.slice(3);
-  }
-  if (/^05\d{8}$/.test(cleaned)) return cleaned;
-  if (/^5\d{8}$/.test(cleaned)) return "0" + cleaned;
+  // Saudi shortcuts: 05xxxxxxxx or 5xxxxxxxx → +9665xxxxxxxx
+  if (/^05\d{8}$/.test(cleaned)) return "+966" + cleaned.slice(1);
+  if (/^5\d{8}$/.test(cleaned)) return "+966" + cleaned;
 
-  // ── Everything else → E.164. If the caller gave us the digits with a
-  //    country code but no "+", add one (the ambiguity of "starts with
-  //    a country-code digit" is acceptable here because Saudi was
-  //    already handled above).
+  // Already E.164 — trust it.
   if (cleaned.startsWith("+")) return cleaned;
+
+  // Bare digits starting with the Saudi country code — prepend "+".
+  if (/^966\d{9}$/.test(cleaned)) return "+" + cleaned;
+
+  // Any other bare international digits 8–15 long — prepend "+".
   if (/^\d{8,15}$/.test(cleaned)) return "+" + cleaned;
+
   return cleaned;
 }
 
 /**
- * Validate a phone number: Saudi local (05xxxxxxxx) OR E.164
- * (+CCxxxxxxxxx, 8–15 digits total after the +).
+ * Validate a phone number as canonical E.164:
+ *   +[1-9] followed by 7–14 more digits (8–15 digits total after "+").
  */
 export function isValidPhone(phone: string): boolean {
   const normalized = normalizePhone(phone);
-  if (/^05\d{8}$/.test(normalized)) return true;
-  // E.164: + followed by 8–15 digits, leading digit non-zero.
-  if (/^\+[1-9]\d{7,14}$/.test(normalized)) return true;
-  return false;
+  return /^\+[1-9]\d{7,14}$/.test(normalized);
 }
 
 // ── Legacy aliases (kept so existing imports continue to compile) ──
