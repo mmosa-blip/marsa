@@ -124,9 +124,17 @@ export async function POST(request: Request) {
         createdById: session.user.id,
         services: {
           create: services.map(
-            (s: { serviceTemplateId: string; sortOrder?: number }, index: number) => ({
+            (
+              s: {
+                serviceTemplateId: string;
+                sortOrder?: number;
+                executionMode?: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
+              },
+              index: number
+            ) => ({
               serviceTemplateId: s.serviceTemplateId,
               sortOrder: s.sortOrder ?? index,
+              executionMode: s.executionMode || "SEQUENTIAL",
             })
           ),
         },

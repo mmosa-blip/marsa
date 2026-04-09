@@ -1,16 +1,22 @@
 "use client";
 
 /**
- * Edit a Project Template.
+ * Standalone create-template page.
  *
- * Loads the existing template via GET /api/project-templates/[id], lets the
- * user change name/description/workflow/isActive and reorder/add/remove
- * the attached services, then PATCHes the same endpoint with the full
- * services array. The PATCH route handles the delete-and-recreate of the
- * ProjectTemplateService rows.
+ * Replaces the old "إنشاء قالب جديد" link that hijacked the new-project
+ * wizard (which forces the user through client/contract/documents steps
+ * that have nothing to do with a template). This page only collects the
+ * fields a template actually carries:
+ *
+ *   - name + description
+ *   - workflowType (SEQUENTIAL / INDEPENDENT)
+ *   - services list with reorder + per-service execution mode toggle
+ *   - payment milestones (title + amount + afterServiceIndex)
+ *
+ * Submit POSTs to /api/project-templates and routes back to the list.
  */
 
-import { useState, useEffect, use, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -26,10 +32,7 @@ import {
   X,
   Search,
   Loader2,
-  Power,
-  PowerOff,
   DollarSign,
-  Clock,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -40,66 +43,42 @@ interface ServiceTemplate {
   defaultDuration: number;
   defaultPrice: number;
   category: { id: string; name: string } | null;
-  // Per-task durations are returned by both /api/project-templates/[id]
-  // and /api/service-catalog/templates so the edit page can recompute
-  // the total project duration on the fly as services are added/removed.
   taskTemplates?: { defaultDuration: number }[];
   _count: { taskTemplates: number };
 }
 
 interface AttachedService {
   serviceTemplateId: string;
-  sortOrder: number;
-  // Per-service execution mode at the template level. Mirrors the
-  // wizard's chip toggle so creating a project from this template
-  // honors the saved mode for each service.
-  executionMode: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
   serviceTemplate: ServiceTemplate;
+  executionMode: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
 }
 
-// Local id used only on the client to track row identity in React lists
-// before the row is persisted (real DB rows get a server-assigned cuid).
 interface MilestoneRow {
   localId: string;
   title: string;
   amount: number;
-  // Index of the service AFTER which the milestone is collected. The
-  // server uses this to find the next service's first task and lock it.
-  afterServiceIndex: number;
+  afterServiceIndex: number; // -1 = before the first service
 }
 
-interface TemplateData {
-  id: string;
-  name: string;
-  description: string | null;
-  workflowType: "SEQUENTIAL" | "INDEPENDENT";
-  isActive: boolean;
-  isSystem: boolean;
-  services: AttachedService[];
-  milestones: MilestoneRow[];
-  totalDurationDays: number;
-}
-
-export default function EditProjectTemplatePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+export default function NewProjectTemplatePage() {
   const router = useRouter();
   const { data: session, status: authStatus } = useSession();
 
-  const [template, setTemplate] = useState<TemplateData | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [workflowType, setWorkflowType] = useState<"SEQUENTIAL" | "INDEPENDENT">("SEQUENTIAL");
+  const [services, setServices] = useState<AttachedService[]>([]);
+  const [milestones, setMilestones] = useState<MilestoneRow[]>([]);
+
   const [allServices, setAllServices] = useState<ServiceTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Picker modal
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
 
-  // ── Auth gate ──
+  // Auth gate
   useEffect(() => {
     if (authStatus === "authenticated" && session?.user?.role) {
       if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
@@ -108,184 +87,104 @@ export default function EditProjectTemplatePage({
     }
   }, [authStatus, session, router]);
 
-  // ── Initial fetch ──
+  // Service catalog for the picker
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/project-templates/${id}`).then((r) => r.json()),
-      fetch("/api/service-catalog/templates").then((r) => r.json()),
-    ])
-      .then(([tpl, services]) => {
-        if (tpl?.error) {
-          setError(tpl.error);
-          setLoading(false);
-          return;
-        }
-        setTemplate({
-          id: tpl.id,
-          name: tpl.name,
-          description: tpl.description ?? null,
-          workflowType: tpl.workflowType,
-          isActive: tpl.isActive,
-          isSystem: tpl.isSystem,
-          services: (tpl.services || []).map(
-            (s: {
-              serviceTemplateId: string;
-              sortOrder: number;
-              executionMode?: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
-              serviceTemplate: ServiceTemplate;
-            }) => ({
-              serviceTemplateId: s.serviceTemplateId,
-              sortOrder: s.sortOrder,
-              executionMode: s.executionMode || "SEQUENTIAL",
-              serviceTemplate: s.serviceTemplate,
-            })
-          ),
-          milestones: (tpl.milestones || []).map(
-            (m: { id: string; title: string; amount: number; afterServiceIndex: number }) => ({
-              localId: m.id,
-              title: m.title,
-              amount: m.amount,
-              afterServiceIndex: m.afterServiceIndex,
-            })
-          ),
-          totalDurationDays: tpl.totalDurationDays || 0,
-        });
-        if (Array.isArray(services)) setAllServices(services);
-        setLoading(false);
+    fetch("/api/service-catalog/templates")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d)) setAllServices(d);
       })
-      .catch(() => {
-        setError("تعذّر تحميل القالب");
-        setLoading(false);
-      });
-  }, [id]);
+      .finally(() => setLoading(false));
+  }, []);
 
-  // ── Field updaters ──
-  const update = <K extends keyof TemplateData>(key: K, value: TemplateData[K]) => {
-    setTemplate((prev) => (prev ? { ...prev, [key]: value } : prev));
-  };
-
-  // ── Service list ops ──
+  // ── Service ops ──
   const moveService = (index: number, dir: -1 | 1) => {
-    setTemplate((prev) => {
-      if (!prev) return prev;
-      const next = [...prev.services];
+    setServices((prev) => {
+      const next = [...prev];
       const target = index + dir;
       if (target < 0 || target >= next.length) return prev;
       [next[index], next[target]] = [next[target], next[index]];
-      return { ...prev, services: next.map((s, i) => ({ ...s, sortOrder: i })) };
+      return next;
     });
   };
   const removeService = (serviceTemplateId: string) => {
-    setTemplate((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        services: prev.services
-          .filter((s) => s.serviceTemplateId !== serviceTemplateId)
-          .map((s, i) => ({ ...s, sortOrder: i })),
-      };
-    });
+    setServices((prev) => prev.filter((s) => s.serviceTemplateId !== serviceTemplateId));
+    // Drop milestones whose afterServiceIndex now exceeds the new bounds
+    setMilestones((prev) => prev.filter((m) => m.afterServiceIndex < services.length - 1));
   };
   const addService = (svc: ServiceTemplate) => {
-    setTemplate((prev) => {
-      if (!prev) return prev;
-      if (prev.services.some((s) => s.serviceTemplateId === svc.id)) return prev;
-      return {
-        ...prev,
-        services: [
-          ...prev.services,
-          { serviceTemplateId: svc.id, sortOrder: prev.services.length, executionMode: "SEQUENTIAL", serviceTemplate: svc },
-        ],
-      };
+    setServices((prev) => {
+      if (prev.some((s) => s.serviceTemplateId === svc.id)) return prev;
+      return [...prev, { serviceTemplateId: svc.id, serviceTemplate: svc, executionMode: "SEQUENTIAL" }];
     });
   };
-
-  // Toggle a single attached service between SEQUENTIAL and PARALLEL.
-  // Mirrors toggleServiceMode in the wizard.
   const toggleServiceMode = (serviceTemplateId: string) => {
-    setTemplate((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        services: prev.services.map((s) =>
-          s.serviceTemplateId === serviceTemplateId
-            ? { ...s, executionMode: s.executionMode === "PARALLEL" ? "SEQUENTIAL" : "PARALLEL" }
-            : s
-        ),
-      };
-    });
+    setServices((prev) =>
+      prev.map((s) =>
+        s.serviceTemplateId === serviceTemplateId
+          ? { ...s, executionMode: s.executionMode === "PARALLEL" ? "SEQUENTIAL" : "PARALLEL" }
+          : s
+      )
+    );
   };
 
-  // ── Milestone list ops ──
-  const addMilestone = () => {
-    setTemplate((prev) => {
-      if (!prev) return prev;
-      // Default to placing the new milestone after the first service so
-      // there's always at least one valid afterServiceIndex to start from.
-      return {
-        ...prev,
-        milestones: [
-          ...prev.milestones,
-          {
-            localId: `new-${Date.now()}-${Math.random()}`,
-            title: `الدفعة ${prev.milestones.length + 1}`,
-            amount: 0,
-            afterServiceIndex: 0,
-          },
-        ],
-      };
-    });
+  // ── Milestone ops ──
+  const addMilestone = (afterIndex: number) => {
+    setMilestones((prev) => [
+      ...prev,
+      {
+        localId: `new-${Date.now()}-${Math.random()}`,
+        title:
+          afterIndex === -1
+            ? "دفعة قبل بدء المشروع"
+            : `دفعة بعد ${services[afterIndex]?.serviceTemplate.name || "الخدمة"}`,
+        amount: 0,
+        afterServiceIndex: afterIndex,
+      },
+    ]);
   };
   const updateMilestone = (
     localId: string,
-    field: keyof Omit<MilestoneRow, "localId">,
+    field: "title" | "amount",
     value: string | number
   ) => {
-    setTemplate((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        milestones: prev.milestones.map((m) =>
-          m.localId === localId ? { ...m, [field]: value } : m
-        ),
-      };
-    });
+    setMilestones((prev) =>
+      prev.map((m) => (m.localId === localId ? { ...m, [field]: value } : m))
+    );
   };
   const removeMilestone = (localId: string) => {
-    setTemplate((prev) => {
-      if (!prev) return prev;
-      return { ...prev, milestones: prev.milestones.filter((m) => m.localId !== localId) };
-    });
+    setMilestones((prev) => prev.filter((m) => m.localId !== localId));
   };
 
   // ── Save ──
   const handleSave = async () => {
-    if (!template) return;
-    if (!template.name.trim()) {
+    if (!name.trim()) {
       setError("اسم القالب مطلوب");
+      return;
+    }
+    if (services.length === 0) {
+      setError("يجب إضافة خدمة واحدة على الأقل");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      const res = await fetch(`/api/project-templates/${id}`, {
-        method: "PATCH",
+      const res = await fetch("/api/project-templates", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: template.name.trim(),
-          description: template.description?.trim() || null,
-          workflowType: template.workflowType,
-          isActive: template.isActive,
-          services: template.services.map((s, i) => ({
+          name: name.trim(),
+          description: description.trim() || null,
+          workflowType,
+          services: services.map((s, i) => ({
             serviceTemplateId: s.serviceTemplateId,
             sortOrder: i,
             executionMode: s.executionMode,
           })),
-          milestones: template.milestones.map((m, i) => ({
+          milestones: milestones.map((m) => ({
             title: m.title.trim(),
             amount: m.amount,
             afterServiceIndex: m.afterServiceIndex,
-            order: i,
           })),
         }),
       });
@@ -302,8 +201,8 @@ export default function EditProjectTemplatePage({
     }
   };
 
-  // Services available for the picker = catalog minus already-attached
-  const attachedIds = new Set((template?.services || []).map((s) => s.serviceTemplateId));
+  // Picker candidates
+  const attachedIds = new Set(services.map((s) => s.serviceTemplateId));
   const pickerCandidates = allServices
     .filter((s) => !attachedIds.has(s.id))
     .filter((s) =>
@@ -313,45 +212,10 @@ export default function EditProjectTemplatePage({
           s.category?.name.toLowerCase().includes(pickerSearch.trim().toLowerCase())
     );
 
-  // Live total duration in days. Recomputes whenever the user adds/removes
-  // a service or flips workflowType, so the header pill matches the current
-  // edited state instead of the value the API returned at first load.
-  // Mirrors the same rule as the server: per-service duration =
-  // serviceTemplate.defaultDuration || sum(taskTemplates.defaultDuration);
-  // project total = sum (SEQUENTIAL) or max (INDEPENDENT).
-  const liveTotalDurationDays = useMemo(() => {
-    if (!template) return 0;
-    let total = 0;
-    for (const s of template.services) {
-      const tmpl = s.serviceTemplate;
-      const svcDuration =
-        tmpl.defaultDuration ||
-        (tmpl.taskTemplates || []).reduce((sum, tt) => sum + tt.defaultDuration, 0);
-      if (template.workflowType === "SEQUENTIAL") {
-        total += svcDuration;
-      } else {
-        total = Math.max(total, svcDuration);
-      }
-    }
-    return total;
-  }, [template]);
-
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center" dir="rtl">
         <Loader2 size={32} className="animate-spin" style={{ color: "#C9A84C" }} />
-      </div>
-    );
-  }
-  if (!template) {
-    return (
-      <div className="p-8" dir="rtl">
-        <div
-          className="bg-white rounded-2xl p-6 text-center"
-          style={{ border: "1px solid #FCA5A5", color: "#DC2626" }}
-        >
-          {error || "القالب غير موجود"}
-        </div>
       </div>
     );
   }
@@ -373,40 +237,22 @@ export default function EditProjectTemplatePage({
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
             <Layers size={24} style={{ color: "#C9A84C" }} />
-            تعديل قالب المشروع
+            إنشاء قالب مشروع جديد
           </h1>
           <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
-            عدّل اسم القالب، نوع سير العمل، والخدمات المرتبطة به
+            عرّف الخدمات والدفعات بدون الحاجة لاختيار عميل أو عقد
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
-            style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}
-            title="إجمالي مدة المشروع محسوبة من مدد المهام داخل الخدمات"
-          >
-            <Clock size={13} />
-            {liveTotalDurationDays.toLocaleString("en-US")} يوم
-          </span>
-          {template.isSystem && (
-            <span
-              className="px-3 py-1.5 rounded-full text-xs font-semibold"
-              style={{ backgroundColor: "rgba(34,197,94,0.1)", color: "#059669" }}
-            >
-              قالب نظام
-            </span>
-          )}
-          <MarsaButton
-            variant="gold"
-            size="lg"
-            icon={<Save size={16} />}
-            onClick={handleSave}
-            disabled={saving}
-            loading={saving}
-          >
-            حفظ التغييرات
-          </MarsaButton>
-        </div>
+        <MarsaButton
+          variant="gold"
+          size="lg"
+          icon={<Save size={16} />}
+          onClick={handleSave}
+          disabled={saving}
+          loading={saving}
+        >
+          حفظ القالب
+        </MarsaButton>
       </div>
 
       {error && (
@@ -418,7 +264,7 @@ export default function EditProjectTemplatePage({
         </div>
       )}
 
-      {/* Basic Info */}
+      {/* Basic info */}
       <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: "1px solid #E2E0D8" }}>
         <h2 className="text-base font-bold mb-4" style={{ color: "#1C1B2E" }}>
           البيانات الأساسية
@@ -430,11 +276,11 @@ export default function EditProjectTemplatePage({
             </label>
             <input
               type="text"
-              value={template.name}
-              onChange={(e) => update("name", e.target.value)}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-200"
               style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}
-              placeholder="اسم القالب"
+              placeholder="مثلاً: مشروع استحواذ شركة أجنبية"
             />
           </div>
           <div className="md:col-span-2">
@@ -442,8 +288,8 @@ export default function EditProjectTemplatePage({
               الوصف (اختياري)
             </label>
             <textarea
-              value={template.description || ""}
-              onChange={(e) => update("description", e.target.value)}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               rows={3}
               className="w-full px-4 py-2.5 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-200 resize-none"
               style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}
@@ -456,12 +302,12 @@ export default function EditProjectTemplatePage({
             </label>
             <div className="grid grid-cols-2 gap-2">
               {(["SEQUENTIAL", "INDEPENDENT"] as const).map((wf) => {
-                const active = template.workflowType === wf;
+                const active = workflowType === wf;
                 return (
                   <button
                     key={wf}
                     type="button"
-                    onClick={() => update("workflowType", wf)}
+                    onClick={() => setWorkflowType(wf)}
                     className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all"
                     style={{
                       border: active ? "2px solid #C9A84C" : "1px solid #E2E0D8",
@@ -476,30 +322,11 @@ export default function EditProjectTemplatePage({
               })}
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1.5" style={{ color: "#374151" }}>
-              الحالة
-            </label>
-            <button
-              type="button"
-              onClick={() => update("isActive", !template.isActive)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all"
-              style={{
-                border: "2px solid",
-                borderColor: template.isActive ? "#22C55E" : "#9CA3AF",
-                backgroundColor: template.isActive ? "rgba(34,197,94,0.06)" : "rgba(156,163,175,0.06)",
-                color: template.isActive ? "#059669" : "#6B7280",
-              }}
-            >
-              {template.isActive ? <Power size={14} /> : <PowerOff size={14} />}
-              {template.isActive ? "مفعّل" : "معطّل"}
-            </button>
-          </div>
         </div>
       </div>
 
       {/* Services */}
-      <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
+      <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: "1px solid #E2E0D8" }}>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-base font-bold" style={{ color: "#1C1B2E" }}>
@@ -522,14 +349,14 @@ export default function EditProjectTemplatePage({
           </MarsaButton>
         </div>
 
-        {template.services.length === 0 ? (
+        {services.length === 0 ? (
           <div className="text-center py-10 rounded-xl" style={{ backgroundColor: "#FAFAF8", border: "1px dashed #E2E0D8" }}>
             <Layers size={32} className="mx-auto mb-2" style={{ color: "#D1D5DB" }} />
             <p className="text-sm" style={{ color: "#6B7280" }}>لا توجد خدمات مرتبطة بعد</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {template.services.map((s, i) => (
+            {services.map((s, i) => (
               <div
                 key={s.serviceTemplateId}
                 className="flex items-center gap-3 p-3 rounded-xl"
@@ -549,7 +376,7 @@ export default function EditProjectTemplatePage({
                   <button
                     type="button"
                     onClick={() => moveService(i, 1)}
-                    disabled={i === template.services.length - 1}
+                    disabled={i === services.length - 1}
                     className="p-0.5 rounded disabled:opacity-30"
                     style={{ color: "#6B7280" }}
                     title="نقل لأسفل"
@@ -573,7 +400,6 @@ export default function EditProjectTemplatePage({
                     {s.serviceTemplate.defaultDuration > 0 && (
                       <span>{s.serviceTemplate.defaultDuration} يوم</span>
                     )}
-                    {/* Per-service execution mode toggle */}
                     <button
                       type="button"
                       onClick={() => toggleServiceMode(s.serviceTemplateId)}
@@ -606,8 +432,8 @@ export default function EditProjectTemplatePage({
         )}
       </div>
 
-      {/* Payment Milestones */}
-      <div className="bg-white rounded-2xl p-6 mt-6" style={{ border: "1px solid #E2E0D8" }}>
+      {/* Payment milestones */}
+      <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-base font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
@@ -615,107 +441,123 @@ export default function EditProjectTemplatePage({
               دفعات القالب
             </h2>
             <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
-              تُنشأ كل دفعة بعد خدمة محددة، وعند توليد المشروع تقفل أول مهمة في الخدمة التالية حتى تُستلم الدفعة
+              تُنشأ كل دفعة بعد خدمة محددة (أو قبل بدء المشروع)، وعند توليد المشروع تقفل أول مهمة في الخدمة التالية حتى تُستلم الدفعة
             </p>
           </div>
-          <MarsaButton
-            variant="primary"
-            size="sm"
-            icon={<Plus size={14} />}
-            onClick={addMilestone}
-            disabled={template.services.length === 0}
-            title={template.services.length === 0 ? "أضف خدمة واحدة على الأقل أولاً" : undefined}
-          >
-            إضافة دفعة
-          </MarsaButton>
         </div>
 
-        {template.milestones.length === 0 ? (
-          <div className="text-center py-10 rounded-xl" style={{ backgroundColor: "#FAFAF8", border: "1px dashed #E2E0D8" }}>
-            <DollarSign size={32} className="mx-auto mb-2" style={{ color: "#D1D5DB" }} />
-            <p className="text-sm" style={{ color: "#6B7280" }}>لا توجد دفعات في هذا القالب</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {template.milestones.map((m) => (
-              <div
-                key={m.localId}
-                className="p-3 rounded-xl"
-                style={{ backgroundColor: "rgba(5,150,105,0.04)", border: "1px solid rgba(5,150,105,0.18)" }}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <DollarSign size={14} style={{ color: "#059669" }} />
-                  <input
-                    type="text"
-                    value={m.title}
-                    onChange={(e) => updateMilestone(m.localId, "title", e.target.value)}
-                    placeholder="عنوان الدفعة"
-                    className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
-                    style={{ border: "1px solid rgba(5,150,105,0.25)", color: "#1C1B2E" }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeMilestone(m.localId)}
-                    className="p-1.5 rounded-lg transition-colors hover:bg-red-50"
-                    style={{ color: "#DC2626" }}
-                    title="إزالة الدفعة"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] mb-1 font-semibold" style={{ color: "#6B7280" }}>
-                      المبلغ
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={m.amount || ""}
-                        onChange={(e) => updateMilestone(m.localId, "amount", parseFloat(e.target.value) || 0)}
-                        placeholder="0.00"
-                        dir="ltr"
-                        className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
-                        style={{ border: "1px solid rgba(5,150,105,0.25)", color: "#059669", fontWeight: 600 }}
-                      />
-                      <SarSymbol size={12} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] mb-1 font-semibold" style={{ color: "#6B7280" }}>
-                      بعد الخدمة
-                    </label>
-                    <select
-                      value={m.afterServiceIndex}
-                      onChange={(e) =>
-                        updateMilestone(m.localId, "afterServiceIndex", parseInt(e.target.value, 10))
-                      }
-                      className="w-full px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
-                      style={{ border: "1px solid rgba(5,150,105,0.25)", color: "#1C1B2E" }}
-                    >
-                      {template.services.map((s, i) => (
-                        <option key={s.serviceTemplateId} value={i}>
-                          {i + 1}. {s.serviceTemplate.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+        {/* Before-first-service slot */}
+        {services.length > 0 && (
+          <div className="mb-3 p-3 rounded-xl" style={{ backgroundColor: "rgba(5,150,105,0.04)", border: "1px dashed rgba(5,150,105,0.2)" }}>
+            <p className="text-[11px] font-semibold mb-2" style={{ color: "#059669" }}>قبل بدء المشروع</p>
+            {milestones.filter((m) => m.afterServiceIndex === -1).map((m) => (
+              <div key={m.localId} className="flex items-center gap-2 mb-2 last:mb-0">
+                <DollarSign size={14} style={{ color: "#059669" }} />
+                <input
+                  type="text"
+                  value={m.title}
+                  onChange={(e) => updateMilestone(m.localId, "title", e.target.value)}
+                  placeholder="عنوان الدفعة"
+                  className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
+                  style={{ border: "1px solid rgba(5,150,105,0.25)", color: "#1C1B2E" }}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={m.amount || ""}
+                  onChange={(e) => updateMilestone(m.localId, "amount", parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                  dir="ltr"
+                  className="w-28 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
+                  style={{ border: "1px solid rgba(5,150,105,0.25)", color: "#059669", fontWeight: 600 }}
+                />
+                <SarSymbol size={12} />
+                <button
+                  type="button"
+                  onClick={() => removeMilestone(m.localId)}
+                  className="p-1.5 rounded-lg hover:bg-red-50"
+                  style={{ color: "#DC2626" }}
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
             ))}
-            <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: "1px solid #F0EDE6" }}>
-              <span className="text-sm font-bold" style={{ color: "#1C1B2E" }}>إجمالي دفعات القالب</span>
-              <span className="text-base font-bold" style={{ color: "#059669" }}>
-                {template.milestones.reduce((s, m) => s + (m.amount || 0), 0).toLocaleString("en-US")} <SarSymbol size={14} />
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={() => addMilestone(-1)}
+              className="flex items-center justify-center gap-2 w-full py-1.5 rounded-lg text-xs font-medium border border-dashed mt-1"
+              style={{ color: "#059669", borderColor: "rgba(5,150,105,0.3)" }}
+            >
+              <Plus size={12} />
+              <span>إضافة دفعة قبل بدء المشروع</span>
+            </button>
           </div>
+        )}
+
+        {/* Between/after services */}
+        {services.length === 0 ? (
+          <div className="text-center py-10 rounded-xl" style={{ backgroundColor: "#FAFAF8", border: "1px dashed #E2E0D8" }}>
+            <DollarSign size={32} className="mx-auto mb-2" style={{ color: "#D1D5DB" }} />
+            <p className="text-sm" style={{ color: "#6B7280" }}>أضف خدمة أولاً لإمكانية إضافة دفعات بينها</p>
+          </div>
+        ) : (
+          services.map((s, idx) => {
+            const milestonesAfter = milestones.filter((m) => m.afterServiceIndex === idx);
+            return (
+              <div key={s.serviceTemplateId} className="mb-3 last:mb-0 p-3 rounded-xl" style={{ backgroundColor: "rgba(5,150,105,0.04)", border: "1px dashed rgba(5,150,105,0.2)" }}>
+                <p className="text-[11px] font-semibold mb-2" style={{ color: "#059669" }}>
+                  بعد: {s.serviceTemplate.name}
+                </p>
+                {milestonesAfter.map((m) => (
+                  <div key={m.localId} className="flex items-center gap-2 mb-2 last:mb-0">
+                    <DollarSign size={14} style={{ color: "#059669" }} />
+                    <input
+                      type="text"
+                      value={m.title}
+                      onChange={(e) => updateMilestone(m.localId, "title", e.target.value)}
+                      placeholder="عنوان الدفعة"
+                      className="flex-1 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
+                      style={{ border: "1px solid rgba(5,150,105,0.25)", color: "#1C1B2E" }}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={m.amount || ""}
+                      onChange={(e) => updateMilestone(m.localId, "amount", parseFloat(e.target.value) || 0)}
+                      placeholder="0.00"
+                      dir="ltr"
+                      className="w-28 px-2 py-1.5 text-sm rounded-lg outline-none bg-white"
+                      style={{ border: "1px solid rgba(5,150,105,0.25)", color: "#059669", fontWeight: 600 }}
+                    />
+                    <SarSymbol size={12} />
+                    <button
+                      type="button"
+                      onClick={() => removeMilestone(m.localId)}
+                      className="p-1.5 rounded-lg hover:bg-red-50"
+                      style={{ color: "#DC2626" }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addMilestone(idx)}
+                  className="flex items-center justify-center gap-2 w-full py-1.5 rounded-lg text-xs font-medium border border-dashed mt-1"
+                  style={{ color: "#059669", borderColor: "rgba(5,150,105,0.3)" }}
+                >
+                  <Plus size={12} />
+                  <span>إضافة دفعة بعد هذه الخدمة</span>
+                </button>
+              </div>
+            );
+          })
         )}
       </div>
 
-      {/* ─── Service picker modal ─── */}
+      {/* Service picker modal */}
       {pickerOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"

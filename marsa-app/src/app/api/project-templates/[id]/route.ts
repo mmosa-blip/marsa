@@ -119,10 +119,18 @@ export async function PATCH(
 
       await prisma.projectTemplateService.createMany({
         data: services.map(
-          (s: { serviceTemplateId: string; sortOrder?: number }, index: number) => ({
+          (
+            s: {
+              serviceTemplateId: string;
+              sortOrder?: number;
+              executionMode?: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
+            },
+            index: number
+          ) => ({
             projectTemplateId: id,
             serviceTemplateId: s.serviceTemplateId,
             sortOrder: s.sortOrder ?? index,
+            executionMode: s.executionMode || "SEQUENTIAL",
           })
         ),
       });

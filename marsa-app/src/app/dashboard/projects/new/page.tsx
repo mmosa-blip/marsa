@@ -125,7 +125,12 @@ interface ProjectTemplate {
   workflowType: string;
   isActive: boolean;
   _count: { services: number; projects: number };
-  services?: { serviceTemplateId: string; sortOrder: number; serviceTemplate: ServiceTemplate }[];
+  services?: {
+    serviceTemplateId: string;
+    sortOrder: number;
+    executionMode?: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
+    serviceTemplate: ServiceTemplate;
+  }[];
   milestones?: TemplateMilestone[];
   createdBy?: { name: string };
 }
@@ -540,7 +545,9 @@ export default function NewProjectPage() {
         duration: s.serviceTemplate.defaultDuration || null,
         taskCount: s.serviceTemplate._count?.taskTemplates || 0,
         sortOrder: s.sortOrder ?? i,
-        executionMode: "SEQUENTIAL",
+        // Honor the per-service mode saved in the template instead of
+        // resetting everything to SEQUENTIAL.
+        executionMode: s.executionMode || "SEQUENTIAL",
       }));
       setSelectedServices(mapped);
       // Load milestones from template
@@ -564,7 +571,15 @@ export default function NewProjectPage() {
           if (found?.services) {
             setWorkflowType(found.workflowType as "SEQUENTIAL" | "INDEPENDENT");
             const mapped: SelectedService[] = found.services.map(
-              (s: { serviceTemplateId: string; sortOrder: number; serviceTemplate: ServiceTemplate }, i: number) => ({
+              (
+                s: {
+                  serviceTemplateId: string;
+                  sortOrder: number;
+                  executionMode?: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
+                  serviceTemplate: ServiceTemplate;
+                },
+                i: number
+              ) => ({
                 serviceTemplateId: s.serviceTemplateId,
                 name: s.serviceTemplate.name,
                 categoryColor: s.serviceTemplate.category?.color || null,
@@ -573,7 +588,7 @@ export default function NewProjectPage() {
                 duration: s.serviceTemplate.defaultDuration || null,
                 taskCount: s.serviceTemplate._count?.taskTemplates || 0,
                 sortOrder: s.sortOrder ?? i,
-                executionMode: "SEQUENTIAL",
+                executionMode: s.executionMode || "SEQUENTIAL",
               })
             );
             setSelectedServices(mapped);
@@ -682,7 +697,10 @@ export default function NewProjectPage() {
       ...prev,
       {
         id: `pm-${Date.now()}`,
-        title: `دفعة بعد ${selectedServices[afterIndex]?.name || "الخدمة"}`,
+        title:
+          afterIndex === -1
+            ? "دفعة قبل بدء المشروع"
+            : `دفعة بعد ${selectedServices[afterIndex]?.name || "الخدمة"}`,
         amount: 0,
         afterServiceIndex: afterIndex,
       },
@@ -1505,85 +1523,10 @@ export default function NewProjectPage() {
           </div>
           )}
 
-          {/* Workflow Type — STEP 4 */}
-          {currentStep === 4 && (
-          <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
-            <div className="flex items-center gap-2 mb-5">
-              <Layers size={20} style={{ color: "#C9A84C" }} />
-              <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>
-                نوع سير العمل بين الخدمات
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button
-                onClick={() => setWorkflowType("SEQUENTIAL")}
-                className="p-5 rounded-xl border-2 text-right transition-all"
-                style={
-                  workflowType === "SEQUENTIAL"
-                    ? { borderColor: "#C9A84C", backgroundColor: "rgba(201, 168, 76, 0.05)" }
-                    : { borderColor: "#E5E7EB" }
-                }
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{
-                      backgroundColor:
-                        workflowType === "SEQUENTIAL" ? "rgba(201, 168, 76, 0.15)" : "#F3F4F6",
-                    }}
-                  >
-                    <ArrowDown
-                      size={20}
-                      style={{ color: workflowType === "SEQUENTIAL" ? "#C9A84C" : "#9CA3AF" }}
-                    />
-                  </div>
-                  <span
-                    className="font-bold"
-                    style={{ color: workflowType === "SEQUENTIAL" ? "#1C1B2E" : "#6B7280" }}
-                  >
-                    تسلسلي
-                  </span>
-                </div>
-                <p className="text-xs text-gray-400 mr-13">
-                  الخدمات تُنفذ واحدة تلو الأخرى بالترتيب المحدد. كل خدمة تبدأ بعد انتهاء السابقة.
-                </p>
-              </button>
-              <button
-                onClick={() => setWorkflowType("INDEPENDENT")}
-                className="p-5 rounded-xl border-2 text-right transition-all"
-                style={
-                  workflowType === "INDEPENDENT"
-                    ? { borderColor: "#C9A84C", backgroundColor: "rgba(201, 168, 76, 0.05)" }
-                    : { borderColor: "#E5E7EB" }
-                }
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{
-                      backgroundColor:
-                        workflowType === "INDEPENDENT" ? "rgba(201, 168, 76, 0.15)" : "#F3F4F6",
-                    }}
-                  >
-                    <ArrowLeftRight
-                      size={20}
-                      style={{ color: workflowType === "INDEPENDENT" ? "#C9A84C" : "#9CA3AF" }}
-                    />
-                  </div>
-                  <span
-                    className="font-bold"
-                    style={{ color: workflowType === "INDEPENDENT" ? "#1C1B2E" : "#6B7280" }}
-                  >
-                    مستقل
-                  </span>
-                </div>
-                <p className="text-xs text-gray-400 mr-13">
-                  الخدمات تُنفذ بشكل متوازي ومستقل. يمكن البدء بأي خدمة في أي وقت.
-                </p>
-              </button>
-            </div>
-          </div>
-          )}
+          {/* Workflow Type card removed — the per-service execution mode
+              chip on each row replaces the project-wide picker. The state
+              variable `workflowType` stays pinned at SEQUENTIAL on mount
+              and is still sent in the submit payload for backend compat. */}
 
           {/* Use Template — STEP 4 */}
           {currentStep === 4 && (
@@ -2110,6 +2053,77 @@ export default function NewProjectPage() {
                 </div>
               ) : (
                 <div className="space-y-0">
+                  {/* Payment milestone slot BEFORE the first service.
+                      Uses afterServiceIndex = -1 — the server interprets
+                      that as "lock the first task of the first service". */}
+                  {!priceFromContract && contractInstallments.length === 0 && (
+                    <div className="my-1.5">
+                      {paymentMilestones
+                        .filter((p) => p.afterServiceIndex === -1)
+                        .map((pm) => (
+                          <div
+                            key={pm.id}
+                            className="p-3 rounded-xl mb-1.5"
+                            style={{ backgroundColor: "rgba(5, 150, 105, 0.06)", border: "1px dashed rgba(5, 150, 105, 0.35)" }}
+                          >
+                            <div className="flex items-center gap-2 mb-2">
+                              <div
+                                className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                                style={{ backgroundColor: "rgba(5, 150, 105, 0.15)" }}
+                              >
+                                <DollarSign size={13} style={{ color: "#059669" }} />
+                              </div>
+                              <input
+                                type="text"
+                                value={pm.title}
+                                onChange={(e) => updatePaymentMilestone(pm.id, "title", e.target.value)}
+                                className="flex-1 text-sm bg-transparent outline-none font-bold"
+                                style={{ color: "#059669" }}
+                                placeholder="عنوان الدفعة..."
+                              />
+                              <button
+                                onClick={() => removePaymentMilestone(pm.id)}
+                                className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-2 mr-8">
+                              <DollarSign size={12} style={{ color: "#059669" }} />
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={pm.amount || ""}
+                                onChange={(e) => updatePaymentMilestone(pm.id, "amount", parseFloat(e.target.value) || 0)}
+                                placeholder="أدخل المبلغ"
+                                className="w-28 px-2.5 py-1.5 text-xs rounded-lg border outline-none text-left font-medium"
+                                style={{ borderColor: "rgba(5, 150, 105, 0.3)", color: "#059669", backgroundColor: "rgba(255,255,255,0.7)" }}
+                              />
+                              <SarSymbol size={12} />
+                            </div>
+                          </div>
+                        ))}
+
+                      <button
+                        onClick={() => addPaymentMilestone(-1)}
+                        className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-medium transition-all border border-dashed"
+                        style={{ color: "#059669", borderColor: "rgba(5, 150, 105, 0.25)", backgroundColor: "transparent" }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "rgba(5, 150, 105, 0.04)";
+                          e.currentTarget.style.borderColor = "rgba(5, 150, 105, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                          e.currentTarget.style.borderColor = "rgba(5, 150, 105, 0.25)";
+                        }}
+                      >
+                        <Plus size={14} />
+                        <span>إضافة دفعة قبل بدء المشروع</span>
+                      </button>
+                    </div>
+                  )}
+
                   {selectedServices.map((service, idx) => (
                     <div key={service.serviceTemplateId}>
                       {/* Service Card */}

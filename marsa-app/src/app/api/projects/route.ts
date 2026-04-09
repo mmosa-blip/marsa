@@ -474,11 +474,17 @@ export async function POST(request: Request) {
               take: 1,
             },
           },
-          orderBy: { createdAt: "asc" },
+          orderBy: { serviceOrder: "asc" },
         });
 
         for (let pmi = 0; pmi < paymentMilestones.length; pmi++) {
           const pm = paymentMilestones[pmi];
+          // afterServiceIndex semantics:
+          //   -1  → milestone is paid BEFORE the project starts; locks
+          //         the first task of the very first service
+          //   >=0 → milestone is paid AFTER service[afterServiceIndex];
+          //         locks the first task of service[afterServiceIndex+1]
+          // Both cases collapse to projectServicesOrdered[afterServiceIndex+1].
           const nextService = projectServicesOrdered[pm.afterServiceIndex + 1];
           const firstTaskOfNext = nextService?.tasks[0];
 

@@ -962,6 +962,14 @@ model ProjectTemplate {
 model ProjectTemplateService {
   id        String @id @default(cuid())
   sortOrder Int    @default(0)
+  // Per-service execution mode at the template level — mirrors the
+  // wizard's per-service toggle so the value isn't lost when a project
+  // is "saved as template" or instantiated from one.
+  //   SEQUENTIAL → tasks within the service run one after the other
+  //   PARALLEL   → tasks may run simultaneously, service still waits
+  //                for the previous service
+  //   INDEPENDENT → tasks bypass every dependency check
+  executionMode TaskExecutionMode @default(SEQUENTIAL)
 
   projectTemplateId String
   projectTemplate   ProjectTemplate @relation(fields: [projectTemplateId], references: [id], onDelete: Cascade)

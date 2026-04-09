@@ -144,7 +144,7 @@ export default function ProjectTemplatesPage() {
             إنشاء وإدارة قوالب المشاريع الجاهزة
           </p>
         </div>
-        <MarsaButton href="/dashboard/projects/new?mode=template" variant="gold" size="lg" icon={<Plus size={18} />}>
+        <MarsaButton href="/dashboard/projects/templates/new" variant="gold" size="lg" icon={<Plus size={18} />}>
           إنشاء قالب جديد
         </MarsaButton>
       </div>
@@ -185,7 +185,7 @@ export default function ProjectTemplatesPage() {
           >
             أنشئ قالبك الأول لتسريع إنشاء المشاريع
           </p>
-          <MarsaButton href="/dashboard/projects/new?mode=template" variant="primary" size="lg" icon={<Plus size={18} />}>
+          <MarsaButton href="/dashboard/projects/templates/new" variant="primary" size="lg" icon={<Plus size={18} />}>
             إنشاء قالب جديد
           </MarsaButton>
         </div>
