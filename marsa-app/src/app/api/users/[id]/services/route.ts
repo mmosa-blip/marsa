@@ -96,8 +96,42 @@ export async function DELETE(
   if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
     return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
   }
-  const { id } = await params;
-  const { serviceId } = await request.json();
-  await prisma.userService.deleteMany({ where: { userId: id, serviceId } });
+  const { id: userId } = await params;
+  const body = await request.json().catch(() => ({}));
+  const { serviceId } = body as { serviceId?: string };
+  if (!serviceId) {
+    return NextResponse.json({ error: "serviceId مطلوب" }, { status: 400 });
+  }
+
+  // 1) Drop the UserService link (pool membership).
+  await prisma.userService.deleteMany({ where: { userId, serviceId } });
+
+  // 2) Clear the primary assignee on any task of this service that was
+  //    pointing at this user. Without this step the operations-room
+  //    "remove executor" action visibly appeared to do nothing — the
+  //    UserService row was gone but the assignee chip stayed on every
+  //    task because Task.assigneeId was left stale.
+  await prisma.task.updateMany({
+    where: { serviceId, assigneeId: userId },
+    data: { assigneeId: null, assignedAt: null, acceptedAt: null },
+  });
+
+  // 3) Drop the collaborator rows so the user also disappears from any
+  //    multi-executor TaskAssignment list for this service. POST added
+  //    these rows for every task in the service; DELETE should tear
+  //    them down symmetrically.
+  const serviceTasks = await prisma.task.findMany({
+    where: { serviceId },
+    select: { id: true },
+  });
+  if (serviceTasks.length > 0) {
+    await prisma.taskAssignment.deleteMany({
+      where: {
+        userId,
+        taskId: { in: serviceTasks.map((t) => t.id) },
+      },
+    });
+  }
+
   return NextResponse.json({ message: "تم إلغاء ربط الخدمة" });
 }

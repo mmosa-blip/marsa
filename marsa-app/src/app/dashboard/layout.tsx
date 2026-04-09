@@ -83,6 +83,9 @@ const adminGroups: NavGroup[] = [
     tGroupKey: "homeAndFollow",
     icon: LayoutDashboard,
     children: [
+      // Pinned at the very top above all departments so admins / managers
+      // can reach the assignment command center in a single click.
+      { href: "/dashboard/operations-room", label: "إدارة العمليات", tKey: "operationsRoom", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/user-preview", label: "شاشات المنفذين", tKey: "userPreview", roles: ["ADMIN"] },
       { href: "/dashboard", label: "الشاشة الرئيسية", tKey: "home" },
       { href: "/dashboard/opportunities", label: "الفرص", tKey: "opportunities", roles: ["ADMIN", "MANAGER"] },
@@ -97,7 +100,6 @@ const adminGroups: NavGroup[] = [
     tGroupKey: "operations",
     icon: FolderOpen,
     children: [
-      { href: "/dashboard/operations-room", label: "إدارة العمليات", tKey: "operationsRoom", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/quick-service", label: "طلب خدمة سريع", tKey: "quickService" },
       { href: "/dashboard/projects/templates", label: "قوالب المشاريع", tKey: "projectTemplates" },
       { href: "/dashboard/contract-templates", label: "قوالب العقود", tKey: "contractTemplates", roles: ["ADMIN", "MANAGER"] },
