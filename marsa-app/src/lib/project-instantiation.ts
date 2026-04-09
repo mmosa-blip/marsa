@@ -153,6 +153,7 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
           dueDate,
           serviceId: service.id,
           projectId: project.id,
+          taskTemplateId: tt.id,
           assigneeId,
           assignedAt: assigneeId ? new Date() : null,
           acceptedAt: assigneeId ? new Date() : null,

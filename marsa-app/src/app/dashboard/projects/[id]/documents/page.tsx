@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import {
   ArrowRight, FileText, Plus, Upload, Search, Eye, Download,
   CheckCircle2, XCircle, Clock, Share2, User, Calendar, X, Loader2,
+  ClipboardList, Link as LinkIcon,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 
@@ -13,6 +14,26 @@ type Kind = "FILE" | "TEXT";
 type Status = "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "RE_UPLOAD_REQUIRED";
 
 interface DocField { name: string; label: string }
+
+interface CompletedTaskRequirements {
+  id: string;
+  title: string;
+  status: string;
+  updatedAt: string;
+  service: { id: string; name: string } | null;
+  assignee: { id: string; name: string } | null;
+  requirements: {
+    id: string;
+    label: string;
+    type: "TEXT" | "FILE" | "URL" | "SELECT";
+    value: {
+      textValue: string | null;
+      fileUrl: string | null;
+      selectedOption: string | null;
+      updatedAt: string;
+    } | null;
+  }[];
+}
 
 interface ProjectDoc {
   id: string;
@@ -53,6 +74,7 @@ export default function ProjectDocumentsPage() {
 
   const [docs, setDocs] = useState<ProjectDoc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [taskReqs, setTaskReqs] = useState<CompletedTaskRequirements[]>([]);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [viewData, setViewData] = useState<ProjectDoc | null>(null);
@@ -66,7 +88,16 @@ export default function ProjectDocumentsPage() {
     });
   }, [projectId]);
 
-  useEffect(() => { loadDocs(); }, [loadDocs]);
+  const loadTaskReqs = useCallback(() => {
+    fetch(`/api/projects/${projectId}/task-requirements`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d)) setTaskReqs(d);
+      })
+      .catch(() => {});
+  }, [projectId]);
+
+  useEffect(() => { loadDocs(); loadTaskReqs(); }, [loadDocs, loadTaskReqs]);
 
   const handleApprove = async (docId: string) => {
     await fetch(`/api/projects/${projectId}/documents/${docId}`, {
@@ -156,6 +187,97 @@ export default function ProjectDocumentsPage() {
           <option value="REJECTED">مرفوض</option>
         </select>
       </div>
+
+      {/* Completed task requirements (data collected at completion) */}
+      {taskReqs.length > 0 && (
+        <div className="bg-white rounded-2xl p-5 mb-6" style={{ border: "1px solid #E2E0D8" }}>
+          <div className="flex items-center gap-2 mb-4">
+            <ClipboardList size={18} style={{ color: "#5E5495" }} />
+            <h2 className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+              بيانات المهام المكتملة
+            </h2>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}>
+              {taskReqs.length}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {taskReqs.map((task) => (
+              <div
+                key={task.id}
+                className="rounded-xl p-4"
+                style={{ border: "1px solid #F0EDE6", backgroundColor: "#FAFAF7" }}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <CheckCircle2 size={14} style={{ color: "#059669" }} />
+                    <p className="text-sm font-bold truncate" style={{ color: "#1C1B2E" }}>
+                      {task.title}
+                    </p>
+                    {task.service && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }}>
+                        {task.service.name}
+                      </span>
+                    )}
+                  </div>
+                  {task.assignee && (
+                    <span className="flex items-center gap-1 text-[10px]" style={{ color: "#6B7280" }}>
+                      <User size={10} />
+                      {task.assignee.name}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {task.requirements.map((r) => {
+                    const v = r.value;
+                    return (
+                      <div
+                        key={r.id}
+                        className="flex items-start gap-2 text-xs p-2 rounded-lg bg-white"
+                        style={{ border: "1px solid #F0EDE6" }}
+                      >
+                        <span className="font-semibold shrink-0" style={{ color: "#1C1B2E" }}>
+                          {r.label}:
+                        </span>
+                        <span className="flex-1 break-words" style={{ color: "#4B5563" }}>
+                          {!v ? (
+                            <span className="text-gray-400">—</span>
+                          ) : r.type === "FILE" && v.fileUrl ? (
+                            <a
+                              href={v.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-blue-600 underline"
+                            >
+                              <Download size={11} />
+                              عرض الملف
+                            </a>
+                          ) : r.type === "URL" && v.textValue ? (
+                            <a
+                              href={v.textValue}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-blue-600 underline break-all"
+                            >
+                              <LinkIcon size={11} />
+                              {v.textValue}
+                            </a>
+                          ) : r.type === "SELECT" && v.selectedOption ? (
+                            v.selectedOption
+                          ) : r.type === "TEXT" && v.textValue ? (
+                            v.textValue
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Documents by group */}
       {filtered.length === 0 ? (

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import ProjectCodeBadge from "@/components/ProjectCodeBadge";
+import TaskCompletionRequirementsModal from "@/components/TaskCompletionRequirementsModal";
 import { useSession } from "next-auth/react";
 import { useLang } from "@/contexts/LanguageContext";
 import { useSidebarCounts } from "@/contexts/SidebarCountsContext";
@@ -158,6 +159,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [completionModal, setCompletionModal] = useState<{ taskId: string; title: string } | null>(null);
 
   // Bulk selection
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
@@ -565,6 +567,34 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
     fetchTasks();
   };
 
+  // Gated complete: checks the task's TaskTemplate for any completion
+  // requirements. If none, completes immediately via the normal status
+  // route. If any exist, opens the requirements modal which handles its
+  // own POST to /api/tasks/[id]/requirements/complete.
+  const attemptComplete = async (taskId: string, title: string) => {
+    if (actionLoading) return;
+    setActionLoading(taskId);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/requirements`);
+      if (res.ok) {
+        const data = await res.json();
+        const reqs = (data?.requirements || []) as unknown[];
+        if (reqs.length === 0) {
+          await handleStatusChange(taskId, "DONE");
+          return;
+        }
+        setCompletionModal({ taskId, title });
+      } else {
+        // Fallback: if the fetch fails, fall through to the normal flow
+        await handleStatusChange(taskId, "DONE");
+      }
+    } catch {
+      await handleStatusChange(taskId, "DONE");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const activeTotalTasks = data?.total || 0;
 
   const statCards = [
@@ -688,7 +718,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
         }
         return (
           <MarsaButton
-            onClick={() => handleStatusChange(task.id, "DONE")}
+            onClick={() => attemptComplete(task.id, task.title)}
             variant="primary" size="xs" icon={<CheckCircle2 size={13} />}
             style={{ backgroundColor: "#059669" }}
             title={t.tasks.complete}
@@ -1324,7 +1354,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                                         </div>
 
                                         <MarsaButton
-                                          onClick={() => completeTask(task.id)}
+                                          onClick={() => attemptComplete(task.id, task.title)}
                                           variant="primary" size="sm"
                                           className="w-full"
                                           style={{ backgroundColor: "#059669" }}
@@ -1408,7 +1438,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                                         </div>
 
                                         <MarsaButton
-                                          onClick={() => completeTask(task.id)}
+                                          onClick={() => attemptComplete(task.id, task.title)}
                                           variant="primary" size="sm"
                                           className="w-full"
                                           style={{ backgroundColor: "#059669" }}
@@ -1799,6 +1829,19 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
             {t.tasks.cancelSelection}
           </MarsaButton>
         </div>
+      )}
+
+      {completionModal && (
+        <TaskCompletionRequirementsModal
+          taskId={completionModal.taskId}
+          taskTitle={completionModal.title}
+          onClose={() => setCompletionModal(null)}
+          onCompleted={() => {
+            setCompletionModal(null);
+            fetchTasks();
+            refreshCounts();
+          }}
+        />
       )}
     </div>
   );

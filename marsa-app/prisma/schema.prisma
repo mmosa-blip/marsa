@@ -573,6 +573,11 @@ model Task {
   serviceId String?
   service   Service? @relation(fields: [serviceId], references: [id])
 
+  // Optional link to the TaskTemplate this Task was instantiated from.
+  // Used to look up completion requirements defined on the template.
+  taskTemplateId String?
+  taskTemplate   TaskTemplate? @relation(fields: [taskTemplateId], references: [id], onDelete: SetNull)
+
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -605,6 +610,8 @@ model Task {
   lastEscalatedAt    DateTime?
   externalProviders  TaskExternalProvider[]
   governmentHolds    TaskGovernmentHold[]
+
+  requirementValues  TaskRequirementValue[]
 
   @@map("tasks")
 }
@@ -907,7 +914,42 @@ model TaskTemplate {
   dependsOn      TaskTemplate?  @relation("TaskDependency", fields: [dependsOnId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   dependentTasks TaskTemplate[] @relation("TaskDependency")
 
+  instantiatedTasks Task[]
+
+  requirements   TaskRequirement[]
+
   @@map("task_templates")
+}
+
+model TaskRequirement {
+  id             String   @id @default(cuid())
+  taskTemplateId String
+  taskTemplate   TaskTemplate @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
+  label          String
+  type           String       // TEXT | FILE | URL | SELECT
+  options        String?      @db.Text // JSON array for SELECT
+  isRequired     Boolean  @default(true)
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+  values         TaskRequirementValue[]
+
+  @@map("task_requirements")
+}
+
+model TaskRequirementValue {
+  id             String   @id @default(cuid())
+  requirementId  String
+  requirement    TaskRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  taskId         String
+  task           Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  textValue      String?  @db.Text
+  fileUrl        String?
+  selectedOption String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([requirementId, taskId])
+  @@map("task_requirement_values")
 }
 
 model ServiceTemplateEmployee {

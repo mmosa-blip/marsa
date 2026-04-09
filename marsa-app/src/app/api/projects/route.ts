@@ -357,6 +357,7 @@ export async function POST(request: Request) {
               dueDate,
               serviceId: service.id,
               projectId: project.id,
+              taskTemplateId: tt.id,
               assigneeId,
               dependsOnId: taskDependsOnId,
               // Inherit the service's executionMode so computeCanStart's

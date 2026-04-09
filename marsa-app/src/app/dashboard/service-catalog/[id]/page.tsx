@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import TaskRequirementsEditor from "@/components/TaskRequirementsEditor";
 
 type TaskExecutionMode = "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
 
@@ -491,10 +492,11 @@ export default function ServiceTemplateDetailPage() {
                       onDragStart={() => handleDragStart(idx)}
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDragEnd={handleDragEnd}
-                      className={`flex items-center gap-3 p-4 rounded-xl border transition-all ${
+                      className={`flex flex-col p-4 rounded-xl border transition-all ${
                         dragIdx === idx ? "border-amber-300 bg-amber-50" : "border-gray-100 hover:border-gray-200 bg-gray-50/50"
                       }`}
                     >
+                     <div className="flex items-center gap-3">
                       {template.workflowType === "SEQUENTIAL" && (
                         <div className="flex items-center gap-2">
                           <GripVertical size={16} className="text-gray-300 cursor-grab" />
@@ -547,6 +549,8 @@ export default function ServiceTemplateDetailPage() {
                           <Trash2 size={14} />
                         </button>
                       </div>
+                     </div>
+                     <TaskRequirementsEditor taskTemplateId={task.id} />
                     </div>
                   ))}
                 </div>
