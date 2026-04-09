@@ -23,21 +23,14 @@ import {
   Layers,
   ChevronDown,
   ChevronLeft,
-  Save,
   Loader2,
   AlertCircle,
   Package,
   BookTemplate,
-  Grid3X3,
   CreditCard,
   Edit3,
   Building2,
   Briefcase,
-  Image as ImageIcon,
-  SkipForward,
-  Calendar,
-  Info,
-  X,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -161,17 +154,6 @@ interface ContractOption {
   installments?: ContractInstallment[];
 }
 
-interface DocTypeOption {
-  id: string;
-  name: string;
-  description: string | null;
-  kind: "FILE" | "TEXT";
-  sampleImageUrl: string | null;
-  instructions: string | null;
-  isRequired: boolean;
-  displayOrder: number;
-}
-
 interface ManagerOption {
   id: string;
   name: string;
@@ -292,24 +274,16 @@ export default function NewProjectPage() {
   // that lock the next service's first task.
   const [paymentMilestones, setPaymentMilestones] = useState<PaymentMilestone[]>([]);
 
-  // ─── Step 3 state — required documents wizard ───
-  const [docTypes, setDocTypes] = useState<DocTypeOption[]>([]);
-  const [loadingDocTypes, setLoadingDocTypes] = useState(false);
-  const [docTypesError, setDocTypesError] = useState("");
-  // pendingDocs keyed by docTypeId → uploaded URL or text data
-  const [pendingDocs, setPendingDocs] = useState<Record<string, { fileUrl?: string; textData?: string; skipped?: boolean }>>({});
-  const [currentDocIndex, setCurrentDocIndex] = useState(0);
-
-  // ─── Step 4 — optional company branches (Investment department only) ───
+  // ─── Step 3 — optional company branches (Investment department only) ───
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [branchesExpanded, setBranchesExpanded] = useState(false);
 
-  // ─── Step 5 state — assign project manager (optional) ───
+  // ─── Step 4 state — assign project manager (optional) ───
   const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [loadingManagers, setLoadingManagers] = useState(false);
   const [selectedManagerId, setSelectedManagerId] = useState("");
 
-  // ─── Step 6 (review) state ───
+  // ─── Step 5 (review) state ───
   const [serviceDetails, setServiceDetails] = useState<Record<string, ServiceDetail>>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
@@ -332,30 +306,9 @@ export default function NewProjectPage() {
     fetch("/api/departments").then(r => r.json()).then(d => { if (Array.isArray(d)) setDepartments(d); });
   }, []);
 
-  // ─── Fetch document types when entering step 4 (filtered by department) ───
+  // ─── Fetch managers when entering the manager step ───
   useEffect(() => {
-    if (currentStep !== 3 || !departmentId) return;
-    setLoadingDocTypes(true);
-    setDocTypesError("");
-    fetch(`/api/doc-types?departmentId=${departmentId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          const sorted = [...data].sort((a: DocTypeOption, b: DocTypeOption) => a.displayOrder - b.displayOrder);
-          setDocTypes(sorted);
-          setCurrentDocIndex(0);
-        } else {
-          setDocTypes([]);
-          setDocTypesError(data?.error || "تعذر تحميل أنواع المستندات");
-        }
-      })
-      .catch(() => setDocTypesError("تعذر الاتصال بالخادم"))
-      .finally(() => setLoadingDocTypes(false));
-  }, [currentStep, departmentId]);
-
-  // ─── Fetch managers when entering step 6 ───
-  useEffect(() => {
-    if (currentStep !== 5 || managers.length > 0) return;
+    if (currentStep !== 4 || managers.length > 0) return;
     setLoadingManagers(true);
     fetch("/api/users?transferTargets=true")
       .then((r) => r.json())
@@ -630,7 +583,7 @@ export default function NewProjectPage() {
   }, []);
 
   useEffect(() => {
-    if (currentStep === 4 && categories.length === 0) {
+    if (currentStep === 3 && categories.length === 0) {
       fetchCatalog();
     }
   }, [currentStep, categories.length, fetchCatalog]);
@@ -746,9 +699,9 @@ export default function NewProjectPage() {
   const finalTotal = contractAmount || paymentMilestonesTotal;
   const priceFromContract = !!contractAmount;
 
-  // ─── Fetch service details for review (step 7) ───
+  // ─── Fetch service details for the review step ───
   useEffect(() => {
-    if (currentStep === 6) {
+    if (currentStep === 5) {
       setLoadingDetails(true);
       const idsToFetch = selectedServices
         .map((s) => s.serviceTemplateId)
@@ -905,28 +858,11 @@ export default function NewProjectPage() {
         }
       }
 
-      // After project creation — upload any pending documents collected in step 4
+      // After project creation — instantiate company branch services if any.
+      // (The old "upload pending project documents" block was removed when
+      // the documents step came out of the wizard. Document collection now
+      // happens per-task via TaskRequirement FILE requirements.)
       if (projectId) {
-        const docsToUpload = Object.entries(pendingDocs).filter(
-          ([, v]) => !v.skipped && (v.fileUrl || v.textData)
-        );
-        for (const [documentTypeId, payload] of docsToUpload) {
-          try {
-            await fetch(`/api/projects/${projectId}/documents`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                documentTypeId,
-                fileUrl: payload.fileUrl || undefined,
-                textData: payload.textData || undefined,
-              }),
-            });
-          } catch {
-            // Don't fail the whole flow — executor can re-upload from project page
-          }
-        }
-
-        // After project creation — instantiate company branch services if any
         const branchNames = branches.map((b) => b.name.trim()).filter(Boolean);
         if (branchNames.length > 0) {
           try {
@@ -974,7 +910,7 @@ export default function NewProjectPage() {
   };
 
   // ─── Navigation ───
-  const handleNext = () => setCurrentStep((s) => Math.min(6, s + 1));
+  const handleNext = () => setCurrentStep((s) => Math.min(5, s + 1));
   const handlePrev = () => setCurrentStep((s) => Math.max(1, s - 1));
 
   // ─── Validation ───
@@ -990,27 +926,20 @@ export default function NewProjectPage() {
     !!contractForm.endDate &&
     (contractMode === "new" || !!contractForm.uploadedFileUrl.trim());
   const step2Valid = !!selectedContractId || inlineContractValid;
-  // Step 3 — required documents must be uploaded (or skipped if optional)
-  const requiredDocTypes = docTypes.filter((d) => d.isRequired);
-  const step3Valid = requiredDocTypes.every((d) => {
-    const entry = pendingDocs[d.id];
-    return entry && (entry.fileUrl || entry.textData);
-  });
-  // Step 4 — at least one service (template or manual). Services no
+  // Step 3 — at least one service (template or manual). Services no
   // longer carry a price; the project total comes from the inter-service
   // payment milestones, which are optional and validated separately.
-  const step4Valid = selectedServices.length >= 1 || (templateApplied && !!selectedTemplateId);
-  // Step 5 — manager is optional
-  const step5Valid = true;
-  // Step 6 — save-as-template name if checked
-  const step6Valid = !saveAsTemplate || templateName.trim().length > 0;
+  const step3Valid = selectedServices.length >= 1 || (templateApplied && !!selectedTemplateId);
+  // Step 4 — manager is optional
+  const step4Valid = true;
+  // Step 5 (review) — save-as-template name if checked
+  const step5Valid = !saveAsTemplate || templateName.trim().length > 0;
 
   const canGoNext = () => {
     if (currentStep === 1) return step1Valid;
     if (currentStep === 2) return step2Valid;
     if (currentStep === 3) return step3Valid;
     if (currentStep === 4) return step4Valid;
-    if (currentStep === 5) return step5Valid;
     return false;
   };
 
@@ -1020,10 +949,9 @@ export default function NewProjectPage() {
   const steps = [
     { num: 1, label: "البيانات الأساسية" },
     { num: 2, label: "العقد" },
-    { num: 3, label: "المستندات" },
-    { num: 4, label: "الخدمات" },
-    { num: 5, label: "مدير المشروع" },
-    { num: 6, label: "مراجعة وتأكيد" },
+    { num: 3, label: "الخدمات" },
+    { num: 4, label: "مدير المشروع" },
+    { num: 5, label: "مراجعة وتأكيد" },
   ];
 
   // ─── Branch helpers ───
@@ -1104,7 +1032,7 @@ export default function NewProjectPage() {
       </div>
 
       {/* ══════════════════════════════════════════════ STEPS 1-6 (max-w-3xl wrapper) ══════════════════════════════════════════════ */}
-      {[1, 2, 3, 4, 5, 6].includes(currentStep) && (
+      {[1, 2, 3, 4, 5].includes(currentStep) && (
         <div className="max-w-3xl mx-auto space-y-6">
           {/* Client Selection — STEP 1 */}
           {currentStep === 1 && (
@@ -1531,69 +1459,13 @@ export default function NewProjectPage() {
                   ))}
                 </select>
               </div>
-            </div>
-          </div>
-          )}
 
-          {/* Workflow Type card removed — the per-service execution mode
-              chip on each row replaces the project-wide picker. The state
-              variable `workflowType` stays pinned at SEQUENTIAL on mount
-              and is still sent in the submit payload for backend compat. */}
-
-          {/* Use Template — STEP 4 */}
-          {currentStep === 4 && (
-          <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
-            <div className="flex items-center gap-2 mb-5">
-              <BookTemplate size={20} style={{ color: "#C9A84C" }} />
-              <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>
-                استخدام قالب موجود
-              </h2>
-              <span className="text-xs text-gray-400 mr-2">(اختياري)</span>
-            </div>
-            {loadingTemplates ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 size={20} className="animate-spin" style={{ color: "#C9A84C" }} />
-              </div>
-            ) : (
-              <select
-                value={selectedTemplateId}
-                onChange={(e) => handleTemplateSelect(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border text-sm outline-none bg-white transition-all"
-                style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}
-              >
-                <option value="">بدون قالب - اختيار الخدمات يدوياً</option>
-                {projectTemplates.map((tpl) => (
-                  <option key={tpl.id} value={tpl.id}>
-                    {tpl.name} ({tpl._count.services} خدمة)
-                  </option>
-                ))}
-              </select>
-            )}
-            {templateApplied && (
-              <p className="text-xs mt-2 flex items-center gap-1" style={{ color: "#059669" }}>
-                <CheckCircle2 size={14} />
-                تم تطبيق القالب — سيتم استخدام خدماته
-              </p>
-            )}
-          </div>
-          )}
-
-          {/* ─── STEP 3: Required Documents ─── */}
-          {currentStep === 3 && (
-            <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <FileText size={20} style={{ color: "#C9A84C" }} />
-                <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>المستندات المطلوبة</h2>
-              </div>
-              <p className="text-xs mb-5" style={{ color: "#6B7280" }}>
-                ارفع المستندات المطلوبة للمشروع — يمكنك تخطي الاختياري وإضافته لاحقاً
-              </p>
-
-              {/* Project partners — step introduced to support multi-party
-                  deals. The count drives a list of named sections; each
-                  section maps 1:1 to a ProjectPartner row on submit. */}
+              {/* Project partners — relocated here after the documents
+                  step was removed from the wizard. The count drives a
+                  list of named sections; each maps 1:1 to a
+                  ProjectPartner row on submit. */}
               <div
-                className="mb-5 p-4 rounded-xl"
+                className="p-4 rounded-xl"
                 style={{ backgroundColor: "rgba(94,84,149,0.04)", border: "1px solid rgba(94,84,149,0.12)" }}
               >
                 <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
@@ -1655,218 +1527,56 @@ export default function NewProjectPage() {
                   </div>
                 )}
               </div>
-
-              {!departmentId && (
-                <div className="text-center py-6 text-xs" style={{ color: "#9CA3AF" }}>
-                  اختر قسماً في الخطوة الأولى لعرض المستندات المطلوبة
-                </div>
-              )}
-
-              {departmentId && loadingDocTypes && (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 size={24} className="animate-spin" style={{ color: "#C9A84C" }} />
-                </div>
-              )}
-
-              {departmentId && !loadingDocTypes && docTypesError && (
-                <div className="p-3 rounded-lg text-xs" style={{ backgroundColor: "rgba(220,38,38,0.06)", color: "#DC2626" }}>
-                  {docTypesError}
-                </div>
-              )}
-
-              {departmentId && !loadingDocTypes && !docTypesError && docTypes.length === 0 && (
-                <div className="text-center py-6 text-xs" style={{ color: "#9CA3AF" }}>
-                  لا توجد مستندات مطلوبة لهذا القسم
-                </div>
-              )}
-
-              {departmentId && !loadingDocTypes && docTypes.length > 0 && (() => {
-                const dt = docTypes[currentDocIndex];
-                if (!dt) return null;
-                const entry = pendingDocs[dt.id];
-                const isUploaded = !!(entry && (entry.fileUrl || entry.textData));
-                const isSkipped = !!entry?.skipped;
-                const totalDocs = docTypes.length;
-                const uploadedCount = docTypes.filter((d) => {
-                  const e = pendingDocs[d.id];
-                  return e && (e.fileUrl || e.textData);
-                }).length;
-
-                return (
-                  <div>
-                    {/* Progress */}
-                    <div className="mb-5">
-                      <div className="flex items-center justify-between mb-2 text-xs" style={{ color: "#6B7280" }}>
-                        <span>المستند {currentDocIndex + 1} من {totalDocs}</span>
-                        <span>{uploadedCount} مرفوع من {totalDocs}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#F0EEF5" }}>
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${((currentDocIndex + 1) / totalDocs) * 100}%`,
-                            background: "linear-gradient(90deg, #5E5495, #C9A84C)",
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Doc card */}
-                    <div className="p-4 rounded-xl" style={{ border: "1px solid #E2E0D8", backgroundColor: "#FAFAFE" }}>
-                      <div className="flex items-start gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "rgba(94,84,149,0.1)" }}>
-                          <FileText size={18} style={{ color: "#5E5495" }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-bold" style={{ color: "#1C1B2E" }}>{dt.name}</h3>
-                            {dt.isRequired ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#DC2626" }}>
-                                مطلوب
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(107,114,128,0.1)", color: "#6B7280" }}>
-                                اختياري
-                              </span>
-                            )}
-                          </div>
-                          {dt.description && (
-                            <p className="text-xs mt-1" style={{ color: "#6B7280" }}>{dt.description}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Sample image */}
-                      {dt.sampleImageUrl && (
-                        <div className="mb-3">
-                          <p className="text-[11px] mb-1.5 flex items-center gap-1" style={{ color: "#6B7280" }}>
-                            <ImageIcon size={11} />
-                            نموذج توضيحي:
-                          </p>
-                          <a href={dt.sampleImageUrl} target="_blank" rel="noopener noreferrer">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={dt.sampleImageUrl}
-                              alt={`نموذج ${dt.name}`}
-                              className="w-full max-h-48 object-contain rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                              style={{ border: "1px solid #E2E0D8", backgroundColor: "white" }}
-                            />
-                          </a>
-                        </div>
-                      )}
-
-                      {/* Instructions */}
-                      {dt.instructions && (
-                        <div className="mb-3 p-3 rounded-lg flex gap-2" style={{ backgroundColor: "rgba(201,168,76,0.06)" }}>
-                          <Info size={14} className="shrink-0 mt-0.5" style={{ color: "#C9A84C" }} />
-                          <p className="text-xs whitespace-pre-line" style={{ color: "#1C1B2E" }}>{dt.instructions}</p>
-                        </div>
-                      )}
-
-                      {/* Upload area */}
-                      {dt.kind === "FILE" ? (
-                        isUploaded && entry?.fileUrl ? (
-                          <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: "rgba(5,150,105,0.06)", border: "1px solid rgba(5,150,105,0.2)" }}>
-                            <div className="flex items-center gap-2 min-w-0">
-                              <CheckCircle2 size={16} style={{ color: "#059669" }} />
-                              <a href={entry.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold truncate hover:underline" style={{ color: "#059669" }}>
-                                تم الرفع — معاينة
-                              </a>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setPendingDocs((prev) => { const next = { ...prev }; delete next[dt.id]; return next; })}
-                              className="text-xs"
-                              style={{ color: "#DC2626" }}
-                            >
-                              حذف
-                            </button>
-                          </div>
-                        ) : (
-                          <UploadButton
-                            endpoint="documentUploader"
-                            onClientUploadComplete={(res) => {
-                              if (res?.[0]) {
-                                setPendingDocs((prev) => ({ ...prev, [dt.id]: { fileUrl: res[0].ufsUrl } }));
-                              }
-                            }}
-                            onUploadError={(error) => alert("فشل الرفع: " + error.message)}
-                            appearance={{
-                              button: { backgroundColor: "#C9A84C", color: "white", borderRadius: "0.75rem", fontSize: "0.75rem", padding: "0.5rem 1rem" },
-                              allowedContent: { color: "#9CA3AF", fontSize: "0.625rem" },
-                            }}
-                            content={{
-                              button: ({ ready, isUploading }) => isUploading ? "جاري الرفع..." : ready ? "اختر ملف" : "تجهيز...",
-                              allowedContent: () => "PDF, Word, صور (حتى 16MB)",
-                            }}
-                          />
-                        )
-                      ) : (
-                        <textarea
-                          value={entry?.textData || ""}
-                          onChange={(e) => setPendingDocs((prev) => ({ ...prev, [dt.id]: { textData: e.target.value } }))}
-                          rows={4}
-                          placeholder="أدخل البيانات هنا..."
-                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-                          style={{ border: "1px solid #E2E0D8" }}
-                        />
-                      )}
-
-                      {isSkipped && !isUploaded && (
-                        <p className="mt-2 text-[11px] flex items-center gap-1" style={{ color: "#9CA3AF" }}>
-                          <SkipForward size={12} />
-                          تم التخطي — يمكن إضافته لاحقاً
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Per-doc nav */}
-                    <div className="flex items-center justify-between mt-4 gap-2">
-                      <MarsaButton
-                        variant="ghost"
-                        size="sm"
-                        disabled={currentDocIndex === 0}
-                        onClick={() => setCurrentDocIndex((i) => Math.max(0, i - 1))}
-                        icon={<ArrowRight size={14} />}
-                      >
-                        السابق
-                      </MarsaButton>
-
-                      <div className="flex items-center gap-2">
-                        {!dt.isRequired && !isUploaded && (
-                          <MarsaButton
-                            variant="secondary"
-                            size="sm"
-                            icon={<SkipForward size={14} />}
-                            onClick={() => {
-                              setPendingDocs((prev) => ({ ...prev, [dt.id]: { skipped: true } }));
-                              if (currentDocIndex < totalDocs - 1) setCurrentDocIndex((i) => i + 1);
-                            }}
-                          >
-                            تخطي
-                          </MarsaButton>
-                        )}
-                        {currentDocIndex < totalDocs - 1 && (
-                          <MarsaButton
-                            variant="primary"
-                            size="sm"
-                            disabled={dt.isRequired && !isUploaded}
-                            onClick={() => setCurrentDocIndex((i) => i + 1)}
-                          >
-                            التالي
-                            <ArrowLeft size={14} />
-                          </MarsaButton>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
+          </div>
           )}
 
-          {/* ─── STEP 5: Assign Project Manager (optional) ─── */}
-          {currentStep === 5 && (
+          {/* Workflow Type card removed — the per-service execution mode
+              chip on each row replaces the project-wide picker. The state
+              variable `workflowType` stays pinned at SEQUENTIAL on mount
+              and is still sent in the submit payload for backend compat. */}
+
+          {/* Use Template — STEP 3 (الخدمات) */}
+          {currentStep === 3 && (
+          <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
+            <div className="flex items-center gap-2 mb-5">
+              <BookTemplate size={20} style={{ color: "#C9A84C" }} />
+              <h2 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>
+                استخدام قالب موجود
+              </h2>
+              <span className="text-xs text-gray-400 mr-2">(اختياري)</span>
+            </div>
+            {loadingTemplates ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 size={20} className="animate-spin" style={{ color: "#C9A84C" }} />
+              </div>
+            ) : (
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => handleTemplateSelect(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border text-sm outline-none bg-white transition-all"
+                style={{ borderColor: "#E8E6F0", color: "#1C1B2E" }}
+              >
+                <option value="">بدون قالب - اختيار الخدمات يدوياً</option>
+                {projectTemplates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {tpl.name} ({tpl._count.services} خدمة)
+                  </option>
+                ))}
+              </select>
+            )}
+            {templateApplied && (
+              <p className="text-xs mt-2 flex items-center gap-1" style={{ color: "#059669" }}>
+                <CheckCircle2 size={14} />
+                تم تطبيق القالب — سيتم استخدام خدماته
+              </p>
+            )}
+          </div>
+          )}
+
+
+          {/* ─── STEP 4: Assign Project Manager (optional) ─── */}
+          {currentStep === 4 && (
             <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
               <div className="flex items-center gap-2 mb-2">
                 <Briefcase size={20} style={{ color: "#C9A84C" }} />
@@ -1938,8 +1648,8 @@ export default function NewProjectPage() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════ STEP 4 — Services Catalog ══════════════════════════════════════════════ */}
-      {currentStep === 4 && (
+      {/* ══════════════════════════════════════════════ STEP 3 — Services Catalog ══════════════════════════════════════════════ */}
+      {currentStep === 3 && (
         <div className="flex gap-6">
           {/* Left: Service Catalog */}
           <div className="flex-1 min-w-0">
@@ -2450,8 +2160,8 @@ export default function NewProjectPage() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════ STEP 6 — Review & Confirm ══════════════════════════════════════════════ */}
-      {currentStep === 6 && (
+      {/* ══════════════════════════════════════════════ STEP 5 — Review & Confirm ══════════════════════════════════════════════ */}
+      {currentStep === 5 && (
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Summary */}
           <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8" }}>
@@ -2533,7 +2243,7 @@ export default function NewProjectPage() {
               <MarsaButton variant="secondary" icon={<Edit3 size={14} />}
                 onClick={() => {
                   setTemplateApplied(false);
-                  setCurrentStep(4);
+                  setCurrentStep(3);
                 }}
               >
                 تعديل الخدمات
@@ -2790,7 +2500,7 @@ export default function NewProjectPage() {
               <ChevronLeft size={16} />
             </MarsaButton>
           ) : (
-            <MarsaButton variant="gold" size="lg" onClick={handleSubmit} disabled={submitting || !step6Valid} loading={submitting}
+            <MarsaButton variant="gold" size="lg" onClick={handleSubmit} disabled={submitting || !step5Valid} loading={submitting}
               icon={!submitting ? <FolderKanban size={16} /> : undefined}
             >
               {submitting ? t.common.loading : t.common.create}
