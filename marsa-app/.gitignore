@@ -46,3 +46,6 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+# Local scratch directory (instruction files, browser downloads, shortcuts)
+Downloads/
