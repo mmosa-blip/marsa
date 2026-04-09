@@ -33,6 +33,7 @@ import {
   Pause,
   Play,
   BarChart3,
+  Download,
   UserPlus,
   Radio,
   CheckCircle2,
@@ -43,6 +44,7 @@ import {
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 import DepartmentPoolManager from "@/components/DepartmentPoolManager";
+import { exportDelayReportPDF } from "@/lib/delay-report-pdf";
 
 interface OverviewTask {
   id: string;
@@ -307,7 +309,12 @@ export default function OperationsRoomClient() {
   const [pauseMutating, setPauseMutating] = useState(false);
   // Delay-report modal state — lazily fetches /api/projects/[id]/pause-report
   // when the user opens it on a given project row.
-  const [delayModal, setDelayModal] = useState<{ projectId: string; projectName: string } | null>(null);
+  const [delayModal, setDelayModal] = useState<{
+    projectId: string;
+    projectName: string;
+    projectCode: string | null;
+    departmentName: string | null;
+  } | null>(null);
   const [delayReport, setDelayReport] = useState<{
     startDate: string | null;
     originalEndDate: string | null;
@@ -450,8 +457,13 @@ export default function OperationsRoomClient() {
       setPauseMutating(false);
     }
   };
-  const openDelayModal = async (projectId: string, projectName: string) => {
-    setDelayModal({ projectId, projectName });
+  const openDelayModal = async (
+    projectId: string,
+    projectName: string,
+    projectCode: string | null,
+    departmentName: string | null
+  ) => {
+    setDelayModal({ projectId, projectName, projectCode, departmentName });
     setDelayReport(null);
     setDelayLoading(true);
     try {
@@ -899,7 +911,14 @@ export default function OperationsRoomClient() {
                               variant="secondary"
                               size="xs"
                               icon={<BarChart3 size={11} />}
-                              onClick={() => openDelayModal(proj.id, proj.name)}
+                              onClick={() =>
+                                openDelayModal(
+                                  proj.id,
+                                  proj.name,
+                                  proj.projectCode,
+                                  proj.department?.name || null
+                                )
+                              }
                               style={{ color: "#5E5495" }}
                             >
                               📊 تقرير التأخير
@@ -1484,13 +1503,39 @@ export default function OperationsRoomClient() {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setDelayModal(null)}
-                className="p-1.5 rounded-lg hover:bg-gray-100"
-                style={{ color: "#9CA3AF" }}
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-2">
+                <MarsaButton
+                  variant="secondary"
+                  size="sm"
+                  icon={<Download size={13} />}
+                  disabled={!delayReport || delayLoading}
+                  onClick={() => {
+                    if (!delayReport || !delayModal) return;
+                    exportDelayReportPDF({
+                      projectName: delayModal.projectName,
+                      projectCode: delayModal.projectCode,
+                      departmentName: delayModal.departmentName,
+                      clientName: null,
+                      startDate: delayReport.startDate,
+                      originalEndDate: delayReport.originalEndDate,
+                      adjustedEndDate: delayReport.adjustedEndDate,
+                      isPaused: delayReport.isPaused,
+                      totalPausedDays: delayReport.totalPausedDays,
+                      periods: delayReport.periods,
+                    });
+                  }}
+                  style={{ color: "#5E5495" }}
+                >
+                  ⬇ تصدير PDF
+                </MarsaButton>
+                <button
+                  onClick={() => setDelayModal(null)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100"
+                  style={{ color: "#9CA3AF" }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="p-5">
