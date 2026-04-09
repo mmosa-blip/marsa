@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import ProjectCodeBadge from "@/components/ProjectCodeBadge";
+import DepartmentPoolManager from "@/components/DepartmentPoolManager";
 
 interface OverviewTask {
   id: string;
@@ -846,6 +847,8 @@ export default function OperationsRoomClient() {
           </div>
         </div>
       )}
+
+      <DepartmentPoolManager />
     </div>
   );
 }

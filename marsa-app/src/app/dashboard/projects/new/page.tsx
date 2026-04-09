@@ -208,6 +208,12 @@ export default function NewProjectPage() {
   // the step-7 preview and is what gets sent to the API.
   const [projectName, setProjectName] = useState("");
   const [departmentId, setDepartmentId] = useState("");
+
+  // Project partners (multi-party deals). Step 3 starts with a single
+  // implicit "project owner" partner; the user can bump the count up to
+  // 10 and name each one. Persisted to ProjectPartner on submit.
+  const [partnersCount, setPartnersCount] = useState<number>(1);
+  const [partnerNames, setPartnerNames] = useState<string[]>([""]);
   const [departments, setDepartments] = useState<{id:string;name:string;nameEn:string|null;color:string|null}[]>([]);
   const [workflowType, setWorkflowType] = useState<"SEQUENTIAL" | "INDEPENDENT">("SEQUENTIAL");
 
@@ -880,6 +886,12 @@ export default function NewProjectPage() {
               executionMode: s.executionMode,
             })),
             paymentMilestones: allPaymentMilestones,
+            partners:
+              partnersCount > 1
+                ? partnerNames
+                    .slice(0, partnersCount)
+                    .map((n, i) => ({ name: (n || "").trim() || `الشريك ${i + 1}`, order: i }))
+                : undefined,
           }),
         });
         if (res.ok) {
@@ -1576,6 +1588,73 @@ export default function NewProjectPage() {
               <p className="text-xs mb-5" style={{ color: "#6B7280" }}>
                 ارفع المستندات المطلوبة للمشروع — يمكنك تخطي الاختياري وإضافته لاحقاً
               </p>
+
+              {/* Project partners — step introduced to support multi-party
+                  deals. The count drives a list of named sections; each
+                  section maps 1:1 to a ProjectPartner row on submit. */}
+              <div
+                className="mb-5 p-4 rounded-xl"
+                style={{ backgroundColor: "rgba(94,84,149,0.04)", border: "1px solid rgba(94,84,149,0.12)" }}
+              >
+                <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+                      كم عدد الشركاء في هذا المشروع؟
+                    </p>
+                    <p className="text-[11px] mt-0.5" style={{ color: "#6B7280" }}>
+                      اترك الرقم 1 إذا لم يكن هناك شركاء
+                    </p>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={partnersCount}
+                    onChange={(e) => {
+                      const n = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
+                      setPartnersCount(n);
+                      setPartnerNames((prev) => {
+                        const next = [...prev];
+                        while (next.length < n) next.push("");
+                        next.length = n;
+                        return next;
+                      });
+                    }}
+                    className="w-20 px-3 py-2 rounded-lg text-sm text-center outline-none bg-white"
+                    style={{ border: "1px solid #E2E0D8" }}
+                  />
+                </div>
+
+                {partnersCount > 1 && (
+                  <div className="space-y-2 mt-3">
+                    {Array.from({ length: partnersCount }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span
+                          className="text-xs font-bold shrink-0 w-16"
+                          style={{ color: "#5E5495" }}
+                        >
+                          الشريك {i + 1}:
+                        </span>
+                        <input
+                          type="text"
+                          value={partnerNames[i] || ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setPartnerNames((prev) => {
+                              const next = [...prev];
+                              next[i] = v;
+                              return next;
+                            });
+                          }}
+                          placeholder={`اسم الشريك ${i + 1}`}
+                          className="flex-1 px-3 py-2 rounded-lg text-xs outline-none bg-white"
+                          style={{ border: "1px solid #E2E0D8" }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {!departmentId && (
                 <div className="text-center py-6 text-xs" style={{ color: "#9CA3AF" }}>

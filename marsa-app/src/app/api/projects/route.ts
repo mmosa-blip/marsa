@@ -122,6 +122,7 @@ export async function POST(request: Request) {
       contractDurationDays,
       contractEndDate,
       managerId,
+      partners,
     } = body as {
       clientId: string;
       name: string;
@@ -137,9 +138,51 @@ export async function POST(request: Request) {
       contractDurationDays?: number;
       contractEndDate?: string;
       managerId?: string;
+      partners?: { name: string; order?: number }[];
     };
 
-    const resolvedManagerId = managerId || session.user.id;
+    // ── Auto-distribution from DepartmentAssignmentPool ─────────────────
+    // When a department pool is configured and the caller did not pass an
+    // explicit managerId, pick the next manager based on the pool mode:
+    //   • ROUND_ROBIN — the member with the oldest (or null) lastAssigned
+    //                   wins; their lastAssigned is bumped on success.
+    //   • ALL         — the first member (by `order`) becomes managerId
+    //                   and every other member is also added to every
+    //                   task via TaskAssignment upserts further down.
+    // If the caller passed managerId explicitly, we honour that and skip
+    // the pool entirely (admin override).
+    let resolvedManagerId: string = managerId || session.user.id;
+    let poolMode: "ROUND_ROBIN" | "ALL" | null = null;
+    let poolAllMemberIds: string[] = [];
+
+    if (!managerId && departmentId) {
+      const pool = await prisma.departmentAssignmentPool.findMany({
+        where: { departmentId },
+        orderBy: { order: "asc" },
+      });
+      if (pool.length > 0) {
+        const mode = pool[0].mode === "ALL" ? "ALL" : "ROUND_ROBIN";
+        poolMode = mode;
+        if (mode === "ALL") {
+          resolvedManagerId = pool[0].userId;
+          poolAllMemberIds = pool.map((p) => p.userId);
+        } else {
+          const sorted = [...pool].sort((a, b) => {
+            const at = a.lastAssigned?.getTime() ?? 0;
+            const bt = b.lastAssigned?.getTime() ?? 0;
+            return at - bt;
+          });
+          const next = sorted[0];
+          resolvedManagerId = next.userId;
+          await prisma.departmentAssignmentPool.update({
+            where: {
+              departmentId_userId: { departmentId, userId: next.userId },
+            },
+            data: { lastAssigned: new Date() },
+          });
+        }
+      }
+    }
 
     // If contractId provided, extract totalAmount and installments from contract
     let contractTotalPrice: number | null = null;
@@ -249,6 +292,24 @@ export async function POST(request: Request) {
           projectSeq,
         },
       });
+
+      // Persist project partners (mapped from wizard step 3). Extra rows
+      // get a monotonic order index so the documents page can render them
+      // in the same sequence the user entered them.
+      if (Array.isArray(partners) && partners.length > 0) {
+        for (let pi = 0; pi < partners.length; pi++) {
+          const p = partners[pi];
+          const pname = (p?.name || "").trim();
+          if (!pname) continue;
+          await prisma.projectPartner.create({
+            data: {
+              projectId: project.id,
+              name: pname,
+              order: typeof p.order === "number" ? p.order : pi,
+            },
+          });
+        }
+      }
 
       // ─── Create services, tasks, and milestones ───
       let serviceStartDate = new Date(now);
@@ -381,6 +442,22 @@ export async function POST(request: Request) {
               where: { id: createdTask.id },
               data: { assignedAt: now, acceptedAt: now, status: "IN_PROGRESS" },
             });
+          }
+
+          // Pool ALL-mode: every task is also co-assigned to every other
+          // member of the department pool via TaskAssignment upserts so
+          // they can see/act on it. The primary assigneeId stays on the
+          // task row for dashboards / round-robin visibility, but all
+          // pool members get a row in TaskAssignment.
+          if (poolMode === "ALL" && poolAllMemberIds.length > 0) {
+            for (const uid of poolAllMemberIds) {
+              if (uid === createdTask.assigneeId) continue;
+              await prisma.taskAssignment.upsert({
+                where: { taskId_userId: { taskId: createdTask.id, userId: uid } },
+                create: { taskId: createdTask.id, userId: uid },
+                update: {},
+              });
+            }
           }
         }
 

@@ -55,6 +55,13 @@ interface ProjectDoc {
   };
   uploadedBy: { id: string; name: string } | null;
   reviewedBy: { id: string; name: string } | null;
+  partner?: { id: string; name: string; order: number } | null;
+}
+
+interface ProjectPartner {
+  id: string;
+  name: string;
+  order: number;
 }
 
 const STATUS_CONFIG: Record<Status, { label: string; color: string; icon: typeof Clock }> = {
@@ -75,6 +82,7 @@ export default function ProjectDocumentsPage() {
   const [docs, setDocs] = useState<ProjectDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [taskReqs, setTaskReqs] = useState<CompletedTaskRequirements[]>([]);
+  const [partners, setPartners] = useState<ProjectPartner[]>([]);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [viewData, setViewData] = useState<ProjectDoc | null>(null);
@@ -97,7 +105,16 @@ export default function ProjectDocumentsPage() {
       .catch(() => {});
   }, [projectId]);
 
-  useEffect(() => { loadDocs(); loadTaskReqs(); }, [loadDocs, loadTaskReqs]);
+  const loadPartners = useCallback(() => {
+    fetch(`/api/projects/${projectId}/partners`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d)) setPartners(d);
+      })
+      .catch(() => {});
+  }, [projectId]);
+
+  useEffect(() => { loadDocs(); loadTaskReqs(); loadPartners(); }, [loadDocs, loadTaskReqs, loadPartners]);
 
   const handleApprove = async (docId: string) => {
     await fetch(`/api/projects/${projectId}/documents/${docId}`, {
@@ -275,6 +292,92 @@ export default function ProjectDocumentsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Project partners — listed above docs. Each partner's section
+          shows the documents that were explicitly tagged with their
+          partnerId; untagged docs fall through to the general grid
+          below. */}
+      {partners.length > 0 && (
+        <div className="bg-white rounded-2xl p-5 mb-6" style={{ border: "1px solid #E2E0D8" }}>
+          <div className="flex items-center gap-2 mb-4">
+            <User size={18} style={{ color: "#5E5495" }} />
+            <h2 className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+              الشركاء
+            </h2>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}>
+              {partners.length}
+            </span>
+          </div>
+          <div className="space-y-4">
+            {partners.map((partner, idx) => {
+              const partnerDocs = filtered.filter((d) => d.partner?.id === partner.id);
+              return (
+                <div
+                  key={partner.id}
+                  className="rounded-xl p-4"
+                  style={{ border: "1px solid #F0EDE6", backgroundColor: "#FAFAF7" }}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <div
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+                      style={{ backgroundColor: "#5E5495" }}
+                    >
+                      {idx + 1}
+                    </div>
+                    <h3 className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+                      {partner.name}
+                    </h3>
+                    <span className="text-[10px] text-gray-400">
+                      {partnerDocs.length} مستند
+                    </span>
+                  </div>
+                  {partnerDocs.length === 0 ? (
+                    <p className="text-xs text-gray-400">
+                      لا توجد مستندات مسنّدة لهذا الشريك بعد.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {partnerDocs.map((doc) => {
+                        const statusCfg = STATUS_CONFIG[doc.status];
+                        return (
+                          <div
+                            key={doc.id}
+                            className="flex items-center gap-2 p-2.5 rounded-lg bg-white"
+                            style={{ border: "1px solid #F0EDE6" }}
+                          >
+                            <FileText size={14} style={{ color: "#C9A84C" }} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate" style={{ color: "#1C1B2E" }}>
+                                {doc.documentType.name}
+                              </p>
+                              <span
+                                className="text-[9px] px-1.5 py-0.5 rounded-full font-medium inline-block mt-0.5"
+                                style={{ backgroundColor: `${statusCfg.color}1a`, color: statusCfg.color }}
+                              >
+                                {statusCfg.label}
+                              </span>
+                            </div>
+                            {doc.fileUrl && (
+                              <a
+                                href={doc.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 rounded hover:bg-gray-100"
+                              >
+                                <Eye size={13} style={{ color: "#5E5495" }} />
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

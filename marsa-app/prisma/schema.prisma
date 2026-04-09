@@ -397,6 +397,8 @@ model User {
   uploadedDocs          ProjectDocument[]   @relation("DocUploader")
   reviewedDocs          ProjectDocument[]   @relation("DocReviewer")
 
+  assignmentPools       DepartmentAssignmentPool[]
+
   @@map("users")
 }
 
@@ -523,8 +525,21 @@ model Project {
   deptPayments       DepartmentPayment[] @relation("ProjectDeptPayments")
   paymentSchedule    ProjectPaymentSchedule[]
   documents          ProjectDocument[]
+  partners           ProjectPartner[]
 
   @@map("projects")
+}
+
+model ProjectPartner {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  documents ProjectDocument[]
+
+  @@map("project_partners")
 }
 
 enum PaymentScheduleStatus {
@@ -1701,8 +1716,26 @@ model Department {
   deptPayments     DepartmentPayment[] @relation("DepartmentPayments")
   docTypes         DocType[]         @relation("DepartmentDocTypes")
   documentGroups   DocumentGroup[]   @relation("DepartmentDocGroups")
+  assignmentPool   DepartmentAssignmentPool[]
 
   @@map("departments")
+}
+
+model DepartmentAssignmentPool {
+  id           String     @id @default(cuid())
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // ROUND_ROBIN = rotate managerId across pool members based on lastAssigned
+  // ALL         = every project goes to the entire pool (managerId = first member)
+  mode         String     @default("ROUND_ROBIN")
+  order        Int        @default(0)
+  lastAssigned DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@unique([departmentId, userId])
+  @@map("department_assignment_pools")
 }
 
 model UserDepartment {
@@ -1954,6 +1987,9 @@ model ProjectDocument {
 
   reviewedById String?
   reviewedBy   User?  @relation("DocReviewer", fields: [reviewedById], references: [id])
+
+  partnerId String?
+  partner   ProjectPartner? @relation(fields: [partnerId], references: [id])
 
   @@map("project_documents")
 }

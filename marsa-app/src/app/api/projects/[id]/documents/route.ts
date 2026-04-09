@@ -56,6 +56,7 @@ export async function GET(
         },
         uploadedBy: { select: { id: true, name: true } },
         reviewedBy: { select: { id: true, name: true } },
+        partner: { select: { id: true, name: true, order: true } },
       },
       orderBy: [{ createdAt: "desc" }],
     });
