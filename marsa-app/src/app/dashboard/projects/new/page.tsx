@@ -85,6 +85,12 @@ interface SelectedService {
   duration: number | null;
   taskCount: number;
   sortOrder: number;
+  // Execution mode for the tasks within this service.
+  //   SEQUENTIAL → tasks run one after the other (default)
+  //   PARALLEL   → tasks may run simultaneously, but the service still
+  //                waits for the previous service to finish
+  //   INDEPENDENT → tasks bypass every order/service-boundary check
+  executionMode: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
 }
 
 interface TaskTemplateDetail {
@@ -519,6 +525,7 @@ export default function NewProjectPage() {
         duration: s.serviceTemplate.defaultDuration || null,
         taskCount: s.serviceTemplate._count?.taskTemplates || 0,
         sortOrder: s.sortOrder ?? i,
+        executionMode: "SEQUENTIAL",
       }));
       setSelectedServices(mapped);
       // Load milestones from template
@@ -551,6 +558,7 @@ export default function NewProjectPage() {
                 duration: s.serviceTemplate.defaultDuration || null,
                 taskCount: s.serviceTemplate._count?.taskTemplates || 0,
                 sortOrder: s.sortOrder ?? i,
+                executionMode: "SEQUENTIAL",
               })
             );
             setSelectedServices(mapped);
@@ -624,9 +632,23 @@ export default function NewProjectPage() {
         duration: tpl.defaultDuration || null,
         taskCount: tpl._count.taskTemplates,
         sortOrder: prev.length,
+        executionMode: "SEQUENTIAL",
       },
     ]);
     setTemplateApplied(false);
+  };
+
+  // Toggle a single selected service between SEQUENTIAL and PARALLEL.
+  // INDEPENDENT exists in the type union for completeness but isn't
+  // exposed in the wizard UI today.
+  const toggleServiceMode = (index: number) => {
+    setSelectedServices((prev) =>
+      prev.map((s, i) =>
+        i === index
+          ? { ...s, executionMode: s.executionMode === "PARALLEL" ? "SEQUENTIAL" : "PARALLEL" }
+          : s
+      )
+    );
   };
 
   const removeService = (index: number) => {
@@ -822,6 +844,7 @@ export default function NewProjectPage() {
               // server schema still requires this field, so we send 0.
               price: 0,
               sortOrder: s.sortOrder,
+              executionMode: s.executionMode,
             })),
             paymentMilestones: allPaymentMilestones,
           }),
@@ -2093,7 +2116,7 @@ export default function NewProjectPage() {
                                 {service.name}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                            <div className="flex items-center gap-2 text-xs text-gray-400 mb-2 flex-wrap">
                               <span className="flex items-center gap-1">
                                 <Clock size={11} />
                                 {service.duration ? `${service.duration} يوم` : "—"}
@@ -2102,6 +2125,23 @@ export default function NewProjectPage() {
                                 <ListChecks size={11} />
                                 {service.taskCount} مهمة
                               </span>
+                              {/* Per-service execution mode toggle. Click to
+                                  flip between SEQUENTIAL ↕ and PARALLEL ⇄. */}
+                              <button
+                                type="button"
+                                onClick={() => toggleServiceMode(idx)}
+                                className="flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold transition-all"
+                                style={
+                                  service.executionMode === "PARALLEL"
+                                    ? { backgroundColor: "rgba(37,99,235,0.1)", color: "#2563EB", border: "1px solid rgba(37,99,235,0.25)" }
+                                    : { backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C", border: "1px solid rgba(201,168,76,0.25)" }
+                                }
+                                title={service.executionMode === "PARALLEL"
+                                  ? "المهام تعمل بالتوازي — اضغط للتسلسل"
+                                  : "المهام تعمل بالتسلسل — اضغط للتوازي"}
+                              >
+                                {service.executionMode === "PARALLEL" ? "⇄ توازي" : "↕ تسلسلي"}
+                              </button>
                             </div>
                           </div>
                           <button

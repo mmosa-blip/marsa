@@ -177,6 +177,31 @@ export async function DELETE(
       );
     }
 
+    // ─── Pre-checks: hard delete only when nothing references the template ───
+    // Without these the prisma.delete below would crash with a P2003 FK
+    // violation (Service.serviceTemplateId and ProjectTemplateService.
+    // serviceTemplateId both have onDelete: Restrict), and the bare catch
+    // block at the bottom would just return the generic "حدث خطأ" message
+    // — leaving the admin no way to figure out *why* the delete failed.
+    const liveInstances = await prisma.service.count({
+      where: { serviceTemplateId: id, deletedAt: null },
+    });
+    if (liveInstances > 0) {
+      return NextResponse.json(
+        { error: `لا يمكن حذف القالب — مستخدم في ${liveInstances} مشروع نشط. احذف الخدمة من تلك المشاريع أولاً.` },
+        { status: 409 }
+      );
+    }
+    const inProjectTemplates = await prisma.projectTemplateService.count({
+      where: { serviceTemplateId: id },
+    });
+    if (inProjectTemplates > 0) {
+      return NextResponse.json(
+        { error: `لا يمكن حذف القالب — مستخدم في ${inProjectTemplates} قالب مشروع. أزله من تلك القوالب أولاً.` },
+        { status: 409 }
+      );
+    }
+
     await prisma.serviceTemplate.delete({
       where: { id },
     });

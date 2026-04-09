@@ -91,6 +91,7 @@ interface ServiceInput {
   serviceTemplateId: string;
   price: number;
   sortOrder: number;
+  executionMode?: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
 }
 
 export async function POST(request: Request) {
@@ -266,6 +267,11 @@ export async function POST(request: Request) {
         // at the schema default (0) makes every service in the project share
         // the same value, which breaks the deterministic ordering that
         // computeCanStart relies on for the "previous service done" gate.
+        // executionMode comes from the wizard's per-service toggle and is
+        // also propagated down to every Task in this service so the
+        // existing computeCanStart (which reads task.executionMode) honors
+        // it without an extra nested join.
+        const serviceMode = svcInput.executionMode || "SEQUENTIAL";
         const service = await prisma.service.create({
           data: {
             name: tmpl.name,
@@ -278,6 +284,7 @@ export async function POST(request: Request) {
             serviceTemplateId: svcInput.serviceTemplateId,
             status: "IN_PROGRESS",
             serviceOrder: si,
+            executionMode: serviceMode,
           },
         });
 
@@ -353,6 +360,10 @@ export async function POST(request: Request) {
               projectId: project.id,
               assigneeId,
               dependsOnId: taskDependsOnId,
+              // Inherit the service's executionMode so computeCanStart's
+              // per-task lookup honors the wizard's per-service toggle
+              // without an extra join through Service.
+              executionMode: serviceMode,
             },
           });
 

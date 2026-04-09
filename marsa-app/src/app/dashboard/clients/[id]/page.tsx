@@ -423,7 +423,12 @@ function ServicesTab({ services, onDelete }: { services: ServiceItem[]; onDelete
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     try {
-      await fetch(`/api/services/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/services/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert((j as { error?: string }).error || `تعذّر الحذف (HTTP ${res.status})`);
+        return;
+      }
       onDelete(id);
     } finally {
       setDeletingId(null);

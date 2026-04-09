@@ -42,10 +42,20 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    const now = new Date();
+
+    // Cascade soft-delete to every task in this service so the tasks
+    // disappear from queues alongside the service. The tasks keep their
+    // history (time logs, audit trail), they're just hidden from the
+    // active listings via the deletedAt filter.
+    await prisma.task.updateMany({
+      where: { serviceId: id, deletedAt: null },
+      data: { deletedAt: now },
+    });
 
     await prisma.service.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: { deletedAt: now },
     });
 
     return NextResponse.json({ message: "تم حذف الخدمة" });

@@ -66,6 +66,8 @@ export async function GET(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = {
       ...(projectId ? { projectId } : { assigneeId: session.user.id }),
+      // Hide soft-deleted tasks (set when their parent service is deleted)
+      deletedAt: null,
       project: {
         deletedAt: null,
         ...(project && { name: { contains: project } }),
@@ -193,23 +195,25 @@ export async function GET(request: NextRequest) {
       prisma.task.count({ where }),
     ]);
 
-    // canStart rules (rewritten to a simpler 2-mode model):
+    // canStart rules:
     //
     //   1. Payment lock always wins — a task linked to a locked installment
     //      is blocked regardless of its mode or position in the chain.
-    //   2. INDEPENDENT tasks bypass every order/service check — they're
-    //      runnable any time once the payment lock (if any) clears.
-    //   3. SEQUENTIAL tasks (the default) wait for two things:
+    //   2. INDEPENDENT tasks bypass EVERY check — runnable any time once
+    //      the payment lock (if any) clears.
+    //   3. PARALLEL tasks skip the per-task order check inside their
+    //      service (sibling tasks may run simultaneously) but still wait
+    //      for the previous service to be terminally finished.
+    //   4. SEQUENTIAL tasks (the default) wait for both:
     //        a. The immediate previous non-INDEPENDENT task in the same
     //           service must be in a terminal state (DONE or CANCELLED).
     //        b. Every non-INDEPENDENT task in the previous service must
     //           also be in a terminal state.
     //
     // CANCELLED is treated like DONE — a cancelled predecessor doesn't
-    // block downstream work, since the cancellation is the operational
-    // statement that the predecessor is "finished" (just unsuccessfully).
-    // INDEPENDENT siblings are skipped on the way back through the chain
-    // because they were never part of the linear flow to begin with.
+    // block downstream work. INDEPENDENT siblings are skipped on the way
+    // back through the chain because they were never part of the linear
+    // flow to begin with.
     const TERMINAL = new Set(["DONE", "CANCELLED"]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const computeCanStart = (task: any): { canStart: boolean; blockReason: string | null } => {
@@ -226,17 +230,21 @@ export async function GET(request: NextRequest) {
       if (!project || !task.serviceId) return { canStart: true, blockReason: null };
 
       // (a) Immediate previous non-INDEPENDENT task in the SAME service.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const currentService = services.find((s: any) => s.id === task.serviceId);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const prevTask = (currentService?.tasks as any[] | undefined)
-        ?.filter((t) => t.order < task.order && t.executionMode !== "INDEPENDENT")
-        .sort((a, b) => b.order - a.order)[0];
-      if (prevTask && !TERMINAL.has(prevTask.status)) {
-        return { canStart: false, blockReason: "sequential" };
+      //     PARALLEL tasks SKIP this check — siblings can run together.
+      if (task.executionMode !== "PARALLEL") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const currentService = services.find((s: any) => s.id === task.serviceId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const prevTask = (currentService?.tasks as any[] | undefined)
+          ?.filter((t) => t.order < task.order && t.executionMode !== "INDEPENDENT")
+          .sort((a, b) => b.order - a.order)[0];
+        if (prevTask && !TERMINAL.has(prevTask.status)) {
+          return { canStart: false, blockReason: "sequential" };
+        }
       }
 
-      // (b) Previous service must be terminally finished (excluding INDEPENDENT).
+      // (b) Previous service must be terminally finished (excluding
+      //     INDEPENDENT). Both SEQUENTIAL and PARALLEL still respect this.
       const currentServiceIdx = services.findIndex((s: { id: string }) => s.id === task.serviceId);
       if (currentServiceIdx > 0) {
         const prevService = services[currentServiceIdx - 1];

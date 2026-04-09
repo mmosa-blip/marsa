@@ -434,6 +434,11 @@ model Service {
   serviceTemplate     ServiceTemplate? @relation("ServiceInstances", fields: [serviceTemplateId], references: [id])
   status              String?  @default("PENDING")
   serviceOrder        Int      @default(0)
+  // SEQUENTIAL = tasks within the service run one after the other.
+  // PARALLEL    = tasks within the service may run simultaneously,
+  //               but the service still waits for the previous service.
+  // INDEPENDENT = tasks bypass every dependency check.
+  executionMode       TaskExecutionMode @default(SEQUENTIAL)
   createdAt           DateTime @default(now())
   deletedAt           DateTime?
 
@@ -556,6 +561,10 @@ model Task {
   dueDate        DateTime?
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
+  // Soft-delete marker. Set when a parent service is soft-deleted so
+  // the task disappears from queues without removing the row + its
+  // history (time logs, audit, etc.).
+  deletedAt DateTime?
 
   // حقل الجهة الخارجية
   externalEntity String?

@@ -245,15 +245,21 @@ export default function ServiceCatalogPage() {
   const handleDeleteTemplate = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذه الخدمة؟")) return;
     const res = await fetch(`/api/service-catalog/templates/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      fetchCategories();
-      fetchAllStats();
-      if (expandedCategory) {
-        const r = await fetch(`/api/service-catalog/templates?categoryId=${expandedCategory}`);
-        if (r.ok) {
-          const data = await r.json();
-          setCategoryTemplates(prev => ({ ...prev, [expandedCategory]: data }));
-        }
+    if (!res.ok) {
+      // Surface the server message — especially the 409 from the
+      // pre-checks ("مستخدم في N مشروع نشط…") so the admin knows
+      // exactly why the delete was rejected instead of seeing nothing.
+      const j = await res.json().catch(() => ({}));
+      alert((j as { error?: string }).error || `تعذّر الحذف (HTTP ${res.status})`);
+      return;
+    }
+    fetchCategories();
+    fetchAllStats();
+    if (expandedCategory) {
+      const r = await fetch(`/api/service-catalog/templates?categoryId=${expandedCategory}`);
+      if (r.ok) {
+        const data = await r.json();
+        setCategoryTemplates(prev => ({ ...prev, [expandedCategory]: data }));
       }
     }
   };
