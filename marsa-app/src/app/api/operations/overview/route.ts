@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { countWorkingDays } from "@/lib/working-days";
 
 // Maximum active tasks before an executor is considered "fully loaded".
 // Used as the denominator for loadPercent.
@@ -38,6 +39,7 @@ export async function GET() {
         id: true,
         name: true,
         projectCode: true,
+        contractEndDate: true,
         department: { select: { id: true, name: true, color: true } },
         services: {
           where: { deletedAt: null },
@@ -84,6 +86,9 @@ export async function GET() {
           orderBy: { serviceOrder: "asc" },
         },
       },
+      // Default ordering is newest-first; the final row list is re-sorted
+      // below by contractEndDate ascending so "closest to expiry" floats
+      // to the top of the operations room.
       orderBy: { createdAt: "desc" },
     });
 
@@ -100,10 +105,29 @@ export async function GET() {
           t.status !== "DONE" &&
           t.status !== "CANCELLED"
       ).length;
+      // Working-days left until the contract ends. null when the project
+      // has no contractEndDate, 0 or negative values get clamped to 0 so
+      // an overdue project surfaces as "0 يوم متبقي" rather than a
+      // confusing negative. late === lateTasks at the project level;
+      // surfaced both inside taskStats and at the top level for the
+      // dedicated badge in OperationsRoomClient.
+      const contractEnd = p.contractEndDate ? new Date(p.contractEndDate) : null;
+      let daysRemaining: number | null = null;
+      if (contractEnd) {
+        if (contractEnd <= now) {
+          daysRemaining = 0;
+        } else {
+          daysRemaining = countWorkingDays(now, contractEnd);
+        }
+      }
+
       return {
         id: p.id,
         name: p.name,
         projectCode: p.projectCode,
+        contractEndDate: p.contractEndDate ? p.contractEndDate.toISOString() : null,
+        daysRemaining,
+        lateTasks: late,
         department: p.department
           ? { id: p.department.id, name: p.department.name, color: p.department.color }
           : null,
@@ -156,6 +180,19 @@ export async function GET() {
           };
         }),
       };
+    });
+
+    // Sort by contractEndDate ascending — rows without a contractEndDate
+    // sink to the bottom. Within rows that share the "no end date"
+    // bucket, the query's createdAt desc order survives because
+    // Array.prototype.sort is stable in modern Node.
+    projectRows.sort((a, b) => {
+      if (a.contractEndDate && b.contractEndDate) {
+        return new Date(a.contractEndDate).getTime() - new Date(b.contractEndDate).getTime();
+      }
+      if (a.contractEndDate) return -1;
+      if (b.contractEndDate) return 1;
+      return 0;
     });
 
     // ── Executors ─────────────────────────────────────────────────────────

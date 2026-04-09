@@ -72,6 +72,10 @@ interface OverviewService {
   tasks: OverviewTask[];
 }
 interface OverviewProject {
+  // Contract fields surfaced for the "X يوم متبقي" and late badges.
+  contractEndDate?: string | null;
+  daysRemaining?: number | null;
+  lateTasks?: number;
   id: string;
   name: string;
   projectCode: string | null;
@@ -677,6 +681,55 @@ export default function OperationsRoomClient() {
                                 {proj.name}
                               </span>
                               <ProjectCodeBadge code={proj.projectCode} size="xs" />
+                              {/* Days-remaining until contract end.
+                                  Colour buckets:
+                                    >30 → green, 15-30 → orange,
+                                    <15 → red,   null → grey.
+                                  Rendered as a pill so it sits next to
+                                  the progress chip without cramping. */}
+                              {(() => {
+                                const d = proj.daysRemaining;
+                                let bg = "rgba(148,163,184,0.15)";
+                                let fg = "#64748B";
+                                let label: string;
+                                if (d == null) {
+                                  label = "بدون تاريخ";
+                                } else {
+                                  label = `${d} يوم متبقي`;
+                                  if (d < 15) {
+                                    bg = "rgba(220,38,38,0.1)";
+                                    fg = "#DC2626";
+                                  } else if (d <= 30) {
+                                    bg = "rgba(234,88,12,0.1)";
+                                    fg = "#EA580C";
+                                  } else {
+                                    bg = "rgba(34,197,94,0.1)";
+                                    fg = "#22C55E";
+                                  }
+                                }
+                                return (
+                                  <span
+                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
+                                    style={{ backgroundColor: bg, color: fg }}
+                                    title={proj.contractEndDate ? `ينتهي العقد: ${new Date(proj.contractEndDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric" })}` : "لا يوجد تاريخ انتهاء للعقد"}
+                                  >
+                                    <Clock size={9} />
+                                    {label}
+                                  </span>
+                                );
+                              })()}
+                              {/* Late-task count pulled from the top-level
+                                  lateTasks field (falls back to taskStats
+                                  for older responses). 🔴 emoji matches
+                                  the project brief. */}
+                              {(proj.lateTasks ?? proj.taskStats.late) > 0 && (
+                                <span
+                                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                  style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#DC2626" }}
+                                >
+                                  {proj.lateTasks ?? proj.taskStats.late} متأخرة 🔴
+                                </span>
+                              )}
                               {/* progress */}
                               <span className="text-[10px] font-bold" style={{ color: "#6B7280" }}>{proj.progress}%</span>
                               <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#F0EEF5" }}>
