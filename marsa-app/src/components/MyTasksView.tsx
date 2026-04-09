@@ -434,6 +434,34 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
     }
   };
 
+  // Claim an orphan task (assigneeId === null) for the current user.
+  // The PATCH /api/tasks/[id] endpoint allows non-admins to set
+  // assigneeId only when the current value is null and they're claiming
+  // themselves — which is exactly this case.
+  const handleClaimOrphan = async (taskId: string) => {
+    if (actionLoading) return;
+    setActionLoading(taskId);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigneeId: currentUserId }),
+      });
+      if (res.ok) {
+        fetchTasks();
+        refreshCounts();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert((err as { error?: string }).error || `تعذّر التقاط المهمة (HTTP ${res.status})`);
+      }
+    } catch (e) {
+      alert("تعذّر الاتصال بالخادم");
+      console.error(e);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Bulk actions
   const toggleSelect = (id: string) => {
     setSelectedTasks((prev) => {
@@ -969,16 +997,19 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                       task.status !== "CANCELLED" &&
                       new Date(task.dueDate) < new Date();
                     const isSelected = selectedTasks.has(task.id);
-                    // In project-mode the list contains foreign tasks too —
-                    // tasks owned by other executors OR sitting unassigned.
-                    // Either way they're "not mine to act on", so render
-                    // them read-only: no checkbox, no actions, no detail
-                    // panel. The previous `!!task.assigneeId` guard let
-                    // orphan rows (assigneeId=null after a user-deletion
-                    // cleanup) slip through and show a misleading "إكمال"
-                    // button that 403s server side.
+                    // In project-mode the row may belong to one of three buckets:
+                    //   - mine: assigneeId === currentUserId → normal action buttons
+                    //   - foreign: assigneeId is set to someone else → read-only
+                    //              assignee badge (the previous behavior)
+                    //   - orphan: assigneeId === null → claimable, gets a
+                    //             "pick up" button so an executor can take it
+                    // The orphan path exists because the user-deletion cleanup
+                    // detaches the deleted user from their tasks, leaving them
+                    // with assigneeId=null until someone re-claims them.
+                    const isOrphan = task.assigneeId === null;
                     const isForeign =
                       !!projectId &&
+                      !isOrphan &&
                       task.assigneeId !== currentUserId;
 
                     return (
@@ -1125,9 +1156,10 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                             return <span className="text-xs" style={{ color: "#94A3B8" }}>—</span>;
                           })()}
                         </td>
-                        {/* Actions — for foreign tasks we show only the
-                            assignee badge instead, since the current user can
-                            neither act on them nor select them. */}
+                        {/* Actions — three branches:
+                            - foreign: read-only assignee badge
+                            - orphan in project mode: "📋 التقط المهمة" claim button
+                            - mine (or non-project view): normal action buttons */}
                         <td className="px-5 py-4">
                           {isForeign ? (
                             <div className="flex items-center justify-center">
@@ -1145,10 +1177,22 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                                 {task.assignee?.name || "—"}
                               </span>
                             </div>
+                          ) : isOrphan && !!projectId ? (
+                            <div className="flex items-center justify-center">
+                              <MarsaButton
+                                onClick={() => handleClaimOrphan(task.id)}
+                                disabled={actionLoading === task.id}
+                                variant="primary" size="xs"
+                                style={{ backgroundColor: "#5E5495" }}
+                                title="التقط هذه المهمة لتصبح مسندة لك"
+                              >
+                                📋 التقط المهمة
+                              </MarsaButton>
+                            </div>
                           ) : (
                             <div className="flex items-center justify-center gap-1">
                               {getActionButton(task)}
-                              {task.status !== "DONE" && task.status !== "CANCELLED" && !task.isTransferred && (
+                              {task.status !== "DONE" && task.status !== "CANCELLED" && !task.isTransferred && task.canStart !== false && (
                                 <MarsaButton
                                   onClick={() => setTransferModal(task.id)}
                                   variant="outline" size="xs" icon={<ArrowLeftRight size={13} />}

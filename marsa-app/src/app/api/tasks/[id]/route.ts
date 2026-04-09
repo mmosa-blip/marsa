@@ -16,9 +16,25 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    // Only ADMIN/MANAGER can change assigneeId
+    // Assignee changes are admin-only as a general rule, with one exception:
+    // an executor may claim an orphan task (assigneeId === null) by setting
+    // it to themselves. This powers the "📋 التقط المهمة" button on
+    // unassigned rows in project mode. Any other assignee mutation by a
+    // non-admin is silently stripped.
     if (body.assigneeId !== undefined && !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      delete body.assigneeId;
+      const claimingSelf = body.assigneeId === session.user.id;
+      if (claimingSelf) {
+        const current = await prisma.task.findUnique({
+          where: { id },
+          select: { assigneeId: true },
+        });
+        if (current?.assigneeId !== null) {
+          // Already assigned to someone — non-admins can't reassign
+          delete body.assigneeId;
+        }
+      } else {
+        delete body.assigneeId;
+      }
     }
 
     // Payment-task locking: block status changes if linked installment is locked
