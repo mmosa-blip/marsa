@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { createUserSchema } from "@/lib/validations";
+import { createUserSchema, normalizePhone, isValidPhone } from "@/lib/validations";
 import { createAuditLog, AuditModule } from "@/lib/audit";
 import { can, PERMISSIONS, assignDefaultPermissions } from "@/lib/permissions";
 
@@ -123,11 +123,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "رقم الجوال مطلوب" }, { status: 400 });
       }
 
-      // Normalize phone number
-      const normalizedPhone = phone.replace(/[\s\-]/g, "");
-      if (normalizedPhone.startsWith("+966")) phone = "0" + normalizedPhone.slice(4);
-      else if (normalizedPhone.startsWith("966")) phone = "0" + normalizedPhone.slice(3);
-      else phone = normalizedPhone;
+      // Normalize + validate phone as E.164.
+      phone = normalizePhone(phone);
+      if (!isValidPhone(phone)) {
+        return NextResponse.json(
+          { error: "رقم الجوال غير صالح — أدخل رقماً بصيغة دولية يبدأ بـ + ورمز الدولة" },
+          { status: 400 }
+        );
+      }
 
       const existingUser = await prisma.user.findUnique({ where: { phone } });
       if (existingUser) {
@@ -192,11 +195,14 @@ export async function POST(request: NextRequest) {
 
     const authorizationType = body.authorizationType;
 
-    // Normalize phone number
-    const normalizedPhone = phone.replace(/[\s\-]/g, "");
-    if (normalizedPhone.startsWith("+966")) phone = "0" + normalizedPhone.slice(4);
-    else if (normalizedPhone.startsWith("966")) phone = "0" + normalizedPhone.slice(3);
-    else phone = normalizedPhone;
+    // Normalize + validate phone as E.164.
+    phone = normalizePhone(phone);
+    if (!isValidPhone(phone)) {
+      return NextResponse.json(
+        { error: "رقم الجوال غير صالح — أدخل رقماً بصيغة دولية يبدأ بـ + ورمز الدولة" },
+        { status: 400 }
+      );
+    }
 
     const existingUser = await prisma.user.findUnique({ where: { phone } });
     if (existingUser) {

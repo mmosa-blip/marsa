@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const normalizedPhone = normalizePhone(phone);
     if (!isValidPhone(normalizedPhone)) {
       return NextResponse.json(
-        { error: "رقم الجوال غير صالح — أدخل رقماً سعودياً (05xxxxxxxx) أو دولياً بصيغة +رمز الدولة" },
+        { error: "رقم الجوال غير صالح — أدخل رقماً بصيغة دولية يبدأ بـ + ورمز الدولة" },
         { status: 400 }
       );
     }
