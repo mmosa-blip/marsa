@@ -68,6 +68,15 @@ interface Task {
   assignee?: { id: string; name: string } | null;
   canStart: boolean;
   blockReason?: string | null;
+  linkedInstallment?: {
+    id: string;
+    isLocked: boolean;
+    title: string;
+    amount: number;
+    paidAmount: number;
+    paymentStatus: string;
+    partialPaymentRequest: number | null;
+  } | null;
   startedById?: string | null;
   startedBy?: { id: string; name: string } | null;
   assignments?: { user: { id: string; name: string } }[];
@@ -160,6 +169,18 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [completionModal, setCompletionModal] = useState<{ taskId: string; title: string } | null>(null);
+  // Partial-payment-request modal — opened from the inline "في انتظار دفعة"
+  // row on a payment-blocked task. The executor enters the amount they
+  // want the admin to accept as a partial payment, and we POST to the
+  // installment partial-request endpoint.
+  const [partialModal, setPartialModal] = useState<{
+    installmentId: string;
+    title: string;
+    remaining: number;
+  } | null>(null);
+  const [partialAmount, setPartialAmount] = useState("");
+  const [partialSubmitting, setPartialSubmitting] = useState(false);
+  const [partialError, setPartialError] = useState<string | null>(null);
 
   // Bulk selection
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
@@ -680,12 +701,49 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
     // is still running). In every such case we must NOT render "إكمال"
     // or "ابدأ" — only the inline waiting text.
     if (task.canStart === false) {
-      return task.blockReason === "payment" ? (
-        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: "#DC2626" }}>
-          <Lock size={12} />
-          🔒 في انتظار دفعة
-        </span>
-      ) : (
+      if (task.blockReason === "payment") {
+        const inst = task.linkedInstallment;
+        const remaining = inst ? Math.max(0, inst.amount - inst.paidAmount) : 0;
+        const hasPending = !!(inst && inst.partialPaymentRequest && inst.partialPaymentRequest > 0);
+        return (
+          <div className="flex flex-col items-end gap-1">
+            <span className="flex items-center gap-1 text-xs font-medium" style={{ color: "#DC2626" }}>
+              <Lock size={12} />
+              🔒 في انتظار دفعة
+            </span>
+            {inst && (
+              <span className="text-[10px] font-semibold" style={{ color: "#1C1B2E" }}>
+                {inst.title} · {inst.amount.toLocaleString("en-US")}
+                {inst.paidAmount > 0 && (
+                  <span className="opacity-60"> (مدفوع: {inst.paidAmount.toLocaleString("en-US")})</span>
+                )}
+              </span>
+            )}
+            {inst && !hasPending && (
+              <button
+                type="button"
+                onClick={() =>
+                  setPartialModal({
+                    installmentId: inst.id,
+                    title: inst.title,
+                    remaining,
+                  })
+                }
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-amber-100 transition-colors"
+                style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}
+              >
+                طلب دفع جزئي
+              </button>
+            )}
+            {hasPending && (
+              <span className="text-[10px] font-semibold" style={{ color: "#C9A84C" }}>
+                طلب دفع جزئي قيد المراجعة ({inst!.partialPaymentRequest!.toLocaleString("en-US")})
+              </span>
+            )}
+          </div>
+        );
+      }
+      return (
         <span className="flex items-center gap-1 text-xs font-medium" style={{ color: "#D97706" }}>
           ⏳ في انتظار مهمة سابقة
         </span>
@@ -1842,6 +1900,121 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
             refreshCounts();
           }}
         />
+      )}
+
+      {partialModal && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => !partialSubmitting && setPartialModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-md p-5"
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ backgroundColor: "rgba(201,168,76,0.12)" }}
+              >
+                <Lock size={18} style={{ color: "#C9A84C" }} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold" style={{ color: "#1C1B2E" }}>
+                  طلب دفع جزئي
+                </h3>
+                <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+                  {partialModal.title} — المتبقي: {partialModal.remaining.toLocaleString("en-US")}
+                </p>
+              </div>
+            </div>
+
+            <label className="block text-xs font-bold mb-1.5" style={{ color: "#1C1B2E" }}>
+              المبلغ المطلوب
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={partialModal.remaining}
+              step="0.01"
+              value={partialAmount}
+              onChange={(e) => {
+                setPartialAmount(e.target.value);
+                setPartialError(null);
+              }}
+              disabled={partialSubmitting}
+              placeholder="0"
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none mb-1 bg-white"
+              style={{ border: `1px solid ${partialError ? "#DC2626" : "#E2E0D8"}`, color: "#1C1B2E" }}
+            />
+            <p className="text-[10px] mb-3" style={{ color: "#6B7280" }}>
+              سيتم إرسال طلبك للإدارة للموافقة قبل فتح المهمة.
+            </p>
+            {partialError && (
+              <p className="text-xs mb-3 font-medium" style={{ color: "#DC2626" }}>
+                {partialError}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <MarsaButton
+                variant="primary"
+                size="md"
+                className="flex-1"
+                loading={partialSubmitting}
+                disabled={partialSubmitting || !partialAmount}
+                onClick={async () => {
+                  const amount = Number(partialAmount);
+                  if (!Number.isFinite(amount) || amount <= 0) {
+                    setPartialError("أدخل مبلغاً صالحاً");
+                    return;
+                  }
+                  if (amount > partialModal.remaining) {
+                    setPartialError("المبلغ أكبر من المتبقي");
+                    return;
+                  }
+                  setPartialSubmitting(true);
+                  try {
+                    const res = await fetch(
+                      `/api/installments/${partialModal.installmentId}/partial-request`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ amount }),
+                      }
+                    );
+                    if (res.ok) {
+                      setPartialModal(null);
+                      setPartialAmount("");
+                      setPartialError(null);
+                      fetchTasks();
+                    } else {
+                      const e = await res.json().catch(() => ({}));
+                      setPartialError(e.error || "فشل إرسال الطلب");
+                    }
+                  } finally {
+                    setPartialSubmitting(false);
+                  }
+                }}
+              >
+                إرسال الطلب
+              </MarsaButton>
+              <MarsaButton
+                variant="secondary"
+                size="md"
+                disabled={partialSubmitting}
+                onClick={() => {
+                  setPartialModal(null);
+                  setPartialAmount("");
+                  setPartialError(null);
+                }}
+              >
+                إلغاء
+              </MarsaButton>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

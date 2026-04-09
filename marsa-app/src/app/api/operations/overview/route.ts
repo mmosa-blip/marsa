@@ -40,6 +40,13 @@ export async function GET() {
         name: true,
         projectCode: true,
         contractEndDate: true,
+        isPaused: true,
+        pauses: {
+          where: { endDate: null },
+          orderBy: { startDate: "desc" },
+          take: 1,
+          select: { reason: true, startDate: true },
+        },
         department: { select: { id: true, name: true, color: true } },
         services: {
           where: { deletedAt: null },
@@ -121,6 +128,7 @@ export async function GET() {
         }
       }
 
+      const currentPause = p.pauses[0];
       return {
         id: p.id,
         name: p.name,
@@ -128,6 +136,10 @@ export async function GET() {
         contractEndDate: p.contractEndDate ? p.contractEndDate.toISOString() : null,
         daysRemaining,
         lateTasks: late,
+        isPaused: p.isPaused,
+        currentPause: currentPause
+          ? { reason: currentPause.reason, startDate: currentPause.startDate.toISOString() }
+          : null,
         department: p.department
           ? { id: p.department.id, name: p.department.name, color: p.department.color }
           : null,

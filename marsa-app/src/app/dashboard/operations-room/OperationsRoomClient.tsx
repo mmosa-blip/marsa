@@ -30,6 +30,8 @@ import {
   AlertTriangle,
   ChevronUp,
   Flame,
+  Pause,
+  Play,
   UserPlus,
   Radio,
   CheckCircle2,
@@ -76,6 +78,8 @@ interface OverviewProject {
   contractEndDate?: string | null;
   daysRemaining?: number | null;
   lateTasks?: number;
+  isPaused?: boolean;
+  currentPause?: { reason: string; startDate: string } | null;
   id: string;
   name: string;
   projectCode: string | null;
@@ -295,6 +299,11 @@ export default function OperationsRoomClient() {
   // project service instance derived from that template.
   const [escPicker, setEscPicker] = useState<{ templateId: string; userId: string } | null>(null);
   const [escMutating, setEscMutating] = useState(false);
+  // Pause-project modal state.
+  const [pauseModal, setPauseModal] = useState<{ projectId: string; projectName: string } | null>(null);
+  const [pauseReason, setPauseReason] = useState<"PAYMENT_DELAY" | "CLIENT_REQUEST" | "OTHER">("PAYMENT_DELAY");
+  const [pauseNotes, setPauseNotes] = useState("");
+  const [pauseMutating, setPauseMutating] = useState(false);
 
   // ── Auth gate ──
   useEffect(() => {
@@ -389,6 +398,48 @@ export default function OperationsRoomClient() {
       if (res.ok) refreshOverview();
     } finally {
       setEscMutating(false);
+    }
+  };
+
+  // ── Project pause / resume ──
+  const openPauseModal = (projectId: string, projectName: string) => {
+    setPauseModal({ projectId, projectName });
+    setPauseReason("PAYMENT_DELAY");
+    setPauseNotes("");
+  };
+  const submitPause = async () => {
+    if (!pauseModal) return;
+    setPauseMutating(true);
+    try {
+      const res = await fetch(`/api/projects/${pauseModal.projectId}/pause`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: pauseReason, notes: pauseNotes || undefined }),
+      });
+      if (res.ok) {
+        setPauseModal(null);
+        refreshOverview();
+      } else {
+        const e = await res.json().catch(() => ({}));
+        alert(e.error || "تعذر إيقاف المشروع");
+      }
+    } finally {
+      setPauseMutating(false);
+    }
+  };
+  const resumeProject = async (projectId: string) => {
+    if (!confirm("استئناف هذا المشروع؟")) return;
+    setPauseMutating(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/resume`, { method: "POST" });
+      if (res.ok) {
+        refreshOverview();
+      } else {
+        const e = await res.json().catch(() => ({}));
+        alert(e.error || "تعذر الاستئناف");
+      }
+    } finally {
+      setPauseMutating(false);
     }
   };
 
@@ -757,6 +808,19 @@ export default function OperationsRoomClient() {
                                   <CheckCircle2 size={9} /> {proj.taskStats.done}
                                 </span>
                               )}
+                              {proj.isPaused && (
+                                <span
+                                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
+                                  style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#DC2626" }}
+                                  title={
+                                    proj.currentPause
+                                      ? `${proj.currentPause.reason} — منذ ${new Date(proj.currentPause.startDate).toLocaleDateString("ar-SA-u-nu-latn")}`
+                                      : undefined
+                                  }
+                                >
+                                  <Pause size={9} /> موقوف
+                                </span>
+                              )}
                             </button>
                             <AvatarStack
                               users={projectExecutors}
@@ -771,6 +835,29 @@ export default function OperationsRoomClient() {
                             >
                               ربط منفذ
                             </MarsaButton>
+                            {proj.isPaused ? (
+                              <MarsaButton
+                                variant="secondary"
+                                size="xs"
+                                icon={<Play size={11} />}
+                                disabled={pauseMutating}
+                                onClick={() => resumeProject(proj.id)}
+                                style={{ color: "#059669" }}
+                              >
+                                استئناف
+                              </MarsaButton>
+                            ) : (
+                              <MarsaButton
+                                variant="secondary"
+                                size="xs"
+                                icon={<Pause size={11} />}
+                                disabled={pauseMutating}
+                                onClick={() => openPauseModal(proj.id, proj.name)}
+                                style={{ color: "#DC2626" }}
+                              >
+                                إيقاف
+                              </MarsaButton>
+                            )}
                           </div>
 
                           {/* Project children: services */}
@@ -1238,6 +1325,89 @@ export default function OperationsRoomClient() {
       )}
 
       <DepartmentPoolManager />
+
+      {/* Pause-project modal */}
+      {pauseModal && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => !pauseMutating && setPauseModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-md p-5"
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ backgroundColor: "rgba(220,38,38,0.12)" }}
+              >
+                <Pause size={18} style={{ color: "#DC2626" }} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold" style={{ color: "#1C1B2E" }}>
+                  إيقاف المشروع
+                </h3>
+                <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+                  {pauseModal.projectName}
+                </p>
+              </div>
+            </div>
+
+            <label className="block text-xs font-bold mb-1.5" style={{ color: "#1C1B2E" }}>
+              سبب الإيقاف
+            </label>
+            <select
+              value={pauseReason}
+              onChange={(e) => setPauseReason(e.target.value as typeof pauseReason)}
+              disabled={pauseMutating}
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none mb-3 bg-white"
+              style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}
+            >
+              <option value="PAYMENT_DELAY">تأخر الدفعة</option>
+              <option value="CLIENT_REQUEST">طلب العميل</option>
+              <option value="OTHER">أخرى</option>
+            </select>
+
+            <label className="block text-xs font-bold mb-1.5" style={{ color: "#1C1B2E" }}>
+              ملاحظات (اختياري)
+            </label>
+            <textarea
+              value={pauseNotes}
+              onChange={(e) => setPauseNotes(e.target.value)}
+              rows={3}
+              disabled={pauseMutating}
+              placeholder="أضف تفاصيل عن سبب الإيقاف"
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none mb-4 bg-white"
+              style={{ border: "1px solid #E2E0D8", color: "#1C1B2E" }}
+            />
+
+            <div className="flex gap-2">
+              <MarsaButton
+                variant="primary"
+                size="md"
+                className="flex-1"
+                onClick={submitPause}
+                loading={pauseMutating}
+                disabled={pauseMutating}
+                icon={!pauseMutating ? <Pause size={14} /> : undefined}
+                style={{ backgroundColor: "#DC2626" }}
+              >
+                إيقاف المشروع
+              </MarsaButton>
+              <MarsaButton
+                variant="secondary"
+                size="md"
+                onClick={() => setPauseModal(null)}
+                disabled={pauseMutating}
+              >
+                إلغاء
+              </MarsaButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

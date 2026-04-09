@@ -146,7 +146,17 @@ export async function GET(request: NextRequest) {
           },
           service: { select: { id: true, name: true } },
           assignee: { select: { id: true, name: true } },
-          linkedInstallment: { select: { isLocked: true, title: true } },
+          linkedInstallment: {
+            select: {
+              id: true,
+              isLocked: true,
+              title: true,
+              amount: true,
+              paidAmount: true,
+              paymentStatus: true,
+              partialPaymentRequest: true,
+            },
+          },
           timeSummary: true,
           assignments: { include: { user: { select: { id: true, name: true } } } },
           startedBy: { select: { id: true, name: true } },

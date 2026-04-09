@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useRef } from "react";
+import { useState, useEffect, use, useRef, Fragment } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import {
@@ -133,7 +133,25 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const router = useRouter();
   const [project, setProject] = useState<ProjectType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<"kanban" | "services">("services");
+  const [viewMode, setViewMode] = useState<"kanban" | "services" | "delay">("services");
+  const [delayReport, setDelayReport] = useState<{
+    startDate: string | null;
+    originalEndDate: string | null;
+    adjustedEndDate: string | null;
+    isPaused: boolean;
+    totalPausedDays: number;
+    periods: {
+      id: string;
+      reason: string;
+      notes: string | null;
+      startDate: string;
+      endDate: string | null;
+      isOpen: boolean;
+      days: number;
+      pausedBy: { id: string; name: string } | null;
+      resumedBy: { id: string; name: string } | null;
+    }[];
+  } | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -590,7 +608,208 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         >
           <span className="flex items-center gap-1.5"><GripVertical size={16} />لوحة Kanban</span>
         </button>
+        <button
+          onClick={() => {
+            setViewMode("delay");
+            fetch(`/api/projects/${id}/pause-report`)
+              .then((r) => r.json())
+              .then((d) => {
+                if (d && !d.error) setDelayReport(d);
+              })
+              .catch(() => {});
+          }}
+          className="px-4 py-2 rounded-xl text-sm font-medium transition-all"
+          style={viewMode === "delay"
+            ? { backgroundColor: "#DC2626", color: "white" }
+            : { backgroundColor: "white", color: "#6B7280", border: "1px solid #E5E7EB" }
+          }
+        >
+          <span className="flex items-center gap-1.5"><Clock size={16} />تقرير التأخير</span>
+        </button>
       </div>
+
+      {/* Delay / pause report */}
+      {viewMode === "delay" && (() => {
+        const report = delayReport;
+        if (!report) {
+          return (
+            <div className="bg-white rounded-2xl p-8 border border-gray-100 text-center">
+              <Loader2 size={28} className="animate-spin mx-auto" style={{ color: "#C9A84C" }} />
+              <p className="text-sm mt-3" style={{ color: "#6B7280" }}>
+                جاري تحميل تقرير التأخير...
+              </p>
+            </div>
+          );
+        }
+        const reasonLabel = (r: string) => {
+          if (r === "PAYMENT_DELAY") return "تأخر الدفعة";
+          if (r === "CLIENT_REQUEST") return "طلب العميل";
+          if (r === "OTHER") return "أخرى";
+          return r;
+        };
+        const dateFmt = (d: string | null) =>
+          d
+            ? new Date(d).toLocaleDateString("ar-SA-u-nu-latn", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })
+            : "—";
+        return (
+          <div className="space-y-4">
+            {/* Summary card */}
+            <div className="bg-white rounded-2xl p-5 border border-gray-100">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 rounded-xl" style={{ backgroundColor: "rgba(220,38,38,0.06)" }}>
+                  <p className="text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>
+                    إجمالي أيام الإيقاف
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: "#DC2626" }}>
+                    {report.totalPausedDays.toLocaleString("en-US")} يوم
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl" style={{ backgroundColor: "rgba(94,84,149,0.06)" }}>
+                  <p className="text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>
+                    تاريخ الانتهاء الأصلي
+                  </p>
+                  <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+                    {dateFmt(report.originalEndDate)}
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl" style={{ backgroundColor: "rgba(201,168,76,0.08)" }}>
+                  <p className="text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>
+                    تاريخ الانتهاء المعدّل
+                  </p>
+                  <p className="text-sm font-bold" style={{ color: "#C9A84C" }}>
+                    {dateFmt(report.adjustedEndDate)}
+                  </p>
+                </div>
+                <div
+                  className="p-3 rounded-xl"
+                  style={{
+                    backgroundColor: report.isPaused ? "rgba(220,38,38,0.1)" : "rgba(34,197,94,0.06)",
+                  }}
+                >
+                  <p className="text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>
+                    الحالة
+                  </p>
+                  <p
+                    className="text-sm font-bold"
+                    style={{ color: report.isPaused ? "#DC2626" : "#16A34A" }}
+                  >
+                    {report.isPaused ? "موقوف حالياً" : "نشط"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Periods table */}
+            <div className="bg-white rounded-2xl p-5 border border-gray-100">
+              <h3 className="text-sm font-bold mb-4" style={{ color: "#1C1B2E" }}>
+                فترات الإيقاف ({report.periods.length})
+              </h3>
+              {report.periods.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-4">
+                  لا توجد فترات إيقاف مسجلة لهذا المشروع.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {report.periods.map((p, idx) => (
+                    <div
+                      key={p.id}
+                      className="p-3 rounded-xl"
+                      style={{
+                        border: "1px solid #F0EDE6",
+                        backgroundColor: p.isOpen ? "rgba(220,38,38,0.04)" : "#FAFAF7",
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                        <span className="text-xs font-bold" style={{ color: "#1C1B2E" }}>
+                          #{idx + 1} — {reasonLabel(p.reason)}
+                        </span>
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor: p.isOpen
+                              ? "rgba(220,38,38,0.12)"
+                              : "rgba(148,163,184,0.15)",
+                            color: p.isOpen ? "#DC2626" : "#64748B",
+                          }}
+                        >
+                          {p.days} يوم{p.isOpen ? " (جارٍ)" : ""}
+                        </span>
+                      </div>
+                      <div className="text-[11px]" style={{ color: "#6B7280" }}>
+                        {dateFmt(p.startDate)} → {p.endDate ? dateFmt(p.endDate) : "حتى الآن"}
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px] mt-1" style={{ color: "#9CA3AF" }}>
+                        {p.pausedBy && <span>أوقف: {p.pausedBy.name}</span>}
+                        {p.resumedBy && <span>استأنف: {p.resumedBy.name}</span>}
+                      </div>
+                      {p.notes && (
+                        <p className="text-[11px] mt-2 p-2 rounded" style={{ backgroundColor: "#F8F6EE", color: "#4B5563" }}>
+                          {p.notes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Simple horizontal timeline */}
+            {report.startDate && report.originalEndDate && (
+              <div className="bg-white rounded-2xl p-5 border border-gray-100">
+                <h3 className="text-sm font-bold mb-4" style={{ color: "#1C1B2E" }}>
+                  المخطط الزمني
+                </h3>
+                <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                  <div className="min-w-[120px] p-3 rounded-xl border border-gray-100 bg-gray-50 text-center">
+                    <p className="text-[10px] text-gray-400 mb-1">البداية</p>
+                    <p className="text-xs font-bold" style={{ color: "#1C1B2E" }}>
+                      {dateFmt(report.startDate)}
+                    </p>
+                  </div>
+                  {report.periods.map((p, idx) => (
+                    <Fragment key={p.id}>
+                      <ArrowRight size={14} className="text-gray-300 shrink-0 rotate-180" />
+                      <div
+                        className="min-w-[120px] p-3 rounded-xl text-center"
+                        style={{
+                          border: "1px solid rgba(220,38,38,0.25)",
+                          backgroundColor: "rgba(220,38,38,0.05)",
+                        }}
+                      >
+                        <p className="text-[10px] mb-1" style={{ color: "#DC2626" }}>
+                          إيقاف #{idx + 1}
+                        </p>
+                        <p className="text-xs font-bold" style={{ color: "#DC2626" }}>
+                          {p.days} يوم
+                        </p>
+                      </div>
+                    </Fragment>
+                  ))}
+                  <ArrowRight size={14} className="text-gray-300 shrink-0 rotate-180" />
+                  <div
+                    className="min-w-[120px] p-3 rounded-xl text-center"
+                    style={{
+                      border: "1px solid rgba(201,168,76,0.3)",
+                      backgroundColor: "rgba(201,168,76,0.08)",
+                    }}
+                  >
+                    <p className="text-[10px] mb-1" style={{ color: "#C9A84C" }}>
+                      الانتهاء المعدّل
+                    </p>
+                    <p className="text-xs font-bold" style={{ color: "#C9A84C" }}>
+                      {dateFmt(report.adjustedEndDate)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Services View */}
       {viewMode === "services" && project.services && project.services.length > 0 && (

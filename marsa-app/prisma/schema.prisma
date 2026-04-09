@@ -399,6 +399,9 @@ model User {
 
   assignmentPools       DepartmentAssignmentPool[]
 
+  pausedProjects        ProjectPause[]      @relation("PausedProjects")
+  resumedProjects       ProjectPause[]      @relation("ResumedProjects")
+
   @@map("users")
 }
 
@@ -526,8 +529,31 @@ model Project {
   paymentSchedule    ProjectPaymentSchedule[]
   documents          ProjectDocument[]
   partners           ProjectPartner[]
+  pauses             ProjectPause[]
+
+  // Formal pause/resume system — isPaused is the fast boolean the
+  // operations room and executor views gate on, while the ProjectPause
+  // history table carries the per-event detail.
+  isPaused           Boolean  @default(false)
 
   @@map("projects")
+}
+
+model ProjectPause {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reason      String    // PAYMENT_DELAY | CLIENT_REQUEST | OTHER
+  notes       String?   @db.Text
+  startDate   DateTime  @default(now())
+  endDate     DateTime?
+  pausedById  String
+  pausedBy    User      @relation("PausedProjects", fields: [pausedById], references: [id])
+  resumedById String?
+  resumedBy   User?     @relation("ResumedProjects", fields: [resumedById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@map("project_pauses")
 }
 
 model ProjectPartner {
@@ -1418,6 +1444,13 @@ model ContractPaymentInstallment {
   paidAt         DateTime?
   approvedById   String?
   rolloverToId   String?
+  // Partial-payment workflow: an executor whose task is blocked on this
+  // installment can request a partial amount from admin/manager; once
+  // approved the amount is added to paidAmount and the task unlocks if
+  // the partial covers the full sum.
+  partialPaymentRequest Float?
+  partialApprovedById   String?
+  partialApprovedAt     DateTime?
   tickets        Ticket[]
   createdAt    DateTime @default(now())
 
