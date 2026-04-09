@@ -15,6 +15,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import { UploadButton } from "@/lib/uploadthing";
 
 interface DocField {
   name: string;
@@ -486,23 +487,68 @@ export default function DocumentUploadWizardPage({
               </div>
             )}
 
-            {/* FILE input */}
+            {/* FILE input — direct upload via UploadThing. Replaces the
+                old "paste the URL" textbox. Accepts pdf / jpeg / png
+                only (enforced server-side by the taskRequirementFile
+                endpoint in uploadthing/core.ts). */}
             {currentDocType.kind === "FILE" && (
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  رابط الملف <span className="text-red-500">*</span>
+                  الملف <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="url"
-                  value={fileUrl}
-                  onChange={(e) => setFileUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-4 py-3 rounded-xl border border-[#E2E0D8] focus:outline-none focus:border-[#C9A84C] text-sm"
-                  dir="ltr"
-                />
-                <p className="text-xs text-gray-500 mt-2 leading-relaxed">
-                  ارفع الملف عبر UploadThing أولاً ثم الصق الرابط هنا
-                </p>
+                {fileUrl ? (
+                  <div
+                    className="flex items-center justify-between gap-3 p-3 rounded-xl border"
+                    style={{
+                      backgroundColor: "rgba(5,150,105,0.06)",
+                      borderColor: "rgba(5,150,105,0.3)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CheckCircle2 size={16} className="text-[#059669] shrink-0" />
+                      <a
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-semibold truncate hover:underline"
+                        style={{ color: "#059669" }}
+                      >
+                        تم الرفع — معاينة الملف
+                      </a>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFileUrl("")}
+                      className="text-xs font-semibold"
+                      style={{ color: "#DC2626" }}
+                    >
+                      إعادة الرفع
+                    </button>
+                  </div>
+                ) : (
+                  <UploadButton
+                    endpoint="taskRequirementFile"
+                    onClientUploadComplete={(res) => {
+                      if (res?.[0]?.ufsUrl) setFileUrl(res[0].ufsUrl);
+                    }}
+                    onUploadError={(err) => setError("فشل الرفع: " + err.message)}
+                    appearance={{
+                      button: {
+                        backgroundColor: "#C9A84C",
+                        color: "white",
+                        borderRadius: "0.75rem",
+                        fontSize: "0.875rem",
+                        padding: "0.75rem 1.25rem",
+                      },
+                      allowedContent: { color: "#6B7280", fontSize: "0.75rem" },
+                    }}
+                    content={{
+                      button: ({ ready, isUploading }) =>
+                        isUploading ? "جاري الرفع..." : ready ? "اختر ملف" : "تجهيز...",
+                      allowedContent: () => "PDF أو JPG أو PNG (حتى 16MB)",
+                    }}
+                  />
+                )}
               </div>
             )}
 

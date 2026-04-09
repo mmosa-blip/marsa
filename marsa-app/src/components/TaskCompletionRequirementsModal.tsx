@@ -260,7 +260,7 @@ export default function TaskCompletionRequirementsModal({
                           </div>
                         ) : (
                           <UploadButton
-                            endpoint="documentUploader"
+                            endpoint="taskRequirementFile"
                             onClientUploadComplete={(res) => {
                               if (res?.[0]?.ufsUrl) {
                                 updateValue(r.id, { fileUrl: res[0].ufsUrl });
@@ -278,8 +278,9 @@ export default function TaskCompletionRequirementsModal({
                               allowedContent: { color: "#6B7280", fontSize: "0.65rem" },
                             }}
                             content={{
-                              button: () => "رفع ملف",
-                              allowedContent: () => "PDF, Word, صور (16MB)",
+                              button: ({ ready, isUploading }) =>
+                                isUploading ? "جاري الرفع..." : ready ? "اختر ملف" : "تجهيز...",
+                              allowedContent: () => "PDF أو JPG أو PNG (16MB)",
                             }}
                           />
                         )}

@@ -51,6 +51,24 @@ export const ourFileRouter = {
       return { url: file.ufsUrl };
     }),
 
+  // Strict endpoint for task-requirement FILE uploads and project
+  // document uploads: PDF + JPEG + PNG only (the spec explicitly
+  // restricts attachments to these three types; Word/Excel are not
+  // allowed here — those callers should keep using documentUploader).
+  taskRequirementFile: f({
+    pdf: { maxFileSize: "16MB", maxFileCount: 1 },
+    "image/jpeg": { maxFileSize: "16MB", maxFileCount: 1 },
+    "image/png": { maxFileSize: "16MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      const session = await getServerSession(authOptions);
+      if (!session) throw new Error("غير مصرح");
+      return { userId: session.user.id };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return { url: file.ufsUrl };
+    }),
+
   avatarUploader: f({
     image: { maxFileSize: "2MB", maxFileCount: 1 },
   })
