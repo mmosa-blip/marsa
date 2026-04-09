@@ -1,20 +1,19 @@
 /**
  * Project code generator.
  *
- * Format (16 chars total):
- *   YYYY (4) + clientNo (3) + deptNo (2) + contractNo (3) + seq (4)
+ * Format (variable length — no padding, no separators):
+ *   YY + clientNo + deptNo + contractNo + seq
  *
- * Example: 2026 003 02 017 0042  →  2026003020170042
+ * Example: 26 + 1 + 2 + 3 + 1  →  "261231"
  *
- * Year semantics — the YYYY segment is the **contract year**, not the
- * system creation year. Resolution priority:
+ * Year semantics — YY is the **last two digits of the contract year**
+ * (not the system creation year). Resolution priority:
  *   1. explicit `year` argument (used by tests / future backfills)
  *   2. linked Contract.startDate year
  *   3. current year (project has no contract, or contract has no startDate)
  *
- * Each segment falls back to zeros when its source field is missing
- * (no client, no department, no linked contract, etc.) so the code is
- * always well-formed and the same width — easier to align in UI.
+ * Each numeric segment prints its raw value with no leading zeros.
+ * Missing segments fall back to "0" so the code is still well-formed.
  *
  * Concurrency note: the seq is computed via `findFirst({ orderBy: desc })
  * + 1` rather than an atomic counter, because the runtime connects to
@@ -52,29 +51,30 @@ export async function generateProjectCode(
   prisma: PrismaClient,
   args: GenerateProjectCodeArgs
 ): Promise<GenerateProjectCodeResult> {
-  // ── Client number (3 digits) ──
+  // ── Client number ──
   const client = await prisma.user.findUnique({
     where: { id: args.clientId },
     select: { clientNumber: true },
   });
-  const clientNo = String(client?.clientNumber ?? 0).padStart(3, "0");
+  const clientNo = String(client?.clientNumber ?? 0);
 
-  // ── Department number (2 digits) ──
-  let deptNo = "00";
+  // ── Department number ──
+  let deptNo = "0";
   if (args.departmentId) {
     const dept = await prisma.department.findUnique({
       where: { id: args.departmentId },
       select: { deptNumber: true },
     });
-    deptNo = String(dept?.deptNumber ?? 0).padStart(2, "0");
+    deptNo = String(dept?.deptNumber ?? 0);
   }
 
   // ── Contract data (single fetch for both number AND startDate) ──
   // Override (if passed) takes precedence on the number — used by the
   // edit-contract-number flow where the new value isn't persisted yet.
-  let contractNo = args.contractNumberOverride != null
-    ? String(args.contractNumberOverride).padStart(3, "0")
-    : "000";
+  let contractNo =
+    args.contractNumberOverride != null
+      ? String(args.contractNumberOverride)
+      : "0";
   let yearFromContract: number | null = null;
   if (args.contractId) {
     const contract = await prisma.contract.findUnique({
@@ -82,19 +82,19 @@ export async function generateProjectCode(
       select: { contractNumber: true, startDate: true },
     });
     if (args.contractNumberOverride == null) {
-      contractNo = String(contract?.contractNumber ?? 0).padStart(3, "0");
+      contractNo = String(contract?.contractNumber ?? 0);
     }
     if (contract?.startDate) {
       yearFromContract = new Date(contract.startDate).getFullYear();
     }
   }
 
-  // ── Year (4 digits) ──
+  // ── Year — last two digits only ──
   // explicit override > contract.startDate year > now
   const year = args.year ?? yearFromContract ?? new Date().getFullYear();
-  const yearStr = String(year);
+  const yearStr = String(year % 100).padStart(2, "0");
 
-  // ── Sequence (4 digits) ──
+  // ── Sequence ──
   let seq: number;
   if (args.seqOverride != null) {
     seq = args.seqOverride;
@@ -106,7 +106,7 @@ export async function generateProjectCode(
     });
     seq = (last?.projectSeq ?? 0) + 1;
   }
-  const seqNo = String(seq).padStart(4, "0");
+  const seqNo = String(seq);
 
   const code = `${yearStr}${clientNo}${deptNo}${contractNo}${seqNo}`;
   return { code, seq };
