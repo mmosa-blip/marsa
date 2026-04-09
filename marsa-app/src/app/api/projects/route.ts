@@ -311,6 +311,53 @@ export async function POST(request: Request) {
         }
       }
 
+      // ─── "Before project start" payment milestones ───
+      // Milestones with afterServiceIndex === -1 are paid *before* any
+      // task runs. They used to vanish because the per-service filter
+      // below only matched afterServiceIndex === si for si >= 0. We
+      // materialise them here as ProjectMilestone(type=PAYMENT,
+      // order=-1) so the project detail timeline can render them above
+      // the first service. The matching ContractPaymentInstallment is
+      // still created later in the dedicated block (which locks the
+      // first task of the very first service via linkedTaskId).
+      if (contractInstallments.length === 0 && paymentMilestones && paymentMilestones.length > 0) {
+        const beforeStartMilestones = paymentMilestones.filter((p) => p.afterServiceIndex === -1);
+        for (const pm of beforeStartMilestones) {
+          const company = await prisma.company.findFirst();
+          let invoiceId: string | undefined;
+          if (company) {
+            const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-PM-PRE`;
+            const invoice = await prisma.invoice.create({
+              data: {
+                invoiceNumber,
+                title: pm.title,
+                subtotal: pm.amount,
+                taxRate: 15,
+                taxAmount: pm.amount * 0.15,
+                totalAmount: pm.amount * 1.15,
+                status: "DRAFT",
+                dueDate: now,
+                companyId: company.id,
+                projectId: project.id,
+                clientId,
+                createdById: session.user.id,
+              },
+            });
+            invoiceId = invoice.id;
+          }
+          await prisma.projectMilestone.create({
+            data: {
+              projectId: project.id,
+              title: pm.title,
+              type: "PAYMENT",
+              status: "LOCKED",
+              order: -1,
+              ...(invoiceId ? { invoiceId } : {}),
+            },
+          });
+        }
+      }
+
       // ─── Create services, tasks, and milestones ───
       let serviceStartDate = new Date(now);
       let milestoneOrder = 0;

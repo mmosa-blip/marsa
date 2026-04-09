@@ -56,6 +56,15 @@ export async function GET(
         paymentSchedule: {
           orderBy: { dueDate: "asc" },
         },
+        // Project milestones — the detail page's timeline uses these to
+        // render the "قبل البداية" payment badge (order === -1) above
+        // the first service.
+        milestones: {
+          orderBy: { order: "asc" },
+          include: {
+            invoice: { select: { id: true, invoiceNumber: true, totalAmount: true, status: true } },
+          },
+        },
       },
     });
 

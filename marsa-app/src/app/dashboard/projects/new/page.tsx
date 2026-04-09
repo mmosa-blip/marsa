@@ -925,7 +925,12 @@ export default function NewProjectPage() {
     !!contractForm.startDate &&
     !!contractForm.endDate &&
     (contractMode === "new" || !!contractForm.uploadedFileUrl.trim());
-  const step2Valid = !!selectedContractId || inlineContractValid;
+  // Contract is fully optional — the wizard used to stall silently when
+  // the user skipped picking a contract AND skipped the inline form
+  // (contractMode stayed "" which made inlineContractValid false).
+  // inlineContractValid is still computed for future UI hints.
+  void inlineContractValid;
+  const step2Valid = true;
   // Step 3 — at least one service (template or manual). Services no
   // longer carry a price; the project total comes from the inter-service
   // payment milestones, which are optional and validated separately.

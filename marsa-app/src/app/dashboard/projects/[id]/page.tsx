@@ -85,6 +85,14 @@ interface ProjectType {
   } | null;
   tasks: TaskType[];
   services: ServiceType[];
+  milestones?: {
+    id: string;
+    title: string;
+    type: string;
+    status: string;
+    order: number;
+    invoice?: { id: string; totalAmount: number; status: string } | null;
+  }[];
 }
 
 const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
@@ -587,6 +595,56 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {/* Services View */}
       {viewMode === "services" && project.services && project.services.length > 0 && (
         <div className="space-y-4">
+          {/* "Before project start" payment milestones — rendered above
+              the services timeline. These are PAYMENT-type milestones
+              with order === -1 created from afterServiceIndex === -1
+              in /api/projects POST. */}
+          {(() => {
+            const beforeStart = (project.milestones || []).filter(
+              (m) => m.type === "PAYMENT" && m.order === -1
+            );
+            if (beforeStart.length === 0) return null;
+            return (
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 mb-4">
+                <p className="text-xs text-gray-400 mb-3">دفعات قبل بدء المشروع</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {beforeStart.map((m) => {
+                    const amount = m.invoice?.totalAmount;
+                    const paid = m.invoice?.status === "PAID" || m.status === "UNLOCKED";
+                    return (
+                      <span
+                        key={m.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
+                        style={{
+                          backgroundColor: paid ? "rgba(34,197,94,0.1)" : "rgba(220,38,38,0.1)",
+                          color: paid ? "#16A34A" : "#DC2626",
+                          border: `1px solid ${paid ? "rgba(34,197,94,0.3)" : "rgba(220,38,38,0.3)"}`,
+                        }}
+                      >
+                        <DollarSign size={12} />
+                        {m.title}
+                        {amount != null && (
+                          <span className="opacity-70">
+                            ({amount.toLocaleString("en-US")})
+                          </span>
+                        )}
+                        <span
+                          className="text-[9px] px-1.5 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor: paid ? "#16A34A" : "#DC2626",
+                            color: "white",
+                          }}
+                        >
+                          {paid ? "مدفوعة" : "غير مدفوعة"}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {project.workflowType === "SEQUENTIAL" && project.services.length > 1 && (
             <div className="bg-white rounded-2xl p-5 border border-gray-100 mb-4">
               <p className="text-xs text-gray-400 mb-3">مخطط التنفيذ التسلسلي للخدمات</p>
