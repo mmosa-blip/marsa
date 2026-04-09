@@ -41,7 +41,7 @@ export function normalizePhone(phone: string): string {
   // 00XXXXX → +XXXXX
   if (cleaned.startsWith("00")) cleaned = "+" + cleaned.slice(2);
 
-  // Saudi shortcuts: 05xxxxxxxx or 5xxxxxxxx → +9665xxxxxxxx
+  // Saudi shortcuts: +966xxxxxxxxx أو +1xxxxxxxxxx (local 0- or 5-prefixed Saudi inputs are promoted to +9665xxxxxxxx)
   if (/^05\d{8}$/.test(cleaned)) return "+966" + cleaned.slice(1);
   if (/^5\d{8}$/.test(cleaned)) return "+966" + cleaned;
 
