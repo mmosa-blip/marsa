@@ -1075,21 +1075,27 @@ export default function ExecutorCityPage() {
               🗺️
             </button>
           ) : (
+            /* Fixed so it doesn't scroll away with the canvas.
+               z-[60] beats the fixed inset-0 z-50 parent. */
             <button
               type="button"
               onClick={() => setFullscreen(false)}
               aria-label="خروج من ملء الشاشة"
-              className="absolute top-4 left-4 z-10 flex items-center justify-center rounded-full transition-all hover:shadow-lg"
+              title="تصغير"
+              className="fixed top-4 left-4 z-[60] flex items-center gap-1.5 rounded-full transition-all hover:shadow-xl"
               style={{
-                width: 40,
-                height: 40,
-                backgroundColor: "white",
+                padding: "8px 14px",
+                backgroundColor: "rgba(255,255,255,0.95)",
                 border: "1px solid #E2E0D8",
                 color: "#1C1B2E",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                fontSize: 13,
+                fontWeight: 700,
+                backdropFilter: "blur(4px)",
               }}
             >
-              <X size={20} />
+              <X size={18} />
+              تصغير
             </button>
           )}
         </div>
