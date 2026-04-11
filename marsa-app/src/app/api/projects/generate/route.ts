@@ -152,6 +152,9 @@ export async function POST(request: Request) {
           clientId,
           projectId: project.id,
           status: "IN_PROGRESS",
+          executionMode: ((pts as unknown as { executionMode?: string }).executionMode || "SEQUENTIAL") as "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT",
+          isBackground: !!(pts as unknown as { isBackground?: boolean }).isBackground,
+          serviceOrder: (pts as unknown as { sortOrder?: number }).sortOrder ?? 0,
         },
       });
 
