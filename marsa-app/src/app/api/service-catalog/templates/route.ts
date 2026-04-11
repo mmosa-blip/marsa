@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
       include: {
         category: true,
         department: { select: { id: true, name: true, nameEn: true, color: true } },
+        taskTemplates: { select: { defaultDuration: true } },
         _count: {
           select: {
             taskTemplates: true,
@@ -45,7 +46,18 @@ export async function GET(request: NextRequest) {
       orderBy: { sortOrder: "asc" },
     });
 
-    return NextResponse.json(templates);
+    // Compute totalDuration (sum of task durations) and strip the raw
+    // taskTemplates array to keep the payload lean.
+    const enriched = templates.map((t) => {
+      const totalDuration =
+        t.defaultDuration ||
+        t.taskTemplates.reduce((s, tt) => s + tt.defaultDuration, 0);
+      const { taskTemplates: _tasks, ...rest } = t;
+      void _tasks;
+      return { ...rest, totalDuration };
+    });
+
+    return NextResponse.json(enriched);
   } catch (error) {
     console.error("خطأ في جلب قوالب الخدمات:", error);
     return NextResponse.json(

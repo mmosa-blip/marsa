@@ -51,6 +51,7 @@ interface ServiceTemplate {
   sortOrder: number;
   department?: { id: string; name: string; nameEn?: string; color: string | null } | null;
   _count: { taskTemplates: number; qualifiedEmployees: number };
+  totalDuration?: number;
 }
 
 interface Category {
@@ -498,7 +499,7 @@ export default function ServiceCatalogPage() {
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-gray-500">
                               <Clock size={14} />
-                              <span>{tpl.defaultDuration ? `${tpl.defaultDuration} يوم` : "—"}</span>
+                              <span>{(tpl.totalDuration || tpl.defaultDuration || 0)} يوم</span>
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-gray-500">
                               <ListChecks size={14} />
