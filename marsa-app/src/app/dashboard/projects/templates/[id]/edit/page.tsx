@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import { computeServiceDuration } from "@/lib/service-duration";
 
 interface ServiceTemplate {
   id: string;
@@ -43,7 +44,8 @@ interface ServiceTemplate {
   // Per-task durations are returned by both /api/project-templates/[id]
   // and /api/service-catalog/templates so the edit page can recompute
   // the total project duration on the fly as services are added/removed.
-  taskTemplates?: { defaultDuration: number }[];
+  taskTemplates?: { defaultDuration: number; executionMode: string; sameDay: boolean }[];
+  totalDuration?: number;
   _count: { taskTemplates: number };
 }
 
@@ -325,13 +327,12 @@ export default function EditProjectTemplatePage({
     for (const s of template.services) {
       const tmpl = s.serviceTemplate;
       const svcDuration =
-        tmpl.defaultDuration ||
-        (tmpl.taskTemplates || []).reduce((sum, tt) => sum + tt.defaultDuration, 0);
-      if (template.workflowType === "SEQUENTIAL") {
+        tmpl.defaultDuration || computeServiceDuration(tmpl.taskTemplates || []);
+      const svcMode = s.executionMode || "SEQUENTIAL";
+      if (svcMode === "SEQUENTIAL") {
         total += svcDuration;
-      } else {
-        total = Math.max(total, svcDuration);
       }
+      // PARALLEL and INDEPENDENT don't add
     }
     return total;
   }, [template]);
@@ -570,9 +571,10 @@ export default function EditProjectTemplatePage({
                   <div className="flex items-center gap-2 text-[11px] mt-0.5 flex-wrap" style={{ color: "#9CA3AF" }}>
                     {s.serviceTemplate.category?.name && <span>{s.serviceTemplate.category.name}</span>}
                     <span>{s.serviceTemplate._count.taskTemplates} مهمة</span>
-                    {s.serviceTemplate.defaultDuration > 0 && (
-                      <span>{s.serviceTemplate.defaultDuration} يوم</span>
-                    )}
+                    <span className="flex items-center gap-0.5">
+                      <Clock size={11} />
+                      {s.serviceTemplate.defaultDuration || computeServiceDuration(s.serviceTemplate.taskTemplates || [])} يوم
+                    </span>
                     {/* Per-service execution mode toggle */}
                     <button
                       type="button"
@@ -776,7 +778,10 @@ export default function EditProjectTemplatePage({
                     <div className="flex items-center gap-3 text-[11px]" style={{ color: "#9CA3AF" }}>
                       {svc.category?.name && <span>{svc.category.name}</span>}
                       <span>{svc._count.taskTemplates} مهمة</span>
-                      {svc.defaultDuration > 0 && <span>{svc.defaultDuration} يوم</span>}
+                      <span className="flex items-center gap-0.5">
+                        <Clock size={11} />
+                        {svc.totalDuration || svc.defaultDuration || computeServiceDuration(svc.taskTemplates || [])} يوم
+                      </span>
                     </div>
                   </button>
                 ))
