@@ -289,17 +289,25 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // (b) Previous service must be terminally finished (excluding
-      //     INDEPENDENT). Both SEQUENTIAL and PARALLEL still respect this.
+      // (b) Previous non-background service must be terminally finished
+      //     (excluding INDEPENDENT). Background services run from the
+      //     start and never block the services that follow them — walk
+      //     backwards to find the first non-background predecessor.
       const currentServiceIdx = services.findIndex((s: { id: string }) => s.id === task.serviceId);
       if (currentServiceIdx > 0) {
-        const prevService = services[currentServiceIdx - 1];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const blocking = (prevService.tasks as any[]).filter(
-          (t) => t.executionMode !== "INDEPENDENT" && !TERMINAL.has(t.status)
-        );
-        if (blocking.length > 0) {
-          return { canStart: false, blockReason: "sequential" };
+        let prevIdx = currentServiceIdx - 1;
+        while (prevIdx >= 0 && (services[prevIdx] as { isBackground?: boolean }).isBackground) {
+          prevIdx--;
+        }
+        if (prevIdx >= 0) {
+          const prevService = services[prevIdx];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const blocking = (prevService.tasks as any[]).filter(
+            (t) => t.executionMode !== "INDEPENDENT" && !TERMINAL.has(t.status)
+          );
+          if (blocking.length > 0) {
+            return { canStart: false, blockReason: "sequential" };
+          }
         }
       }
 
