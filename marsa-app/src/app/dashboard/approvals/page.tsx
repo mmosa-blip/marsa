@@ -128,17 +128,7 @@ export default function ApprovalsPage() {
   const handlePartialReject = async (id: string) => {
     setActing(id);
     try {
-      await fetch(`/api/installments/${id}/partial-request`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: 0 }),
-      });
-      // Clear the request by setting amount=0 won't work — use a direct update.
-      // Simpler: PATCH to null out the request.
-      await fetch(`/api/task-requirements/${id}`, { method: "DELETE" }).catch(() => {});
-      // Actually: let's just call partial-approve which clears the field.
-      // For a true reject we need a dedicated endpoint. For now, just
-      // clear the request field directly.
+      await fetch(`/api/installments/${id}/partial-reject`, { method: "POST" });
       fetchAll();
     } finally {
       setActing(null);
@@ -158,13 +148,7 @@ export default function ApprovalsPage() {
   const handleGraceReject = async (id: string) => {
     setActing(id);
     try {
-      // No dedicated reject endpoint — clear the fields by calling
-      // a lightweight PATCH. We'll create a small inline handler.
-      await fetch(`/api/installments/${id}/grace-request`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days: 0 }),
-      }).catch(() => {});
+      await fetch(`/api/installments/${id}/grace-reject`, { method: "POST" });
       fetchAll();
     } finally {
       setActing(null);
