@@ -76,6 +76,10 @@ interface Task {
     paidAmount: number;
     paymentStatus: string;
     partialPaymentRequest: number | null;
+    partialPaymentType: string | null;
+    gracePeriodDays: number | null;
+    gracePeriodEnd: string | null;
+    gracePeriodApproved: boolean;
   } | null;
   startedById?: string | null;
   startedBy?: { id: string; name: string } | null;
@@ -183,6 +187,11 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   const [partialAmount, setPartialAmount] = useState("");
   const [partialSubmitting, setPartialSubmitting] = useState(false);
   const [partialError, setPartialError] = useState<string | null>(null);
+  // Grace-period-request modal — executor asks for X days of unlocked access.
+  const [graceModal, setGraceModal] = useState<{ installmentId: string; title: string } | null>(null);
+  const [graceDays, setGraceDays] = useState("");
+  const [graceSubmitting, setGraceSubmitting] = useState(false);
+  const [graceError, setGraceError] = useState<string | null>(null);
 
   // Bulk selection
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
@@ -748,8 +757,9 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                 )}
               </span>
             )}
-            {inst && !hasPending && (
+            {inst && !hasPending && !(inst.gracePeriodDays && !inst.gracePeriodApproved) && (
               <div className="flex items-center gap-1 flex-wrap justify-end">
+                {/* Button 1: Partial payment */}
                 <button
                   type="button"
                   onClick={() =>
@@ -762,24 +772,48 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                   className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-amber-100 transition-colors"
                   style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}
                 >
-                  طلب دفع جزئي
+                  تم دفع جزئي
                 </button>
-                {isStaff && (
-                  <button
-                    type="button"
-                    disabled={actionLoading === inst.id}
-                    onClick={() => handleFullPayment(inst.id, inst.amount)}
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-green-100 transition-colors disabled:opacity-50"
-                    style={{ backgroundColor: "rgba(5,150,105,0.1)", color: "#059669" }}
-                  >
-                    ✓ تم السداد
-                  </button>
-                )}
+                {/* Button 2: Full payment */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPartialModal({
+                      installmentId: inst.id,
+                      title: inst.title,
+                      remaining: inst.amount,
+                    });
+                    setPartialAmount(String(inst.amount));
+                  }}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-green-100 transition-colors"
+                  style={{ backgroundColor: "rgba(5,150,105,0.1)", color: "#059669" }}
+                >
+                  تم دفع كامل
+                </button>
+                {/* Button 3: Grace period */}
+                <button
+                  type="button"
+                  onClick={() => setGraceModal({ installmentId: inst.id, title: inst.title })}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-blue-100 transition-colors"
+                  style={{ backgroundColor: "rgba(37,99,235,0.1)", color: "#2563EB" }}
+                >
+                  طلب إمهال
+                </button>
               </div>
             )}
             {hasPending && (
               <span className="text-[10px] font-semibold" style={{ color: "#C9A84C" }}>
-                طلب دفع جزئي قيد المراجعة ({inst!.partialPaymentRequest!.toLocaleString("en-US")})
+                {inst!.partialPaymentType === "FULL" ? "تأكيد سداد كامل" : "طلب دفع جزئي"} قيد المراجعة ({inst!.partialPaymentRequest!.toLocaleString("en-US")})
+              </span>
+            )}
+            {inst && inst.gracePeriodDays && !inst.gracePeriodApproved && (
+              <span className="text-[10px] font-semibold" style={{ color: "#2563EB" }}>
+                طلب إمهال {inst.gracePeriodDays} يوم قيد المراجعة
+              </span>
+            )}
+            {inst && inst.gracePeriodApproved && inst.gracePeriodEnd && (
+              <span className="text-[10px] font-semibold" style={{ color: "#059669" }}>
+                مهلة نشطة حتى {new Date(inst.gracePeriodEnd).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })}
               </span>
             )}
           </div>
@@ -2023,7 +2057,10 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                       {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ amount }),
+                        body: JSON.stringify({
+                          amount,
+                          type: amount >= partialModal.remaining ? "FULL" : "PARTIAL",
+                        }),
                       }
                     );
                     if (res.ok) {
@@ -2050,6 +2087,117 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                   setPartialModal(null);
                   setPartialAmount("");
                   setPartialError(null);
+                }}
+              >
+                إلغاء
+              </MarsaButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Grace-period request modal */}
+      {graceModal && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => !graceSubmitting && setGraceModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-md p-5"
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ backgroundColor: "rgba(37,99,235,0.12)" }}
+              >
+                <Clock size={18} style={{ color: "#2563EB" }} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold" style={{ color: "#1C1B2E" }}>
+                  طلب إمهال
+                </h3>
+                <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+                  {graceModal.title}
+                </p>
+              </div>
+            </div>
+
+            <label className="block text-xs font-bold mb-1.5" style={{ color: "#1C1B2E" }}>
+              عدد أيام الإمهال (1-30)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={30}
+              value={graceDays}
+              onChange={(e) => {
+                setGraceDays(e.target.value);
+                setGraceError(null);
+              }}
+              disabled={graceSubmitting}
+              placeholder="7"
+              className="w-full px-3 py-2 rounded-lg text-sm outline-none mb-1 bg-white"
+              style={{ border: `1px solid ${graceError ? "#DC2626" : "#E2E0D8"}`, color: "#1C1B2E" }}
+            />
+            <p className="text-[10px] mb-3" style={{ color: "#6B7280" }}>
+              سيتم إرسال طلبك للإدارة. بعد الموافقة تُفتح المهمة مؤقتاً للمدة المحددة.
+            </p>
+            {graceError && (
+              <p className="text-xs mb-3 font-medium" style={{ color: "#DC2626" }}>
+                {graceError}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <MarsaButton
+                variant="primary"
+                size="md"
+                className="flex-1"
+                loading={graceSubmitting}
+                disabled={graceSubmitting || !graceDays}
+                onClick={async () => {
+                  const d = Number(graceDays);
+                  if (!Number.isFinite(d) || d < 1 || d > 30) {
+                    setGraceError("أدخل عدد أيام بين 1 و 30");
+                    return;
+                  }
+                  setGraceSubmitting(true);
+                  try {
+                    const res = await fetch(
+                      `/api/installments/${graceModal.installmentId}/grace-request`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ days: d }),
+                      }
+                    );
+                    if (res.ok) {
+                      setGraceModal(null);
+                      setGraceDays("");
+                      setGraceError(null);
+                      fetchTasks();
+                    } else {
+                      const e = await res.json().catch(() => ({}));
+                      setGraceError(e.error || "فشل إرسال الطلب");
+                    }
+                  } finally {
+                    setGraceSubmitting(false);
+                  }
+                }}
+              >
+                إرسال الطلب
+              </MarsaButton>
+              <MarsaButton
+                variant="secondary"
+                size="md"
+                disabled={graceSubmitting}
+                onClick={() => {
+                  setGraceModal(null);
+                  setGraceDays("");
+                  setGraceError(null);
                 }}
               >
                 إلغاء

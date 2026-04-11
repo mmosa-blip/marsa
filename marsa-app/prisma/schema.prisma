@@ -1449,8 +1449,16 @@ model ContractPaymentInstallment {
   // approved the amount is added to paidAmount and the task unlocks if
   // the partial covers the full sum.
   partialPaymentRequest Float?
+  partialPaymentType    String?     // "PARTIAL" | "FULL"
   partialApprovedById   String?
   partialApprovedAt     DateTime?
+  // Grace-period workflow: executor asks for X days of unlocked
+  // access while the payment is still outstanding. After approval
+  // the task is temporarily unlocked until gracePeriodEnd, at which
+  // point computeCanStart re-locks it automatically.
+  gracePeriodDays       Int?
+  gracePeriodEnd        DateTime?
+  gracePeriodApproved   Boolean  @default(false)
   tickets        Ticket[]
   createdAt    DateTime @default(now())
 

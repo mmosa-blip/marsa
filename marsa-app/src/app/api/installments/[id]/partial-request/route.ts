@@ -65,9 +65,11 @@ export async function POST(
       );
     }
 
+    const paymentType = body?.type === "FULL" ? "FULL" : "PARTIAL";
+
     const updated = await prisma.contractPaymentInstallment.update({
       where: { id },
-      data: { partialPaymentRequest: amount },
+      data: { partialPaymentRequest: amount, partialPaymentType: paymentType },
     });
 
     // Notify every ADMIN so someone can approve.
@@ -80,7 +82,7 @@ export async function POST(
         admins.map((a) => ({
           userId: a.id,
           type: "PAYMENT_REQUEST_UPDATE" as const,
-          message: `طلب دفع جزئي (${amount.toLocaleString("en-US")}) على دفعة "${installment.title}"${
+          message: `${paymentType === "FULL" ? "تأكيد سداد كامل" : "طلب دفع جزئي"} (${amount.toLocaleString("en-US")}) على دفعة "${installment.title}"${
             installment.linkedTask?.project?.name
               ? ` — مشروع ${installment.linkedTask.project.name}`
               : ""

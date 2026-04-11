@@ -155,6 +155,10 @@ export async function GET(request: NextRequest) {
               paidAmount: true,
               paymentStatus: true,
               partialPaymentRequest: true,
+              partialPaymentType: true,
+              gracePeriodDays: true,
+              gracePeriodEnd: true,
+              gracePeriodApproved: true,
             },
           },
           timeSummary: true,
@@ -228,7 +232,18 @@ export async function GET(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const computeCanStart = (task: any): { canStart: boolean; blockReason: string | null } => {
       if (task.linkedInstallment?.isLocked) {
-        return { canStart: false, blockReason: "payment" };
+        // Grace-period bypass: if the admin approved a temporary
+        // unlock (gracePeriodApproved) and the end date hasn't passed
+        // yet, the task is temporarily unlocked for the executor.
+        const gi = task.linkedInstallment;
+        const graceActive =
+          gi.gracePeriodApproved &&
+          gi.gracePeriodEnd &&
+          new Date(gi.gracePeriodEnd) > now;
+        if (!graceActive) {
+          return { canStart: false, blockReason: "payment" };
+        }
+        // else: grace period still running → fall through to normal checks
       }
 
       if (task.executionMode === "INDEPENDENT") {
