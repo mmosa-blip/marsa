@@ -86,6 +86,7 @@ const adminGroups: NavGroup[] = [
       // Pinned at the very top above all departments so admins / managers
       // can reach the assignment command center in a single click.
       { href: "/dashboard/operations-room", label: "إدارة العمليات", tKey: "operationsRoom", roles: ["ADMIN", "MANAGER"] },
+      { href: "/dashboard/approvals", label: "الموافقات", tKey: "approvals", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/user-preview", label: "شاشات المنفذين", tKey: "userPreview", roles: ["ADMIN"] },
       { href: "/dashboard", label: "الشاشة الرئيسية", tKey: "home" },
       { href: "/dashboard/opportunities", label: "الفرص", tKey: "opportunities", roles: ["ADMIN", "MANAGER"] },
