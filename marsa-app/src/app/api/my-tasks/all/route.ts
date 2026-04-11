@@ -248,9 +248,9 @@ export async function GET(request: NextRequest) {
         // else: grace period still running → fall through to normal checks
       }
 
-      if (task.executionMode === "INDEPENDENT") {
-        return { canStart: true, blockReason: null };
-      }
+      // INDEPENDENT no longer short-circuits — it means "same-day
+      // concurrency" but the task still respects intra-service ordering
+      // (a) and the inter-service gate (b) like SEQUENTIAL tasks.
 
       const project = task.project;
       const services = project?.services || [];
