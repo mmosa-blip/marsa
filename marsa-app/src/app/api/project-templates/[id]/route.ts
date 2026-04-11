@@ -24,7 +24,17 @@ export async function GET(
             serviceTemplate: {
               include: {
                 category: { select: { name: true } },
-                taskTemplates: { select: { defaultDuration: true } },
+                taskTemplates: {
+                  select: {
+                    id: true,
+                    name: true,
+                    defaultDuration: true,
+                    executionMode: true,
+                    sameDay: true,
+                    sortOrder: true,
+                  },
+                  orderBy: { sortOrder: "asc" },
+                },
                 _count: {
                   select: { taskTemplates: true },
                 },

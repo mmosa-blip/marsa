@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import {
   BookTemplate,
@@ -37,16 +37,24 @@ export default function ProjectTemplatesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Duration detail modal — "لماذا X يوم؟"
+  interface DetailTask {
+    name: string;
+    defaultDuration: number;
+    executionMode: string;
+    sameDay: boolean;
+  }
+  interface DetailService {
+    name: string;
+    executionMode: string;
+    duration: number;
+    addsToTotal: boolean;
+    tasks: DetailTask[];
+  }
   const [detailModal, setDetailModal] = useState<{
     templateName: string;
     totalDays: number;
     workflowType: string;
-    services: {
-      name: string;
-      executionMode: string;
-      duration: number;
-      addsToTotal: boolean;
-    }[];
+    services: DetailService[];
   } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -155,30 +163,39 @@ export default function ProjectTemplatesPage() {
       if (!res.ok) return;
       const data = await res.json();
 
+      interface TaskTmpl {
+        name: string;
+        defaultDuration: number;
+        executionMode?: string;
+        sameDay?: boolean;
+      }
       interface SvcLink {
         sortOrder: number;
         executionMode?: string;
         serviceTemplate: {
           name: string;
           defaultDuration: number | null;
-          taskTemplates: { defaultDuration: number }[];
+          taskTemplates: TaskTmpl[];
         };
       }
 
-      const services = (data.services || []).map((link: SvcLink) => {
+      const services: DetailService[] = (data.services || []).map((link: SvcLink) => {
         const st = link.serviceTemplate;
+        const tasks: DetailTask[] = (st.taskTemplates || []).map((tt: TaskTmpl) => ({
+          name: tt.name,
+          defaultDuration: tt.defaultDuration,
+          executionMode: tt.executionMode || "SEQUENTIAL",
+          sameDay: !!tt.sameDay,
+        }));
         const duration =
           st.defaultDuration ||
-          st.taskTemplates.reduce((s: number, t: { defaultDuration: number }) => s + t.defaultDuration, 0);
+          tasks.reduce((s, t) => s + t.defaultDuration, 0);
         const mode = link.executionMode || "SEQUENTIAL";
-        // In a SEQUENTIAL project, only SEQUENTIAL services contribute
-        // additively to the total. PARALLEL and INDEPENDENT run in
-        // parallel and don't extend the critical path.
         const addsToTotal =
           data.workflowType === "SEQUENTIAL"
             ? mode === "SEQUENTIAL"
-            : false; // INDEPENDENT project: take max, nothing "adds"
-        return { name: st.name, executionMode: mode, duration, addsToTotal };
+            : false;
+        return { name: st.name, executionMode: mode, duration, addsToTotal, tasks };
       });
 
       setDetailModal({
@@ -496,33 +513,74 @@ export default function ProjectTemplatesPage() {
                           svc.executionMode === "INDEPENDENT" ? "#6B7280" :
                           "#C9A84C";
                         return (
-                          <tr
-                            key={idx}
-                            style={{
-                              backgroundColor: idx % 2 === 0 ? "#FAFAF7" : "white",
-                              borderBottom: "1px solid #F0EDE6",
-                            }}
-                          >
-                            <td className="py-2.5 px-3 text-xs font-semibold" style={{ color: "#1C1B2E" }}>{svc.name}</td>
-                            <td className="py-2.5 px-3 text-center">
-                              <span
-                                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                                style={{ backgroundColor: `${modeColor}18`, color: modeColor }}
-                              >
-                                {modeLabel}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 text-center text-xs font-bold" style={{ color: "#1C1B2E" }}>
-                              {svc.duration}
-                            </td>
-                            <td className="py-2.5 px-3 text-center text-sm">
-                              {svc.addsToTotal ? (
-                                <span style={{ color: "#16A34A" }}><Check size={16} className="mx-auto" /></span>
-                              ) : (
-                                <span className="text-xs" style={{ color: "#9CA3AF" }}>—</span>
-                              )}
-                            </td>
-                          </tr>
+                          <React.Fragment key={idx}>
+                            {/* Service row */}
+                            <tr
+                              style={{
+                                backgroundColor: idx % 2 === 0 ? "#FAFAF7" : "white",
+                                borderBottom: svc.tasks.length > 0 ? "none" : "1px solid #F0EDE6",
+                              }}
+                            >
+                              <td className="py-2.5 px-3 text-xs font-semibold" style={{ color: "#1C1B2E" }}>{svc.name}</td>
+                              <td className="py-2.5 px-3 text-center">
+                                <span
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                  style={{ backgroundColor: `${modeColor}18`, color: modeColor }}
+                                >
+                                  {modeLabel}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-center text-xs font-bold" style={{ color: "#1C1B2E" }}>
+                                {svc.duration}
+                              </td>
+                              <td className="py-2.5 px-3 text-center text-sm">
+                                {svc.addsToTotal ? (
+                                  <span style={{ color: "#16A34A" }}><Check size={16} className="mx-auto" /></span>
+                                ) : (
+                                  <span className="text-xs" style={{ color: "#9CA3AF" }}>—</span>
+                                )}
+                              </td>
+                            </tr>
+                            {/* Task detail rows */}
+                            {svc.tasks.map((task, tIdx) => {
+                              const tModeLabel =
+                                task.sameDay ? "نفس اليوم" :
+                                task.executionMode === "PARALLEL" ? "متوازي" :
+                                task.executionMode === "INDEPENDENT" ? "مستقل" :
+                                "تسلسلي";
+                              const tModeColor =
+                                task.sameDay ? "#92400E" :
+                                task.executionMode === "PARALLEL" ? "#2563EB" :
+                                task.executionMode === "INDEPENDENT" ? "#6B7280" :
+                                "#9CA3AF";
+                              return (
+                                <tr
+                                  key={`${idx}-t${tIdx}`}
+                                  style={{
+                                    backgroundColor: "rgba(94,84,149,0.03)",
+                                    borderBottom: tIdx === svc.tasks.length - 1 ? "1px solid #F0EDE6" : "1px solid rgba(94,84,149,0.06)",
+                                  }}
+                                >
+                                  <td className="py-1.5 px-3 pr-8 text-[11px]" style={{ color: "#6B7280" }}>
+                                    <span className="text-gray-300 font-mono mr-1">{tIdx + 1}.</span>
+                                    {task.name}
+                                  </td>
+                                  <td className="py-1.5 px-3 text-center">
+                                    <span
+                                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                      style={{ backgroundColor: `${tModeColor}15`, color: tModeColor }}
+                                    >
+                                      {tModeLabel}
+                                    </span>
+                                  </td>
+                                  <td className="py-1.5 px-3 text-center text-[11px] font-medium" style={{ color: "#6B7280" }}>
+                                    {task.sameDay ? "0" : task.defaultDuration}
+                                  </td>
+                                  <td />
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
