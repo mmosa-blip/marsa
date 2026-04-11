@@ -42,5 +42,9 @@ export function computeServiceDuration(
   // Flush trailing parallel group
   if (parallelMax > 0) total += parallelMax;
 
-  return total;
+  // A service with tasks always takes at least 1 working day even when
+  // every task is sameDay=true (they still occupy the calendar day they
+  // share). Without this floor the UI would show "0 يوم" which is
+  // misleading.
+  return tasks.length > 0 ? Math.max(total, 1) : total;
 }
