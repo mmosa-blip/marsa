@@ -179,6 +179,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   if (!session) redirect("/auth/login");
 
   const isAdmin = session.user.role === "ADMIN" || session.user.role === "MANAGER";
+  // Executors use the project detail page as a read-only dashboard —
+  // all task status changes and edits happen from "مدينتي" instead.
+  const isExecutor = session.user.role === "EXECUTOR";
 
   function fetchProject() {
     fetch(`/api/projects/${id}`)
@@ -957,7 +960,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 )}
                               </div>
                             </div>
-                            {task.status !== "DONE" && (
+                            {task.status !== "DONE" && !isExecutor && (
                               <select
                                 value={task.status}
                                 onChange={(e) => updateTaskStatus(task.id, e.target.value)}
@@ -993,8 +996,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   key={col.key}
                   className="rounded-2xl p-4 min-h-[400px]"
                   style={{ backgroundColor: "rgba(27,42,74,0.03)", border: "1px solid #E8E5DE" }}
-                  onDragOver={(e) => handleDragOver(e, col.key)}
-                  onDrop={() => handleDrop(col.key)}
+                  onDragOver={!isExecutor ? (e) => handleDragOver(e, col.key) : undefined}
+                  onDrop={!isExecutor ? () => handleDrop(col.key) : undefined}
                 >
                   <div className="flex items-center justify-between mb-4 px-1">
                     <div className="flex items-center gap-2">
@@ -1011,9 +1014,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       return (
                         <div
                           key={task.id}
-                          draggable
-                          onDragStart={() => handleDragStart(task.id)}
-                          className="bg-white rounded-xl p-4 cursor-grab active:cursor-grabbing transition-all duration-200 hover:-translate-y-0.5 border border-gray-100 shadow-sm"
+                          draggable={!isExecutor}
+                          onDragStart={!isExecutor ? () => handleDragStart(task.id) : undefined}
+                          className={`bg-white rounded-xl p-4 transition-all duration-200 hover:-translate-y-0.5 border border-gray-100 shadow-sm ${isExecutor ? "" : "cursor-grab active:cursor-grabbing"}`}
                         >
                           <div className="flex items-center justify-between mb-2">
                             <GripVertical size={14} className="text-gray-300" />
