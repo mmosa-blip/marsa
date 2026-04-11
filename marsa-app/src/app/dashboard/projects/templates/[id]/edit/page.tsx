@@ -135,11 +135,13 @@ export default function EditProjectTemplatePage({
               serviceTemplateId: string;
               sortOrder: number;
               executionMode?: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
+              isBackground?: boolean;
               serviceTemplate: ServiceTemplate;
             }) => ({
               serviceTemplateId: s.serviceTemplateId,
               sortOrder: s.sortOrder,
               executionMode: s.executionMode || "SEQUENTIAL",
+              isBackground: !!s.isBackground,
               serviceTemplate: s.serviceTemplate,
             })
           ),
