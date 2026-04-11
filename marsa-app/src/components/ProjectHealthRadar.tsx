@@ -248,11 +248,25 @@ function ProjectCard({ project }: { project: ProjectHealth }) {
           )}
         </div>
 
-        {/* SLA Info */}
-        {project.daysRemaining > 0 && (
-          <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: "#6B7280" }}>
+        {/* SLA Info — days remaining from contractEndDate */}
+        {project.daysRemaining != null && (
+          <div
+            className="mt-3 flex items-center gap-2 text-xs"
+            style={{ color: project.daysRemaining <= 0 ? "#DC2626" : "#6B7280" }}
+          >
             <Clock size={12} />
-            <span>متبقي {project.daysRemaining} يوم</span>
+            <span>
+              {project.daysRemaining <= 0
+                ? `تجاوز الموعد`
+                : `متبقي ${project.daysRemaining} يوم`}
+            </span>
+          </div>
+        )}
+        {/* Late tasks count from dueDate */}
+        {project.overdueTasks > 0 && (
+          <div className="mt-1 flex items-center gap-2 text-xs" style={{ color: "#DC2626" }}>
+            <AlertTriangle size={12} />
+            <span>{project.overdueTasks} مهام متأخرة</span>
           </div>
         )}
       </div>
