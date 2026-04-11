@@ -45,7 +45,7 @@ export async function GET(request: Request) {
         client: { select: { id: true, name: true, email: true } },
         manager: { select: { id: true, name: true, email: true } },
         department: { select: { id: true, name: true, nameEn: true, color: true } },
-        tasks: { select: { id: true, status: true } },
+        tasks: { select: { id: true, status: true, dueDate: true } },
         _count: { select: { services: true } },
         ...(withServices
           ? {
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
                   id: true,
                   name: true,
                   status: true,
-                  tasks: { select: { id: true, status: true } },
+                  tasks: { select: { id: true, status: true, dueDate: true } },
                 },
                 orderBy: { serviceOrder: "asc" },
               },

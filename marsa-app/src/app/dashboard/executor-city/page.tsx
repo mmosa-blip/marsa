@@ -33,11 +33,13 @@ interface ApiProject {
   projectCode: string | null;
   status: string;
   endDate: string | null;
+  contractEndDate?: string | null;
   progress: number;
   totalTasks: number;
   completedTasks: number;
   department?: { id: string; name: string; color: string | null } | null;
   services?: ApiService[];
+  tasks?: { id: string; status: string; dueDate: string | null }[];
 }
 
 interface FloorLayout {
@@ -246,9 +248,25 @@ export default function ExecutorCityPage() {
 
       const isComplete = allFloors.length > 0 && allFloors.every((f) => f.isComplete);
       const now = Date.now();
+
+      // A project is "delayed" (crumbling building) when any of these is true:
+      //   • it has tasks past their dueDate that aren't done/cancelled
+      //   • the project endDate or contractEndDate has passed
+      //   • it's explicitly ON_HOLD (paused)
+      const lateTasks = (p.tasks || []).filter(
+        (t) =>
+          t.dueDate &&
+          new Date(t.dueDate).getTime() < now &&
+          t.status !== "DONE" &&
+          t.status !== "CANCELLED"
+      ).length;
+
       const isDelayed =
         !isComplete &&
-        ((p.endDate && new Date(p.endDate).getTime() < now) || p.status === "ON_HOLD");
+        (lateTasks > 0 ||
+          (p.endDate && new Date(p.endDate).getTime() < now) ||
+          (p.contractEndDate && new Date(p.contractEndDate).getTime() < now) ||
+          p.status === "ON_HOLD");
 
       return {
         ...p,
