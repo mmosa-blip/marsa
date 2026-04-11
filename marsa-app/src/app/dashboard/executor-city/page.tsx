@@ -543,7 +543,7 @@ export default function ExecutorCityPage() {
 
       let shakeX = 0;
       if (b.isDelayed) {
-        shakeX = Math.sin(time / 90 + b.x) * 0.8;
+        shakeX = Math.sin(time / 60 + b.x) * 1.5;
       }
 
       ctx.save();
@@ -622,64 +622,112 @@ export default function ExecutorCityPage() {
       ctx.fillRect(b.x - doorW / 2, baseY - DOOR_H, doorW, DOOR_H);
 
       if (b.isDelayed) {
-        // Cracks across the facade
-        ctx.strokeStyle = "rgba(0,0,0,0.6)";
-        ctx.lineWidth = 1.5;
-        // Crack 1 — left side zigzag
-        ctx.beginPath();
-        ctx.moveTo(baseX + 6, topY + 15);
-        ctx.lineTo(baseX + 10, topY + 35);
-        ctx.lineTo(baseX + 4, topY + 55);
-        ctx.lineTo(baseX + 12, topY + 80);
-        ctx.stroke();
-        // Crack 2 — right side
-        ctx.beginPath();
-        ctx.moveTo(baseX + b.baseWidth - 8, topY + 25);
-        ctx.lineTo(baseX + b.baseWidth - 4, topY + 50);
-        ctx.lineTo(baseX + b.baseWidth - 12, topY + 75);
-        ctx.lineTo(baseX + b.baseWidth - 6, topY + 95);
-        ctx.stroke();
-        // Crack 3 — middle
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(b.x - 3, topY + 40);
-        ctx.lineTo(b.x + 5, topY + 65);
-        ctx.lineTo(b.x - 2, topY + 85);
-        ctx.stroke();
+        // ── Heavy structural damage ──
 
-        // Crumbled corner — top-right missing chunk
-        ctx.fillStyle = "#7CC4F0"; // sky color to erase the corner
+        // Darkened soot overlay
+        ctx.fillStyle = "rgba(30,20,10,0.18)";
+        ctx.fillRect(baseX, topY, b.baseWidth, b.baseHeight);
+
+        // Multiple deep cracks
+        ctx.strokeStyle = "rgba(0,0,0,0.7)";
+        ctx.lineWidth = 2;
+        // Crack 1 — left zigzag
         ctx.beginPath();
-        ctx.moveTo(baseX + b.baseWidth, topY - 5);
-        ctx.lineTo(baseX + b.baseWidth - 12, topY - 5);
-        ctx.lineTo(baseX + b.baseWidth - 8, topY + 10);
-        ctx.lineTo(baseX + b.baseWidth, topY + 8);
+        ctx.moveTo(baseX + 5, topY + 8);
+        ctx.lineTo(baseX + 12, topY + 28);
+        ctx.lineTo(baseX + 3, topY + 48);
+        ctx.lineTo(baseX + 14, topY + 72);
+        ctx.lineTo(baseX + 6, topY + 95);
+        ctx.stroke();
+        // Crack 2 — right zigzag
+        ctx.beginPath();
+        ctx.moveTo(baseX + b.baseWidth - 6, topY + 12);
+        ctx.lineTo(baseX + b.baseWidth - 3, topY + 38);
+        ctx.lineTo(baseX + b.baseWidth - 14, topY + 60);
+        ctx.lineTo(baseX + b.baseWidth - 5, topY + 88);
+        ctx.stroke();
+        // Crack 3 — centre deep split
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(b.x - 1, topY + 5);
+        ctx.lineTo(b.x + 6, topY + 35);
+        ctx.lineTo(b.x - 4, topY + 58);
+        ctx.lineTo(b.x + 3, topY + 82);
+        ctx.stroke();
+        // Fine hairline cracks
+        ctx.lineWidth = 0.8;
+        ctx.strokeStyle = "rgba(0,0,0,0.4)";
+        for (let ci = 0; ci < 4; ci++) {
+          const cx = baseX + 8 + ci * (b.baseWidth / 4);
+          const cy = topY + 20 + ci * 18;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + 8 - ci * 2, cy + 14);
+          ctx.stroke();
+        }
+
+        // Crumbled corner — top-right
+        ctx.fillStyle = "#7CC4F0";
+        ctx.beginPath();
+        ctx.moveTo(baseX + b.baseWidth + 3, topY - 6);
+        ctx.lineTo(baseX + b.baseWidth - 16, topY - 6);
+        ctx.lineTo(baseX + b.baseWidth - 10, topY + 14);
+        ctx.lineTo(baseX + b.baseWidth + 3, topY + 10);
+        ctx.closePath();
+        ctx.fill();
+        // Crumbled corner — top-left
+        ctx.beginPath();
+        ctx.moveTo(baseX - 3, topY - 6);
+        ctx.lineTo(baseX + 10, topY - 6);
+        ctx.lineTo(baseX + 6, topY + 8);
+        ctx.lineTo(baseX - 3, topY + 6);
         ctx.closePath();
         ctx.fill();
 
-        // Fallen debris at the base
+        // Debris pile at the base (both sides)
+        ctx.fillStyle = "#6B4226";
+        for (let d = 0; d < 8; d++) {
+          const side = d < 4 ? baseX - 4 + d * 3 : baseX + b.baseWidth - 12 + (d - 4) * 4;
+          const dy = baseY - 1 + (d % 3);
+          const dw = 3 + (d % 3) * 2;
+          const dh = 2 + (d % 2) * 2;
+          ctx.fillRect(side, dy, dw, dh);
+        }
+        // Scattered small rubble
         ctx.fillStyle = "#7F1D1D";
-        for (let d = 0; d < 5; d++) {
-          const dx = baseX + b.baseWidth * (0.6 + d * 0.08) + (d % 2) * 3;
-          const dy = baseY - 2 + (d % 3) * 2;
-          ctx.fillRect(dx, dy, 4 + (d % 2) * 2, 3);
+        for (let r = 0; r < 6; r++) {
+          const rx = baseX + b.baseWidth * 0.2 + r * (b.baseWidth * 0.12);
+          ctx.fillRect(rx, baseY + 1 + (r % 2) * 2, 2 + (r % 2), 2);
         }
 
-        // Warning sign
+        // Dust / smoke clouds rising from the building (animated)
+        ctx.globalAlpha = 0.3;
+        for (let s = 0; s < 4; s++) {
+          const sx = baseX + b.baseWidth * (0.2 + s * 0.2) + Math.sin(time / 400 + s * 2) * 5;
+          const sy = topY - 8 - s * 12 - Math.sin(time / 600 + s) * 6;
+          const sr = 6 + s * 2 + Math.sin(time / 500 + s * 3) * 2;
+          ctx.fillStyle = `rgba(120,110,100,${0.5 - s * 0.1})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // Warning sign (larger)
         ctx.fillStyle = "#F59E0B";
         ctx.strokeStyle = "#000";
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(b.x, topY - 26);
-        ctx.lineTo(b.x - 9, topY - 10);
-        ctx.lineTo(b.x + 9, topY - 10);
+        ctx.moveTo(b.x, topY - 32);
+        ctx.lineTo(b.x - 11, topY - 12);
+        ctx.lineTo(b.x + 11, topY - 12);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = "#000";
-        ctx.font = "bold 10px sans-serif";
+        ctx.font = "bold 12px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("!", b.x, topY - 13);
+        ctx.fillText("!", b.x, topY - 16);
       }
 
       if (!b.isComplete && !b.isDelayed) {
