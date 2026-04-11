@@ -147,10 +147,16 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-size: 15px;
+    line-height: 1.7;
   }
   html {
     @apply font-sans;
   }
+  /* Saudi gov-style typography hierarchy */
+  h1 { font-weight: 800; }
+  h2 { font-weight: 700; }
+  h3 { font-weight: 700; }
 }
 
 /* Prose RTL styles for policy content */
