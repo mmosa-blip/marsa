@@ -1107,8 +1107,84 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
         </div>
       ) : (
         <>
+          {/* ══════ MOBILE CARD VIEW (< md) ══════ */}
+          <div className="md:hidden space-y-3 px-1">
+            {tasks.map((task) => {
+              const st = statusConfig[task.status] || { label: task.status, bg: "#F3F4F6", text: "#6B7280" };
+              const isOverdue =
+                task.dueDate &&
+                task.status !== "DONE" &&
+                task.status !== "CANCELLED" &&
+                new Date(task.dueDate) < new Date();
+              const borderColor =
+                isOverdue ? "#DC2626" :
+                task.status === "IN_PROGRESS" ? "#059669" :
+                task.status === "TODO" ? "#94A3B8" :
+                "#EA580C";
+              const bgTint =
+                isOverdue ? "rgba(220,38,38,0.03)" :
+                task.status === "IN_PROGRESS" ? "rgba(5,150,105,0.03)" :
+                undefined;
+
+              return (
+                <div
+                  key={task.id}
+                  className="bg-white rounded-xl overflow-hidden"
+                  style={{
+                    border: "1px solid #E2E0D8",
+                    borderRight: `4px solid ${borderColor}`,
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    backgroundColor: bgTint,
+                  }}
+                >
+                  <div className="p-4">
+                    {/* Row 1: Title + Status */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <p className="text-sm font-bold flex-1 min-w-0" style={{ color: "#1C1B2E" }}>
+                        {task.title}
+                      </p>
+                      <span
+                        className="text-[10px] font-bold px-2 py-1 rounded-full shrink-0"
+                        style={{ backgroundColor: st.bg, color: st.text }}
+                      >
+                        {(t.tasks.status as Record<string, string>)[task.status] || st.label}
+                      </span>
+                    </div>
+                    {/* Row 2: Project + Service */}
+                    <div className="flex items-center gap-2 text-xs mb-2 flex-wrap" style={{ color: "#6B7280" }}>
+                      {task.project && (
+                        <span className="truncate max-w-[160px]">{task.project.name}</span>
+                      )}
+                      {task.service && (
+                        <>
+                          <span>•</span>
+                          <span className="truncate max-w-[120px]">{task.service.name}</span>
+                        </>
+                      )}
+                    </div>
+                    {/* Row 3: Due date */}
+                    {task.dueDate && (
+                      <div className="flex items-center gap-1 text-xs mb-3" style={{ color: isOverdue ? "#DC2626" : "#9CA3AF" }}>
+                        <CalendarDays size={12} />
+                        <span style={{ fontWeight: isOverdue ? 600 : 400 }}>
+                          {formatDate(task.dueDate)}
+                        </span>
+                        {isOverdue && <span className="font-bold mr-1">متأخرة</span>}
+                      </div>
+                    )}
+                    {/* Row 4: Actions */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {getActionButton(task)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ══════ DESKTOP TABLE VIEW (>= md) ══════ */}
           <div
-            className="bg-white rounded-2xl overflow-hidden"
+            className="hidden md:block bg-white rounded-2xl overflow-hidden"
             style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
           >
             <div className="overflow-x-auto">

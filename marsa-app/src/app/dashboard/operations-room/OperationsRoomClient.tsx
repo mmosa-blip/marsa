@@ -696,7 +696,7 @@ export default function OperationsRoomClient() {
   if (!session) redirect("/auth/login");
 
   return (
-    <div className="p-8" dir="rtl">
+    <div className="p-4 md:p-8 overflow-x-hidden" dir="rtl">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
@@ -765,7 +765,7 @@ export default function OperationsRoomClient() {
                       return (
                         <div key={proj.id} style={{ borderTop: "1px solid #F0EDE6" }}>
                           {/* Project row */}
-                          <div className="flex items-center gap-3 p-3 pe-6 transition-colors hover:bg-gray-50" style={{ backgroundColor: "rgba(250,250,248,0.5)" }}>
+                          <div className="flex flex-wrap items-center gap-2 md:gap-3 p-3 pe-4 md:pe-6 transition-colors hover:bg-gray-50" style={{ backgroundColor: "rgba(250,250,248,0.5)" }}>
                             <button
                               type="button"
                               onClick={() => toggle(pKey)}
@@ -941,7 +941,7 @@ export default function OperationsRoomClient() {
                                 return (
                                   <div key={svc.id} style={{ borderTop: "1px solid #F0EDE6" }}>
                                     {/* Service row */}
-                                    <div className="flex items-center gap-3 p-3 pe-12 transition-colors hover:bg-gray-50">
+                                    <div className="flex flex-wrap items-center gap-2 md:gap-3 p-3 pe-4 md:pe-12 transition-colors hover:bg-gray-50">
                                       <button
                                         type="button"
                                         onClick={() => toggle(sKey)}
@@ -1202,7 +1202,7 @@ export default function OperationsRoomClient() {
                                           const sc = statusColor(task.status);
                                           const late = isLateTask(task);
                                           return (
-                                            <div key={task.id} className="flex items-center gap-3 p-2.5 pe-20" style={{ borderTop: "1px solid #F8F7F3", backgroundColor: "rgba(248,247,243,0.4)" }}>
+                                            <div key={task.id} className="flex flex-wrap items-center gap-2 md:gap-3 p-2.5 pe-4 md:pe-20" style={{ borderTop: "1px solid #F8F7F3", backgroundColor: "rgba(248,247,243,0.4)" }}>
                                               <ListChecks size={12} style={{ color: "#9CA3AF" }} />
                                               <div className="flex-1 min-w-0">
                                                 <p className="text-xs font-medium truncate" style={{ color: "#1C1B2E" }} title={task.title}>
