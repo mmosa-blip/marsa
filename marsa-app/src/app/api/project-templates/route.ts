@@ -59,7 +59,8 @@ export async function GET(request: Request) {
         const tmpl = link.serviceTemplate;
         const svcDuration = tmpl.defaultDuration || computeServiceDuration(tmpl.taskTemplates);
         const svcMode = (link as unknown as { executionMode?: string }).executionMode || "SEQUENTIAL";
-        if (svcMode === "SEQUENTIAL") {
+        const isBg = !!(link as unknown as { isBackground?: boolean }).isBackground;
+        if (svcMode === "SEQUENTIAL" && !isBg) {
           totalDurationDays += svcDuration;
         }
       }

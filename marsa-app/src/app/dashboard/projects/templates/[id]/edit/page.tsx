@@ -56,6 +56,7 @@ interface AttachedService {
   // wizard's chip toggle so creating a project from this template
   // honors the saved mode for each service.
   executionMode: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
+  isBackground: boolean;
   serviceTemplate: ServiceTemplate;
 }
 
@@ -196,7 +197,7 @@ export default function EditProjectTemplatePage({
         ...prev,
         services: [
           ...prev.services,
-          { serviceTemplateId: svc.id, sortOrder: prev.services.length, executionMode: "SEQUENTIAL", serviceTemplate: svc },
+          { serviceTemplateId: svc.id, sortOrder: prev.services.length, executionMode: "SEQUENTIAL", isBackground: false, serviceTemplate: svc },
         ],
       };
     });
@@ -212,6 +213,20 @@ export default function EditProjectTemplatePage({
         services: prev.services.map((s) =>
           s.serviceTemplateId === serviceTemplateId
             ? { ...s, executionMode: s.executionMode === "PARALLEL" ? "SEQUENTIAL" : "PARALLEL" }
+            : s
+        ),
+      };
+    });
+  };
+
+  const toggleServiceBackground = (serviceTemplateId: string) => {
+    setTemplate((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        services: prev.services.map((s) =>
+          s.serviceTemplateId === serviceTemplateId
+            ? { ...s, isBackground: !s.isBackground }
             : s
         ),
       };
@@ -282,6 +297,7 @@ export default function EditProjectTemplatePage({
             serviceTemplateId: s.serviceTemplateId,
             sortOrder: i,
             executionMode: s.executionMode,
+            isBackground: s.isBackground || false,
           })),
           milestones: template.milestones.map((m, i) => ({
             title: m.title.trim(),
@@ -590,6 +606,19 @@ export default function EditProjectTemplatePage({
                         : "المهام تعمل بالتسلسل — اضغط للتوازي"}
                     >
                       {s.executionMode === "PARALLEL" ? "⇄ توازي" : "↕ تسلسلي"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleServiceBackground(s.serviceTemplateId)}
+                      className="px-2 py-0.5 rounded-full font-semibold transition-all"
+                      style={
+                        s.isBackground
+                          ? { backgroundColor: "rgba(5,150,105,0.1)", color: "#059669", border: "1px solid rgba(5,150,105,0.25)" }
+                          : { backgroundColor: "rgba(148,163,184,0.1)", color: "#94A3B8", border: "1px solid rgba(148,163,184,0.25)" }
+                      }
+                      title={s.isBackground ? "خدمة خلفية — تبدأ مع المشروع" : "خدمة عادية — اضغط لتحويلها لخلفية"}
+                    >
+                      {s.isBackground ? "🔄 خلفية" : "خلفية"}
                     </button>
                   </div>
                 </div>

@@ -115,7 +115,9 @@ export async function GET(request: NextRequest) {
               isQuickService: true,
               client: { select: { id: true, name: true } },
               services: {
-                include: {
+                select: {
+                  id: true,
+                  isBackground: true,
                   tasks: {
                     // executionMode is needed by computeCanStart to skip
                     // INDEPENDENT/PARALLEL siblings when looking for the
@@ -253,6 +255,25 @@ export async function GET(request: NextRequest) {
       const project = task.project;
       const services = project?.services || [];
       if (!project || !task.serviceId) return { canStart: true, blockReason: null };
+
+      // Background services start immediately with the project — their
+      // tasks don't wait for any preceding service to finish. Internal
+      // task ordering (SEQUENTIAL within the service) still applies via
+      // the check at (a) below.
+      const currentService = services.find((s: { id: string }) => s.id === task.serviceId);
+      if ((currentService as { isBackground?: boolean })?.isBackground) {
+        // Only check intra-service predecessor (below at (a)), skip
+        // the inter-service gate at (b).
+        if (task.executionMode !== "PARALLEL") {
+          const prevTask = ((currentService as { tasks?: { id: string; status: string; order: number; executionMode: string }[] })?.tasks || [])
+            .filter((t) => t.order < task.order && t.executionMode !== "INDEPENDENT")
+            .sort((a, b) => b.order - a.order)[0];
+          if (prevTask && !TERMINAL.has(prevTask.status)) {
+            return { canStart: false, blockReason: "sequential" };
+          }
+        }
+        return { canStart: true, blockReason: null };
+      }
 
       // (a) Immediate previous non-INDEPENDENT task in the SAME service.
       //     PARALLEL tasks SKIP this check — siblings can run together.

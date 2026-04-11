@@ -67,7 +67,8 @@ export async function GET(
         tmpl.defaultDuration || computeServiceDuration(tmpl.taskTemplates);
       // Per-service executionMode on ProjectTemplateService
       const svcMode = (link as unknown as { executionMode?: string }).executionMode || "SEQUENTIAL";
-      if (svcMode === "SEQUENTIAL") {
+      const isBg = !!(link as unknown as { isBackground?: boolean }).isBackground;
+      if (svcMode === "SEQUENTIAL" && !isBg) {
         totalDurationDays += svcDuration;
       }
       // PARALLEL and INDEPENDENT don't add to the total
@@ -138,6 +139,7 @@ export async function PATCH(
               serviceTemplateId: string;
               sortOrder?: number;
               executionMode?: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
+              isBackground?: boolean;
             },
             index: number
           ) => ({
@@ -145,6 +147,7 @@ export async function PATCH(
             serviceTemplateId: s.serviceTemplateId,
             sortOrder: s.sortOrder ?? index,
             executionMode: s.executionMode || "SEQUENTIAL",
+            isBackground: s.isBackground || false,
           })
         ),
       });

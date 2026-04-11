@@ -93,6 +93,7 @@ interface ServiceInput {
   price: number;
   sortOrder: number;
   executionMode?: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
+  isBackground?: boolean;
 }
 
 export async function POST(request: Request) {
@@ -380,6 +381,7 @@ export async function POST(request: Request) {
         // existing computeCanStart (which reads task.executionMode) honors
         // it without an extra nested join.
         const serviceMode = svcInput.executionMode || "SEQUENTIAL";
+        const serviceIsBackground = svcInput.isBackground || false;
         const service = await prisma.service.create({
           data: {
             name: tmpl.name,
@@ -393,6 +395,7 @@ export async function POST(request: Request) {
             status: "IN_PROGRESS",
             serviceOrder: si,
             executionMode: serviceMode,
+            isBackground: serviceIsBackground,
           },
         });
 

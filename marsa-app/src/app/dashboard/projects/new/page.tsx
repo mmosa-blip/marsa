@@ -85,6 +85,7 @@ interface SelectedService {
   //                waits for the previous service to finish
   //   INDEPENDENT → tasks bypass every order/service-boundary check
   executionMode: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
+  isBackground: boolean;
 }
 
 interface TaskTemplateDetail {
@@ -507,6 +508,7 @@ export default function NewProjectPage() {
         // Honor the per-service mode saved in the template instead of
         // resetting everything to SEQUENTIAL.
         executionMode: s.executionMode || "SEQUENTIAL",
+        isBackground: !!(s as Record<string, unknown>).isBackground,
       }));
       setSelectedServices(mapped);
       // Load milestones from template
@@ -535,6 +537,7 @@ export default function NewProjectPage() {
                   serviceTemplateId: string;
                   sortOrder: number;
                   executionMode?: "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
+                  isBackground?: boolean;
                   serviceTemplate: ServiceTemplate;
                 },
                 i: number
@@ -548,6 +551,7 @@ export default function NewProjectPage() {
                 taskCount: s.serviceTemplate._count?.taskTemplates || 0,
                 sortOrder: s.sortOrder ?? i,
                 executionMode: s.executionMode || "SEQUENTIAL",
+                isBackground: !!s.isBackground,
               })
             );
             setSelectedServices(mapped);
@@ -622,6 +626,7 @@ export default function NewProjectPage() {
         taskCount: tpl._count.taskTemplates,
         sortOrder: prev.length,
         executionMode: "SEQUENTIAL",
+        isBackground: false,
       },
     ]);
     setTemplateApplied(false);
@@ -837,6 +842,7 @@ export default function NewProjectPage() {
               price: 0,
               sortOrder: s.sortOrder,
               executionMode: s.executionMode,
+              isBackground: s.isBackground || false,
             })),
             paymentMilestones: allPaymentMilestones,
             partners:

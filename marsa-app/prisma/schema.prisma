@@ -444,6 +444,10 @@ model Service {
   //               but the service still waits for the previous service.
   // INDEPENDENT = tasks bypass every dependency check.
   executionMode       TaskExecutionMode @default(SEQUENTIAL)
+  // Background services run from the start of the project regardless
+  // of where they sit in the service order. Their tasks are sequential
+  // internally but don't block or wait for other services.
+  isBackground        Boolean           @default(false)
   createdAt           DateTime @default(now())
   deletedAt           DateTime?
 
@@ -1053,6 +1057,7 @@ model ProjectTemplateService {
   //                for the previous service
   //   INDEPENDENT → tasks bypass every dependency check
   executionMode TaskExecutionMode @default(SEQUENTIAL)
+  isBackground  Boolean           @default(false)
 
   projectTemplateId String
   projectTemplate   ProjectTemplate @relation(fields: [projectTemplateId], references: [id], onDelete: Cascade)
