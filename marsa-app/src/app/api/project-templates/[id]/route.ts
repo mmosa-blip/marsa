@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { computeServiceDuration } from "@/lib/service-duration";
 
 export async function GET(
   _request: Request,
@@ -54,31 +55,6 @@ export async function GET(
         { error: "قالب المشروع غير موجود" },
         { status: 404 }
       );
-    }
-
-    // ── Compute per-service duration using the same task-level logic
-    // as the service-catalog detail page: PARALLEL / sameDay tasks
-    // overlap with their predecessor (take max of group), SEQUENTIAL
-    // tasks add linearly.
-    function computeServiceDuration(
-      tasks: { defaultDuration: number; executionMode: string; sameDay: boolean; sortOrder: number }[]
-    ): number {
-      const sorted = [...tasks].sort((a, b) => a.sortOrder - b.sortOrder);
-      let total = 0;
-      for (let i = 0; i < sorted.length; i++) {
-        const t = sorted[i];
-        if (t.executionMode === "PARALLEL" || t.sameDay) {
-          const prev = sorted[i - 1];
-          if (prev) {
-            total = total - prev.defaultDuration + Math.max(prev.defaultDuration, t.sameDay ? 0 : t.defaultDuration);
-          } else {
-            total += t.sameDay ? 0 : t.defaultDuration;
-          }
-        } else {
-          total += t.defaultDuration;
-        }
-      }
-      return total;
     }
 
     // ── Project-level total: only SEQUENTIAL services contribute

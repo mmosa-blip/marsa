@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { computeServiceDuration } from "@/lib/service-duration";
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,7 +36,10 @@ export async function GET(request: NextRequest) {
       include: {
         category: true,
         department: { select: { id: true, name: true, nameEn: true, color: true } },
-        taskTemplates: { select: { defaultDuration: true } },
+        taskTemplates: {
+          select: { defaultDuration: true, executionMode: true, sameDay: true, sortOrder: true },
+          orderBy: { sortOrder: "asc" },
+        },
         _count: {
           select: {
             taskTemplates: true,
@@ -46,12 +50,9 @@ export async function GET(request: NextRequest) {
       orderBy: { sortOrder: "asc" },
     });
 
-    // Compute totalDuration (sum of task durations) and strip the raw
-    // taskTemplates array to keep the payload lean.
     const enriched = templates.map((t) => {
       const totalDuration =
-        t.defaultDuration ||
-        t.taskTemplates.reduce((s, tt) => s + tt.defaultDuration, 0);
+        t.defaultDuration || computeServiceDuration(t.taskTemplates);
       const { taskTemplates: _tasks, ...rest } = t;
       void _tasks;
       return { ...rest, totalDuration };

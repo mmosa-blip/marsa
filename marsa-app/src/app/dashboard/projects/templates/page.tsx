@@ -22,6 +22,7 @@ import {
   Printer,
 } from "lucide-react";
 import { exportDurationReportPDF } from "@/lib/duration-report-pdf";
+import { computeServiceDuration } from "@/lib/service-duration";
 
 interface ProjectTemplate {
   id: string;
@@ -182,27 +183,6 @@ export default function ProjectTemplatesPage() {
         };
       }
 
-      // Compute per-service duration using the same task-level logic
-      // as the service-catalog detail page and the API.
-      function computeSvcDuration(tasks: DetailTask[]): number {
-        const sorted = [...tasks].sort(() => 0); // already sorted by sortOrder from API
-        let total = 0;
-        for (let i = 0; i < sorted.length; i++) {
-          const t = sorted[i];
-          if (t.executionMode === "PARALLEL" || t.sameDay) {
-            const prev = sorted[i - 1];
-            if (prev) {
-              total = total - prev.defaultDuration + Math.max(prev.defaultDuration, t.sameDay ? 0 : t.defaultDuration);
-            } else {
-              total += t.sameDay ? 0 : t.defaultDuration;
-            }
-          } else {
-            total += t.defaultDuration;
-          }
-        }
-        return total;
-      }
-
       const services: DetailService[] = (data.services || []).map((link: SvcLink) => {
         const st = link.serviceTemplate;
         const tasks: DetailTask[] = (st.taskTemplates || []).map((tt: TaskTmpl) => ({
@@ -211,7 +191,7 @@ export default function ProjectTemplatesPage() {
           executionMode: tt.executionMode || "SEQUENTIAL",
           sameDay: !!tt.sameDay,
         }));
-        const duration = st.defaultDuration || computeSvcDuration(tasks);
+        const duration = st.defaultDuration || computeServiceDuration(tasks);
         const mode = link.executionMode || "SEQUENTIAL";
         // Only SEQUENTIAL services contribute additively.
         // PARALLEL and INDEPENDENT run concurrently and don't extend

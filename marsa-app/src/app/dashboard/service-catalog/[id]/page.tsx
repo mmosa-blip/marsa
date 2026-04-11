@@ -21,6 +21,7 @@ import {
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import TaskRequirementsEditor from "@/components/TaskRequirementsEditor";
+import { computeServiceDuration } from "@/lib/service-duration";
 
 type TaskExecutionMode = "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
 
@@ -188,25 +189,7 @@ export default function ServiceTemplateDetailPage() {
     );
   }
 
-  const totalDuration = (() => {
-    let total = 0;
-    const tasks = [...template.taskTemplates].sort((a, b) => a.sortOrder - b.sortOrder);
-    for (let i = 0; i < tasks.length; i++) {
-      const task = tasks[i];
-      if (task.executionMode === "PARALLEL" || task.sameDay) {
-        // parallel: take max of current group
-        const prev = tasks[i - 1];
-        if (prev) {
-          total = total - prev.defaultDuration + Math.max(prev.defaultDuration, task.defaultDuration);
-        } else {
-          total += task.defaultDuration;
-        }
-      } else {
-        total += task.defaultDuration;
-      }
-    }
-    return total;
-  })();
+  const totalDuration = computeServiceDuration(template.taskTemplates);
 
   return (
     <div className="p-8">
