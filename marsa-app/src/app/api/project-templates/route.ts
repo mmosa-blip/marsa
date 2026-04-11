@@ -29,7 +29,10 @@ export async function GET(request: Request) {
             serviceTemplate: {
               include: {
                 category: { select: { id: true, name: true, color: true } },
-                taskTemplates: { select: { defaultDuration: true } },
+                taskTemplates: {
+                  select: { defaultDuration: true, executionMode: true, sameDay: true, sortOrder: true },
+                  orderBy: { sortOrder: "asc" },
+                },
                 _count: { select: { taskTemplates: true } },
               },
             },
@@ -49,23 +52,37 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Compute total duration in days for each template, mirroring the
-    // wizard's logic in POST /api/projects:
-    //   - per service: serviceTemplate.defaultDuration when set,
-    //     otherwise the sum of its task templates' defaultDuration
-    //   - project total: sum of service durations when the project
-    //     workflow is SEQUENTIAL, max() when it's INDEPENDENT
+    // ── Compute per-service duration using task-level PARALLEL/sameDay
+    // logic, then sum only SEQUENTIAL services for the project total.
+    function computeSvcDuration(
+      tasks: { defaultDuration: number; executionMode: string; sameDay: boolean; sortOrder: number }[]
+    ): number {
+      const sorted = [...tasks].sort((a, b) => a.sortOrder - b.sortOrder);
+      let total = 0;
+      for (let i = 0; i < sorted.length; i++) {
+        const t = sorted[i];
+        if (t.executionMode === "PARALLEL" || t.sameDay) {
+          const prev = sorted[i - 1];
+          if (prev) {
+            total = total - prev.defaultDuration + Math.max(prev.defaultDuration, t.sameDay ? 0 : t.defaultDuration);
+          } else {
+            total += t.sameDay ? 0 : t.defaultDuration;
+          }
+        } else {
+          total += t.defaultDuration;
+        }
+      }
+      return total;
+    }
+
     const templatesWithDuration = templates.map((tpl) => {
       let totalDurationDays = 0;
       for (const link of tpl.services) {
         const tmpl = link.serviceTemplate;
-        const svcDuration =
-          tmpl.defaultDuration ||
-          tmpl.taskTemplates.reduce((sum, tt) => sum + tt.defaultDuration, 0);
-        if (tpl.workflowType === "SEQUENTIAL") {
+        const svcDuration = tmpl.defaultDuration || computeSvcDuration(tmpl.taskTemplates);
+        const svcMode = (link as unknown as { executionMode?: string }).executionMode || "SEQUENTIAL";
+        if (svcMode === "SEQUENTIAL") {
           totalDurationDays += svcDuration;
-        } else {
-          totalDurationDays = Math.max(totalDurationDays, svcDuration);
         }
       }
       return { ...tpl, totalDurationDays };

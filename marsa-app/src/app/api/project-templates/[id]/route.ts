@@ -56,19 +56,45 @@ export async function GET(
       );
     }
 
-    // Total duration in days, computed the same way as the listing
-    // endpoint (and the wizard's POST /api/projects).
+    // ── Compute per-service duration using the same task-level logic
+    // as the service-catalog detail page: PARALLEL / sameDay tasks
+    // overlap with their predecessor (take max of group), SEQUENTIAL
+    // tasks add linearly.
+    function computeServiceDuration(
+      tasks: { defaultDuration: number; executionMode: string; sameDay: boolean; sortOrder: number }[]
+    ): number {
+      const sorted = [...tasks].sort((a, b) => a.sortOrder - b.sortOrder);
+      let total = 0;
+      for (let i = 0; i < sorted.length; i++) {
+        const t = sorted[i];
+        if (t.executionMode === "PARALLEL" || t.sameDay) {
+          const prev = sorted[i - 1];
+          if (prev) {
+            total = total - prev.defaultDuration + Math.max(prev.defaultDuration, t.sameDay ? 0 : t.defaultDuration);
+          } else {
+            total += t.sameDay ? 0 : t.defaultDuration;
+          }
+        } else {
+          total += t.defaultDuration;
+        }
+      }
+      return total;
+    }
+
+    // ── Project-level total: only SEQUENTIAL services contribute
+    // additively. PARALLEL and INDEPENDENT services run concurrently
+    // with other services and don't extend the critical path.
     let totalDurationDays = 0;
     for (const link of template.services) {
       const tmpl = link.serviceTemplate;
       const svcDuration =
-        tmpl.defaultDuration ||
-        tmpl.taskTemplates.reduce((sum, tt) => sum + tt.defaultDuration, 0);
-      if (template.workflowType === "SEQUENTIAL") {
+        tmpl.defaultDuration || computeServiceDuration(tmpl.taskTemplates);
+      // Per-service executionMode on ProjectTemplateService
+      const svcMode = (link as unknown as { executionMode?: string }).executionMode || "SEQUENTIAL";
+      if (svcMode === "SEQUENTIAL") {
         totalDurationDays += svcDuration;
-      } else {
-        totalDurationDays = Math.max(totalDurationDays, svcDuration);
       }
+      // PARALLEL and INDEPENDENT don't add to the total
     }
 
     // totalDurationDays = working days (defaultDuration on TaskTemplate

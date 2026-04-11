@@ -182,6 +182,27 @@ export default function ProjectTemplatesPage() {
         };
       }
 
+      // Compute per-service duration using the same task-level logic
+      // as the service-catalog detail page and the API.
+      function computeSvcDuration(tasks: DetailTask[]): number {
+        const sorted = [...tasks].sort(() => 0); // already sorted by sortOrder from API
+        let total = 0;
+        for (let i = 0; i < sorted.length; i++) {
+          const t = sorted[i];
+          if (t.executionMode === "PARALLEL" || t.sameDay) {
+            const prev = sorted[i - 1];
+            if (prev) {
+              total = total - prev.defaultDuration + Math.max(prev.defaultDuration, t.sameDay ? 0 : t.defaultDuration);
+            } else {
+              total += t.sameDay ? 0 : t.defaultDuration;
+            }
+          } else {
+            total += t.defaultDuration;
+          }
+        }
+        return total;
+      }
+
       const services: DetailService[] = (data.services || []).map((link: SvcLink) => {
         const st = link.serviceTemplate;
         const tasks: DetailTask[] = (st.taskTemplates || []).map((tt: TaskTmpl) => ({
@@ -190,14 +211,12 @@ export default function ProjectTemplatesPage() {
           executionMode: tt.executionMode || "SEQUENTIAL",
           sameDay: !!tt.sameDay,
         }));
-        const duration =
-          st.defaultDuration ||
-          tasks.reduce((s, t) => s + t.defaultDuration, 0);
+        const duration = st.defaultDuration || computeSvcDuration(tasks);
         const mode = link.executionMode || "SEQUENTIAL";
-        const addsToTotal =
-          data.workflowType === "SEQUENTIAL"
-            ? mode === "SEQUENTIAL"
-            : false;
+        // Only SEQUENTIAL services contribute additively.
+        // PARALLEL and INDEPENDENT run concurrently and don't extend
+        // the critical path — regardless of the project workflowType.
+        const addsToTotal = mode === "SEQUENTIAL";
         return { name: st.name, executionMode: mode, duration, addsToTotal, tasks };
       });
 
