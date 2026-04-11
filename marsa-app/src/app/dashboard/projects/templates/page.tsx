@@ -18,7 +18,10 @@ import {
   X,
   Loader2,
   Check,
+  Download,
+  Printer,
 } from "lucide-react";
+import { exportDurationReportPDF } from "@/lib/duration-report-pdf";
 
 interface ProjectTemplate {
   id: string;
@@ -487,9 +490,29 @@ export default function ProjectTemplatesPage() {
                       </p>
                     </div>
                   </div>
-                  <button onClick={() => setDetailModal(null)} className="p-1.5 rounded-lg hover:bg-gray-100" style={{ color: "#9CA3AF" }}>
-                    <X size={18} />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <MarsaButton
+                      variant="secondary"
+                      size="sm"
+                      icon={<Download size={13} />}
+                      onClick={() => exportDurationReportPDF(detailModal)}
+                      style={{ color: "#5E5495" }}
+                    >
+                      ⬇ تصدير PDF
+                    </MarsaButton>
+                    <MarsaButton
+                      variant="secondary"
+                      size="sm"
+                      icon={<Printer size={13} />}
+                      onClick={() => exportDurationReportPDF(detailModal)}
+                      style={{ color: "#6B7280" }}
+                    >
+                      🖨 طباعة
+                    </MarsaButton>
+                    <button onClick={() => setDetailModal(null)} className="p-1.5 rounded-lg hover:bg-gray-100" style={{ color: "#9CA3AF" }}>
+                      <X size={18} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-5">
