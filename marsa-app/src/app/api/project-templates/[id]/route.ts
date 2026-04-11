@@ -61,6 +61,8 @@ export async function GET(
       }
     }
 
+    // totalDurationDays = working days (defaultDuration on TaskTemplate
+    // is defined as working days; Saudi week = 6 days, Saturday off).
     return NextResponse.json({ ...template, totalDurationDays });
   } catch (error) {
     console.error("Error fetching project template:", error);

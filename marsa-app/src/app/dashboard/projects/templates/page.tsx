@@ -14,6 +14,10 @@ import {
   Calendar,
   Copy,
   Clock,
+  Info,
+  X,
+  Loader2,
+  Check,
 } from "lucide-react";
 
 interface ProjectTemplate {
@@ -31,6 +35,20 @@ export default function ProjectTemplatesPage() {
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Duration detail modal — "لماذا X يوم؟"
+  const [detailModal, setDetailModal] = useState<{
+    templateName: string;
+    totalDays: number;
+    workflowType: string;
+    services: {
+      name: string;
+      executionMode: string;
+      duration: number;
+      addsToTotal: boolean;
+    }[];
+  } | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   // Clone modal state
   const [cloneModal, setCloneModal] = useState(false);
@@ -127,6 +145,50 @@ export default function ProjectTemplatesPage() {
       year: "numeric",
       month: "short",
       day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+
+  async function openDetailModal(templateId: string) {
+    setDetailLoading(true);
+    setDetailModal(null);
+    try {
+      const res = await fetch(`/api/project-templates/${templateId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      interface SvcLink {
+        sortOrder: number;
+        executionMode?: string;
+        serviceTemplate: {
+          name: string;
+          defaultDuration: number | null;
+          taskTemplates: { defaultDuration: number }[];
+        };
+      }
+
+      const services = (data.services || []).map((link: SvcLink) => {
+        const st = link.serviceTemplate;
+        const duration =
+          st.defaultDuration ||
+          st.taskTemplates.reduce((s: number, t: { defaultDuration: number }) => s + t.defaultDuration, 0);
+        const mode = link.executionMode || "SEQUENTIAL";
+        // In a SEQUENTIAL project, only SEQUENTIAL services contribute
+        // additively to the total. PARALLEL and INDEPENDENT run in
+        // parallel and don't extend the critical path.
+        const addsToTotal =
+          data.workflowType === "SEQUENTIAL"
+            ? mode === "SEQUENTIAL"
+            : false; // INDEPENDENT project: take max, nothing "adds"
+        return { name: st.name, executionMode: mode, duration, addsToTotal };
+      });
+
+      setDetailModal({
+        templateName: data.name,
+        totalDays: data.totalDurationDays,
+        workflowType: data.workflowType,
+        services,
+      });
+    } catch { /* ignore */ }
+    setDetailLoading(false);
   }
 
   return (
@@ -280,6 +342,17 @@ export default function ProjectTemplatesPage() {
                   <Clock size={14} />
                   {template.totalDurationDays.toLocaleString("en-US")} يوم
                 </span>
+                <button
+                  type="button"
+                  onClick={() => openDetailModal(template.id)}
+                  disabled={detailLoading}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold hover:bg-gray-100 transition-colors"
+                  style={{ color: "#5E5495" }}
+                  title="لماذا هذا العدد من الأيام؟"
+                >
+                  <Info size={12} />
+                  📋 تفاصيل
+                </button>
               </div>
 
               {/* معلومات إضافية */}
@@ -358,6 +431,120 @@ export default function ProjectTemplatesPage() {
                 إلغاء
               </MarsaButton>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duration detail modal — "لماذا X يوم؟" */}
+      {(detailModal || detailLoading) && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => !detailLoading && setDetailModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-xl max-h-[80vh] overflow-y-auto"
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}
+          >
+            {detailLoading && !detailModal ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 size={28} className="animate-spin" style={{ color: "#C9A84C" }} />
+              </div>
+            ) : detailModal ? (
+              <>
+                <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid #F0EDE6" }}>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center"
+                      style={{ backgroundColor: "rgba(201,168,76,0.12)" }}
+                    >
+                      <Clock size={20} style={{ color: "#C9A84C" }} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold" style={{ color: "#1C1B2E" }}>
+                        لماذا {detailModal.totalDays} يوم؟
+                      </h3>
+                      <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+                        {detailModal.templateName}
+                      </p>
+                    </div>
+                  </div>
+                  <button onClick={() => setDetailModal(null)} className="p-1.5 rounded-lg hover:bg-gray-100" style={{ color: "#9CA3AF" }}>
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="p-5">
+                  <table className="w-full text-sm mb-4" style={{ borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th className="text-right py-2 px-3 text-xs font-bold" style={{ color: "#6B7280", borderBottom: "2px solid #E2E0D8" }}>الخدمة</th>
+                        <th className="text-center py-2 px-3 text-xs font-bold" style={{ color: "#6B7280", borderBottom: "2px solid #E2E0D8" }}>النوع</th>
+                        <th className="text-center py-2 px-3 text-xs font-bold" style={{ color: "#6B7280", borderBottom: "2px solid #E2E0D8" }}>الأيام</th>
+                        <th className="text-center py-2 px-3 text-xs font-bold" style={{ color: "#6B7280", borderBottom: "2px solid #E2E0D8" }}>تُضاف؟</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detailModal.services.map((svc, idx) => {
+                        const modeLabel =
+                          svc.executionMode === "PARALLEL" ? "توازي" :
+                          svc.executionMode === "INDEPENDENT" ? "مستقل" :
+                          "تسلسلي";
+                        const modeColor =
+                          svc.executionMode === "PARALLEL" ? "#2563EB" :
+                          svc.executionMode === "INDEPENDENT" ? "#6B7280" :
+                          "#C9A84C";
+                        return (
+                          <tr
+                            key={idx}
+                            style={{
+                              backgroundColor: idx % 2 === 0 ? "#FAFAF7" : "white",
+                              borderBottom: "1px solid #F0EDE6",
+                            }}
+                          >
+                            <td className="py-2.5 px-3 text-xs font-semibold" style={{ color: "#1C1B2E" }}>{svc.name}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                style={{ backgroundColor: `${modeColor}18`, color: modeColor }}
+                              >
+                                {modeLabel}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center text-xs font-bold" style={{ color: "#1C1B2E" }}>
+                              {svc.duration}
+                            </td>
+                            <td className="py-2.5 px-3 text-center text-sm">
+                              {svc.addsToTotal ? (
+                                <span style={{ color: "#16A34A" }}><Check size={16} className="mx-auto" /></span>
+                              ) : (
+                                <span className="text-xs" style={{ color: "#9CA3AF" }}>—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  <div
+                    className="p-3 rounded-xl text-center"
+                    style={{ backgroundColor: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.25)" }}
+                  >
+                    <p className="text-sm font-bold" style={{ color: "#C9A84C" }}>
+                      المجموع = {detailModal.services
+                        .filter((s) => s.addsToTotal)
+                        .map((s) => s.duration)
+                        .join(" + ")} = {detailModal.totalDays} يوم عمل
+                    </p>
+                    <p className="text-[10px] mt-1" style={{ color: "#6B7280" }}>
+                      الخدمات التوازية والمستقلة تعمل بالتوازي مع غيرها ولا تُضاف للمجموع
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       )}
