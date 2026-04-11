@@ -87,6 +87,10 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "ملغي",
 };
 
+// Cement gray for ACTIVE (under construction) buildings.
+const ACTIVE_COLOR = "#8B8D93";
+// Vibrant palette for COMPLETED buildings — each gets a unique color.
+const COMPLETED_COLORS = ["#2563EB", "#059669", "#7C3AED", "#C9A84C", "#E11D48", "#0891B2", "#4F46E5", "#D97706"];
 const FALLBACK_COLORS = ["#5E5495", "#1B2A4A", "#0F766E", "#7C3AED", "#0891B2", "#B45309"];
 
 function pickColor(id: string, fallbackIndex: number, override: string | null | undefined) {
@@ -254,7 +258,15 @@ export default function ExecutorCityPage() {
         cols,
         floors: allFloors,
         visibleFloors,
-        color: pickColor(p.id, idx, p.department?.color),
+        // Color depends on status:
+        //   COMPLETED → vibrant unique color per building
+        //   Delayed   → red (overridden in drawBuilding)
+        //   ACTIVE    → cement gray
+        color: isComplete
+          ? COMPLETED_COLORS[idx % COMPLETED_COLORS.length]
+          : isDelayed
+            ? "#B91C1C"
+            : ACTIVE_COLOR,
         isComplete,
         isDelayed,
       };
@@ -389,25 +401,42 @@ export default function ExecutorCityPage() {
     }
 
     function drawForest() {
+      // Ground strip behind trees
       ctx.fillStyle = "#5C8A4E";
       ctx.beginPath();
       ctx.moveTo(0, layout!.sky);
       for (let x = 0; x <= WORLD_W; x += 40) {
-        const y = layout!.sky - 20 - Math.sin(x / 60) * 12;
+        const y = layout!.sky - 16 - Math.sin(x / 60) * 10;
         ctx.lineTo(x, y);
       }
       ctx.lineTo(WORLD_W, layout!.sky);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = "#3E6B36";
-      for (let x = 20; x < WORLD_W; x += 30) {
-        const baseY = layout!.sky - 22 - Math.sin(x / 60) * 12;
-        ctx.beginPath();
-        ctx.moveTo(x, baseY);
-        ctx.lineTo(x - 6, baseY - 16);
-        ctx.lineTo(x + 6, baseY - 16);
-        ctx.closePath();
-        ctx.fill();
+
+      // Layered trees instead of flat triangles
+      const treePalette = ["#2E7D32", "#388E3C", "#43A047", "#4CAF50", "#1B5E20"];
+      for (let x = 15; x < WORLD_W; x += 28 + Math.sin(x) * 8) {
+        const baseY = layout!.sky - 14 - Math.sin(x / 60) * 10;
+        const h = 20 + Math.abs(Math.sin(x * 0.7)) * 18;
+        const w = 10 + Math.abs(Math.cos(x * 0.3)) * 8;
+        const color = treePalette[Math.floor(Math.abs(Math.sin(x * 1.3)) * treePalette.length)];
+
+        // Trunk
+        ctx.fillStyle = "#5D4037";
+        ctx.fillRect(x - 1.5, baseY - h * 0.3, 3, h * 0.3);
+
+        // 3 stacked leaf layers (bottom largest → top smallest)
+        for (let layer = 0; layer < 3; layer++) {
+          const ly = baseY - h * 0.3 - layer * (h * 0.22);
+          const lw = w * (1 - layer * 0.25);
+          ctx.fillStyle = shade(color, -layer * 15);
+          ctx.beginPath();
+          ctx.moveTo(x, ly - h * 0.28);
+          ctx.lineTo(x - lw, ly);
+          ctx.lineTo(x + lw, ly);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
     }
 
@@ -545,9 +574,9 @@ export default function ExecutorCityPage() {
         const fyBottom = cursorY;
         const fyTop = cursorY - bandH;
 
-        // Floor separator (skip the very top one)
-        ctx.fillStyle = "rgba(0,0,0,0.22)";
-        ctx.fillRect(baseX + 2, fyBottom - 1, b.baseWidth - 4, 1);
+        // Floor separator — more prominent for active (cement) buildings
+        ctx.fillStyle = b.isComplete ? "rgba(0,0,0,0.15)" : "rgba(0,0,0,0.3)";
+        ctx.fillRect(baseX + 1, fyBottom - 1, b.baseWidth - 2, b.isComplete ? 1 : 2);
 
         // Dim the band background for the in-progress (current) floor so it
         // reads as a "partial" floor still under construction.
@@ -593,58 +622,161 @@ export default function ExecutorCityPage() {
       ctx.fillRect(b.x - doorW / 2, baseY - DOOR_H, doorW, DOOR_H);
 
       if (b.isDelayed) {
-        ctx.strokeStyle = "rgba(0,0,0,0.55)";
-        ctx.lineWidth = 1.2;
+        // Cracks across the facade
+        ctx.strokeStyle = "rgba(0,0,0,0.6)";
+        ctx.lineWidth = 1.5;
+        // Crack 1 — left side zigzag
         ctx.beginPath();
-        ctx.moveTo(baseX + 8, topY + 30);
-        ctx.lineTo(baseX + 4, topY + 60);
+        ctx.moveTo(baseX + 6, topY + 15);
+        ctx.lineTo(baseX + 10, topY + 35);
+        ctx.lineTo(baseX + 4, topY + 55);
         ctx.lineTo(baseX + 12, topY + 80);
         ctx.stroke();
+        // Crack 2 — right side
         ctx.beginPath();
-        ctx.moveTo(baseX + b.baseWidth - 10, topY + 50);
-        ctx.lineTo(baseX + b.baseWidth - 4, topY + 90);
+        ctx.moveTo(baseX + b.baseWidth - 8, topY + 25);
+        ctx.lineTo(baseX + b.baseWidth - 4, topY + 50);
+        ctx.lineTo(baseX + b.baseWidth - 12, topY + 75);
+        ctx.lineTo(baseX + b.baseWidth - 6, topY + 95);
         ctx.stroke();
-        ctx.fillStyle = "#F59E0B";
-        ctx.strokeStyle = "#000";
+        // Crack 3 — middle
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(b.x, topY - 22);
-        ctx.lineTo(b.x - 7, topY - 10);
-        ctx.lineTo(b.x + 7, topY - 10);
+        ctx.moveTo(b.x - 3, topY + 40);
+        ctx.lineTo(b.x + 5, topY + 65);
+        ctx.lineTo(b.x - 2, topY + 85);
+        ctx.stroke();
+
+        // Crumbled corner — top-right missing chunk
+        ctx.fillStyle = "#7CC4F0"; // sky color to erase the corner
+        ctx.beginPath();
+        ctx.moveTo(baseX + b.baseWidth, topY - 5);
+        ctx.lineTo(baseX + b.baseWidth - 12, topY - 5);
+        ctx.lineTo(baseX + b.baseWidth - 8, topY + 10);
+        ctx.lineTo(baseX + b.baseWidth, topY + 8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Fallen debris at the base
+        ctx.fillStyle = "#7F1D1D";
+        for (let d = 0; d < 5; d++) {
+          const dx = baseX + b.baseWidth * (0.6 + d * 0.08) + (d % 2) * 3;
+          const dy = baseY - 2 + (d % 3) * 2;
+          ctx.fillRect(dx, dy, 4 + (d % 2) * 2, 3);
+        }
+
+        // Warning sign
+        ctx.fillStyle = "#F59E0B";
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(b.x, topY - 26);
+        ctx.lineTo(b.x - 9, topY - 10);
+        ctx.lineTo(b.x + 9, topY - 10);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = "#000";
-        ctx.font = "bold 9px sans-serif";
+        ctx.font = "bold 10px sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("!", b.x, topY - 12);
+        ctx.fillText("!", b.x, topY - 13);
       }
 
       if (!b.isComplete && !b.isDelayed) {
-        const craneTop = topY - 30;
-        const craneArmEnd = baseX + b.baseWidth + 18;
-        ctx.strokeStyle = "#FBBF24";
-        ctx.lineWidth = 2;
+        // ── Detailed tower crane ──
+        const mastX = baseX + b.baseWidth - 6;
+        const craneTop = topY - 55;
+        const armLen = b.baseWidth * 0.7 + 30;
+        const craneArmEnd = mastX + armLen;
+        const counterEnd = mastX - 20;
+
+        // Mast (vertical tower)
+        ctx.strokeStyle = "#D97706";
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(baseX + b.baseWidth - 4, topY);
-        ctx.lineTo(baseX + b.baseWidth - 4, craneTop);
+        ctx.moveTo(mastX, topY);
+        ctx.lineTo(mastX, craneTop);
         ctx.stroke();
+        // Mast cross-braces
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "#B45309";
+        for (let my = topY - 10; my > craneTop + 5; my -= 12) {
+          ctx.beginPath();
+          ctx.moveTo(mastX - 3, my);
+          ctx.lineTo(mastX + 3, my - 10);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(mastX + 3, my);
+          ctx.lineTo(mastX - 3, my - 10);
+          ctx.stroke();
+        }
+
+        // Operator cabin
+        ctx.fillStyle = "#374151";
+        ctx.fillRect(mastX - 6, craneTop - 2, 12, 10);
+        ctx.fillStyle = "rgba(147,197,253,0.7)";
+        ctx.fillRect(mastX - 4, craneTop, 8, 5);
+
+        // Main jib (arm to the right)
+        ctx.strokeStyle = "#D97706";
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.moveTo(baseX + b.baseWidth - 4, craneTop);
+        ctx.moveTo(mastX, craneTop);
         ctx.lineTo(craneArmEnd, craneTop);
         ctx.stroke();
-        ctx.fillStyle = "#374151";
-        ctx.fillRect(baseX + b.baseWidth - 12, craneTop - 4, 8, 6);
-        const swing = Math.sin(time / 700 + b.x / 50) * 8;
-        const loadX = craneArmEnd - 6 + swing;
+        // Jib support cables
         ctx.strokeStyle = "#9CA3AF";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 0.8;
         ctx.beginPath();
-        ctx.moveTo(craneArmEnd - 6, craneTop);
-        ctx.lineTo(loadX, craneTop + 18);
+        ctx.moveTo(mastX, craneTop - 14);
+        ctx.lineTo(craneArmEnd, craneTop);
         ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(mastX, craneTop - 14);
+        ctx.lineTo(counterEnd, craneTop);
+        ctx.stroke();
+
+        // Counter-jib (short arm to the left)
+        ctx.strokeStyle = "#D97706";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(mastX, craneTop);
+        ctx.lineTo(counterEnd, craneTop);
+        ctx.stroke();
+        // Counterweight
+        ctx.fillStyle = "#6B7280";
+        ctx.fillRect(counterEnd - 4, craneTop - 2, 8, 8);
+
+        // Top peak (A-frame above cabin)
+        ctx.strokeStyle = "#D97706";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(mastX - 5, craneTop);
+        ctx.lineTo(mastX, craneTop - 14);
+        ctx.lineTo(mastX + 5, craneTop);
+        ctx.stroke();
+
+        // Trolley + swinging load
+        const swing = Math.sin(time / 700 + b.x / 50) * 10;
+        const trolleyX = craneArmEnd - 12 + swing * 0.3;
+        ctx.fillStyle = "#374151";
+        ctx.fillRect(trolleyX - 3, craneTop - 2, 6, 4);
+        // Cable
+        ctx.strokeStyle = "#6B7280";
+        ctx.lineWidth = 0.8;
+        const loadY = craneTop + 26;
+        const loadX = trolleyX + swing * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(trolleyX, craneTop + 2);
+        ctx.lineTo(loadX, loadY);
+        ctx.stroke();
+        // Hook + load
         ctx.fillStyle = "#92400E";
-        ctx.fillRect(loadX - 4, craneTop + 18, 8, 6);
+        ctx.fillRect(loadX - 5, loadY, 10, 8);
+        ctx.fillStyle = "#D97706";
+        ctx.beginPath();
+        ctx.arc(loadX, loadY, 2, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       if (b.isComplete) {
