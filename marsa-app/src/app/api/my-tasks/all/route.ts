@@ -266,7 +266,7 @@ export async function GET(request: NextRequest) {
         // the inter-service gate at (b).
         if (task.executionMode !== "PARALLEL") {
           const prevTask = ((currentService as { tasks?: { id: string; status: string; order: number; executionMode: string }[] })?.tasks || [])
-            .filter((t) => t.order < task.order && t.executionMode !== "INDEPENDENT")
+            .filter((t) => t.order < task.order)
             .sort((a, b) => b.order - a.order)[0];
           if (prevTask && !TERMINAL.has(prevTask.status)) {
             return { canStart: false, blockReason: "sequential" };
@@ -275,14 +275,15 @@ export async function GET(request: NextRequest) {
         return { canStart: true, blockReason: null };
       }
 
-      // (a) Immediate previous non-INDEPENDENT task in the SAME service.
-      //     PARALLEL tasks SKIP this check — siblings can run together.
+      // (a) Immediate previous task in the SAME service. INDEPENDENT
+      //     tasks ARE included as predecessors — they block the next
+      //     task just like SEQUENTIAL ones. Only PARALLEL skips this.
       if (task.executionMode !== "PARALLEL") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const currentService = services.find((s: any) => s.id === task.serviceId);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const prevTask = (currentService?.tasks as any[] | undefined)
-          ?.filter((t) => t.order < task.order && t.executionMode !== "INDEPENDENT")
+          ?.filter((t) => t.order < task.order)
           .sort((a, b) => b.order - a.order)[0];
         if (prevTask && !TERMINAL.has(prevTask.status)) {
           return { canStart: false, blockReason: "sequential" };
@@ -303,7 +304,7 @@ export async function GET(request: NextRequest) {
           const prevService = services[prevIdx];
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const blocking = (prevService.tasks as any[]).filter(
-            (t) => t.executionMode !== "INDEPENDENT" && !TERMINAL.has(t.status)
+            (t) => !TERMINAL.has(t.status)
           );
           if (blocking.length > 0) {
             return { canStart: false, blockReason: "sequential" };
