@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { countWorkingDays } from "@/lib/working-days";
 
 interface ProjectHealth {
   id: string;
@@ -122,15 +123,16 @@ export async function GET() {
       let timeProgress = 0;
 
       if (startDate) {
-        daysElapsed = Math.max(0, Math.floor((now.getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)));
+        daysElapsed = countWorkingDays(new Date(startDate), now);
       }
 
       if (endDate) {
-        daysRemaining = Math.max(0, Math.floor((new Date(endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+        const dl = new Date(endDate);
+        daysRemaining = dl > now ? countWorkingDays(now, dl) : 0;
       }
 
       const totalDays = durationDays || (startDate && endDate
-        ? Math.max(1, Math.floor((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)))
+        ? Math.max(1, countWorkingDays(new Date(startDate), new Date(endDate)))
         : 0);
 
       if (totalDays > 0) {

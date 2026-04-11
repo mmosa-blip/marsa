@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { countWorkingDays } from "@/lib/working-days";
 
 export async function GET(
   _request: Request,
@@ -29,6 +30,7 @@ export async function GET(
       projectCode: string | null;
       status: string;
       endDate: Date | null;
+      contractEndDate: Date | null;
       createdAt: Date;
       client: { id: string; name: string } | null;
       tasks: { id: string; status: string; dueDate: Date | null }[];
@@ -79,9 +81,20 @@ export async function GET(
       // Health = weighted average: tasks 40%, on-time 30%, payments 30%
       const health = Math.round(taskRate * 0.4 + overdueRate * 0.3 + paymentRate * 0.3);
 
-      const daysRemaining = p.endDate
-        ? Math.ceil((new Date(p.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        : null;
+      // Prefer contractEndDate (SLA deadline) over the project's
+      // calculated endDate. Use working-days so the number matches
+      // the Saudi work-week calendar the rest of the system uses.
+      const deadlineDate = p.contractEndDate || p.endDate;
+      let daysRemaining: number | null = null;
+      if (deadlineDate) {
+        const dl = new Date(deadlineDate);
+        if (dl <= now) {
+          // Past deadline — show negative as calendar days for urgency
+          daysRemaining = -Math.ceil((now.getTime() - dl.getTime()) / (1000 * 60 * 60 * 24));
+        } else {
+          daysRemaining = countWorkingDays(now, dl);
+        }
+      }
 
       let statusLabel = "جاري";
       if (p.status === "COMPLETED") statusLabel = "مكتمل";
