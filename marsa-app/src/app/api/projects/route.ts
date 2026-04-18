@@ -443,10 +443,20 @@ export async function POST(request: Request) {
           // Resolve dependency: map TaskTemplate.dependsOnId to the created Task ID
           const taskDependsOnId = tt.dependsOnId ? templateToTaskId.get(tt.dependsOnId) || null : null;
 
-          // Assignee selection: Investment uses date-priority + load balancing,
-          // other departments use simple round-robin
+          // Assignee selection — depends on the pool mode:
+          //   ROUND_ROBIN: the single executor picked by the pool gets
+          //                ALL tasks (resolvedManagerId). No distribution
+          //                across qualifiedEmployees.
+          //   ALL:         first pool member is primary assignee, the
+          //                rest get TaskAssignment rows (handled below).
+          //   no pool:     Investment → pickInvestmentAssignee,
+          //                others → qualifiedEmployees round-robin.
           let assigneeId: string | null = null;
-          if (isInvestment && employees.length > 0) {
+          if (poolMode === "ROUND_ROBIN") {
+            assigneeId = resolvedManagerId;
+          } else if (poolMode === "ALL") {
+            assigneeId = poolAllMemberIds[0] || resolvedManagerId;
+          } else if (isInvestment && employees.length > 0) {
             assigneeId = await pickInvestmentAssignee({
               projectId: project.id,
               serviceId: service.id,
