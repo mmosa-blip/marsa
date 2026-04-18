@@ -43,6 +43,11 @@ export async function GET() {
         endDate: true,
         contractStartDate: true,
         contractEndDate: true,
+        // Fallback: some projects store dates on the Contract relation
+        // instead of the project-level fields (legacy creation paths).
+        contract: {
+          select: { startDate: true, endDate: true },
+        },
         isPaused: true,
         pauses: {
           where: { endDate: null },
@@ -121,7 +126,12 @@ export async function GET() {
       // confusing negative. late === lateTasks at the project level;
       // surfaced both inside taskStats and at the top level for the
       // dedicated badge in OperationsRoomClient.
-      const contractEnd = p.contractEndDate ? new Date(p.contractEndDate) : null;
+      // Prefer the project-level fields; fall back to the Contract
+      // relation when the project was created via a legacy path that
+      // didn't copy them.
+      const resolvedContractStart = p.contractStartDate || p.contract?.startDate || null;
+      const resolvedContractEnd = p.contractEndDate || p.contract?.endDate || null;
+      const contractEnd = resolvedContractEnd ? new Date(resolvedContractEnd) : null;
       let daysRemaining: number | null = null;
       if (contractEnd) {
         if (contractEnd <= now) {
@@ -133,7 +143,7 @@ export async function GET() {
 
       const contractOverdue = !!(contractEnd && contractEnd <= now);
       const taskOverdue = late > 0;
-      const hasMissingDates = !p.contractStartDate || !p.contractEndDate;
+      const hasMissingDates = !resolvedContractStart || !resolvedContractEnd;
 
       const currentPause = p.pauses[0];
       return {
@@ -141,8 +151,8 @@ export async function GET() {
         name: p.name,
         projectCode: p.projectCode,
         // Contract timeline
-        contractStartDate: p.contractStartDate ? p.contractStartDate.toISOString() : null,
-        contractEndDate: p.contractEndDate ? p.contractEndDate.toISOString() : null,
+        contractStartDate: resolvedContractStart ? new Date(resolvedContractStart).toISOString() : null,
+        contractEndDate: resolvedContractEnd ? new Date(resolvedContractEnd).toISOString() : null,
         // Execution timeline
         projectStartDate: p.createdAt.toISOString(),
         projectEndDate: p.endDate ? p.endDate.toISOString() : null,
