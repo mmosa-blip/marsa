@@ -283,6 +283,10 @@ export default function NewProjectPage() {
   const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [loadingManagers, setLoadingManagers] = useState(false);
   const [selectedManagerId, setSelectedManagerId] = useState("");
+  // Executor override — lets the user pick a specific executor from
+  // the department pool instead of relying on auto-distribution.
+  const [poolMembers, setPoolMembers] = useState<{ userId: string; user: { id: string; name: string; role: string } }[]>([]);
+  const [selectedExecutorId, setSelectedExecutorId] = useState("");
 
   // ─── Step 5 (review) state ───
   const [serviceDetails, setServiceDetails] = useState<Record<string, ServiceDetail>>({});
@@ -322,6 +326,15 @@ export default function NewProjectPage() {
       .catch(() => {})
       .finally(() => setLoadingManagers(false));
   }, [currentStep, managers.length]);
+
+  // ─── Fetch department pool members for executor picker ───
+  useEffect(() => {
+    if (!departmentId) { setPoolMembers([]); setSelectedExecutorId(""); return; }
+    fetch(`/api/departments/${departmentId}/assignment-pool`)
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setPoolMembers(data); })
+      .catch(() => setPoolMembers([]));
+  }, [departmentId]);
 
   // ─── Fetch project templates on mount ───
   useEffect(() => {
@@ -834,6 +847,7 @@ export default function NewProjectPage() {
             contractDurationDays: contractForm.durationDays ? parseInt(contractForm.durationDays) : undefined,
             contractEndDate: contractForm.endDate || undefined,
             managerId: selectedManagerId || undefined,
+            executorId: selectedExecutorId || undefined,
             services: selectedServices.map((s) => ({
               serviceTemplateId: s.serviceTemplateId,
               // Services no longer carry a price — the project total
@@ -1652,6 +1666,36 @@ export default function NewProjectPage() {
                       لا يوجد مدراء آخرون متاحون
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* Executor picker — select a specific executor from the
+                  department pool instead of auto-distribution. */}
+              {poolMembers.length > 0 && (
+                <div className="mt-6 pt-5" style={{ borderTop: "1px solid #F0EDE6" }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <ListChecks size={16} style={{ color: "#059669" }} />
+                    <h3 className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+                      المنفذ المسؤول
+                    </h3>
+                    <span className="text-xs" style={{ color: "#9CA3AF" }}>(اختياري)</span>
+                  </div>
+                  <p className="text-xs mb-4" style={{ color: "#6B7280" }}>
+                    إذا تركته فارغاً سيُختار تلقائياً من فريق المشاريع الافتراضي بالتناوب
+                  </p>
+                  <select
+                    value={selectedExecutorId}
+                    onChange={(e) => setSelectedExecutorId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none cursor-pointer"
+                    style={{ border: "1px solid #E2E0D8", backgroundColor: "#FAFAFE", color: "#2D3748" }}
+                  >
+                    <option value="">-- اختيار تلقائي من الفريق --</option>
+                    {poolMembers.map((m) => (
+                      <option key={m.userId} value={m.userId}>
+                        {m.user.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
             </div>

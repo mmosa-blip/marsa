@@ -123,6 +123,7 @@ export async function POST(request: Request) {
       contractDurationDays,
       contractEndDate,
       managerId,
+      executorId,
       partners,
     } = body as {
       clientId: string;
@@ -139,6 +140,7 @@ export async function POST(request: Request) {
       contractDurationDays?: number;
       contractEndDate?: string;
       managerId?: string;
+      executorId?: string;
       partners?: { name: string; order?: number }[];
     };
 
@@ -452,7 +454,11 @@ export async function POST(request: Request) {
           //   no pool:     Investment → pickInvestmentAssignee,
           //                others → qualifiedEmployees round-robin.
           let assigneeId: string | null = null;
-          if (poolMode === "ROUND_ROBIN") {
+          if (executorId) {
+            // Explicit executor override from the wizard — bypasses
+            // pool logic and qualifiedEmployees entirely.
+            assigneeId = executorId;
+          } else if (poolMode === "ROUND_ROBIN") {
             assigneeId = resolvedManagerId;
           } else if (poolMode === "ALL") {
             assigneeId = poolAllMemberIds[0] || resolvedManagerId;
