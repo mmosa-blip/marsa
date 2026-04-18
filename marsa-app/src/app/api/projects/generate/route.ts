@@ -15,8 +15,36 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { templateId, clientId, name, contractId, departmentId, managerId } = body;
-    const resolvedManagerId: string = managerId || session.user.id;
+    const { templateId, clientId, name, contractId, departmentId, managerId, executorId } = body;
+
+    // ── Auto-distribution from DepartmentAssignmentPool ──
+    let resolvedManagerId: string = managerId || session.user.id;
+    let poolMode: "ROUND_ROBIN" | "ALL" | null = null;
+
+    if (!managerId && departmentId) {
+      const pool = await prisma.departmentAssignmentPool.findMany({
+        where: { departmentId },
+        orderBy: { order: "asc" },
+      });
+      if (pool.length > 0) {
+        const mode = pool[0].mode === "ALL" ? "ALL" : "ROUND_ROBIN";
+        poolMode = mode;
+        if (mode === "ALL") {
+          resolvedManagerId = pool[0].userId;
+        } else {
+          const sorted = [...pool].sort((a, b) => {
+            const at = a.lastAssigned?.getTime() ?? 0;
+            const bt = b.lastAssigned?.getTime() ?? 0;
+            return at - bt;
+          });
+          resolvedManagerId = sorted[0].userId;
+          await prisma.departmentAssignmentPool.update({
+            where: { departmentId_userId: { departmentId, userId: sorted[0].userId } },
+            data: { lastAssigned: new Date() },
+          });
+        }
+      }
+    }
 
     if (!templateId || !clientId) {
       return NextResponse.json(
@@ -181,9 +209,17 @@ export async function POST(request: Request) {
 
         const dueDate = addWorkingDays(startDate, tt.defaultDuration);
 
-        // Investment: date-priority + load balancing. Others: simple round-robin
+        // Assignee selection — same priority as POST /api/projects:
+        //   1. executorId (explicit pick from wizard)
+        //   2. poolMode ROUND_ROBIN → resolvedManagerId
+        //   3. Investment → pickInvestmentAssignee
+        //   4. qualifiedEmployees round-robin
         let assigneeId: string | null = null;
-        if (isInvestment && employees.length > 0) {
+        if (executorId) {
+          assigneeId = executorId;
+        } else if (poolMode === "ROUND_ROBIN") {
+          assigneeId = resolvedManagerId;
+        } else if (isInvestment && employees.length > 0) {
           assigneeId = await pickInvestmentAssignee({
             projectId: project.id,
             serviceId: service.id,

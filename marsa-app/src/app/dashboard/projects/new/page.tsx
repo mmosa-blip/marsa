@@ -832,6 +832,7 @@ export default function NewProjectPage() {
             contractDurationDays: contractForm.durationDays ? parseInt(contractForm.durationDays) : undefined,
             contractEndDate: contractForm.endDate || undefined,
             managerId: selectedManagerId || undefined,
+            executorId: selectedExecutorId || undefined,
           }),
         });
         if (res.ok) {
