@@ -12,6 +12,7 @@ datasource db {
 enum Role {
   ADMIN
   MANAGER
+  BRANCH_MANAGER
   CLIENT
   EXECUTOR
   EXTERNAL_PROVIDER
@@ -309,10 +310,15 @@ model User {
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
 
-  // علاقة المشرف
+  // علاقة المشرف (مزودين خارجيين)
   supervisorId        String?
   supervisor          User?    @relation("SupervisorExternal", fields: [supervisorId], references: [id])
   supervisedProviders User[]   @relation("SupervisorExternal")
+
+  // علاقة مدير الفرع — BRANCH_MANAGER يشرف على مجموعة منفذين
+  supervisorUserId    String?
+  supervisorUser      User?    @relation("BranchTeam", fields: [supervisorUserId], references: [id])
+  subordinates        User[]   @relation("BranchTeam")
 
   // العلاقات
   ownedCompanies  Company[]  @relation("CompanyOwner")

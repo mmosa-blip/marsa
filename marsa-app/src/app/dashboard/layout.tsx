@@ -221,6 +221,22 @@ const executorGroups: NavGroup[] = [
   // ═══ Department groups are injected dynamically for executors too ═══
 ];
 
+const branchManagerGroups: NavGroup[] = [
+  {
+    id: "home",
+    label: "الرئيسية والمتابعة",
+    tGroupKey: "homeAndFollow",
+    icon: LayoutDashboard,
+    children: [
+      { href: "/dashboard/branch", label: "فريقي", tKey: "myTeam" },
+      { href: "/dashboard/executor-city", label: "مدينتي", tKey: "myCity" },
+      { href: "/dashboard/my-projects", label: "مشاريعي", tKey: "myProjects" },
+      { href: "/dashboard/my-health", label: "صحة مشاريعي", tKey: "myHealth" },
+      { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
+    ],
+  },
+];
+
 const providerGroups: NavGroup[] = [
   {
     id: "home",
@@ -359,6 +375,7 @@ function DashboardLayoutInner({
 
   const baseGroups =
     userRole === "CLIENT" ? clientGroups :
+    userRole === "BRANCH_MANAGER" ? branchManagerGroups :
     userRole === "EXECUTOR" ? executorGroups :
     userRole === "EXTERNAL_PROVIDER" ? providerGroups :
     sidebarDepts.length > 0 ? buildAdminGroupsWithDepts(sidebarDepts) : adminGroups;

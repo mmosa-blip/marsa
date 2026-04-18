@@ -36,6 +36,7 @@ export default function EditUserPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
+  const [branchManagers, setBranchManagers] = useState<{ id: string; name: string }[]>([]);
 
   const [form, setForm] = useState({
     name: "",
@@ -48,6 +49,7 @@ export default function EditUserPage() {
     // EXTERNAL_PROVIDER fields
     specialty: "",
     supervisorId: "",
+    supervisorUserId: "",
     defaultTaskCost: "",
     bankName: "",
     iban: "",
@@ -70,6 +72,7 @@ export default function EditUserPage() {
           companyName: user.companyName || "",
           specialty: user.specialty || "",
           supervisorId: user.supervisorId || "",
+          supervisorUserId: user.supervisorUserId || "",
           defaultTaskCost: user.defaultTaskCost != null ? String(user.defaultTaskCost) : "",
           bankName: user.bankName || "",
           iban: user.iban || "",
@@ -81,6 +84,19 @@ export default function EditUserPage() {
         setLoading(false);
       });
   }, [userId]);
+
+  // Fetch branch managers for EXECUTOR users
+  useEffect(() => {
+    if (form.role === "EXECUTOR") {
+      fetch("/api/users?role=BRANCH_MANAGER")
+        .then((r) => r.json())
+        .then((d) => {
+          const list = Array.isArray(d) ? d : d.users || [];
+          setBranchManagers(list);
+        })
+        .catch(() => {});
+    }
+  }, [form.role]);
 
   // Fetch supervisors when role is EXTERNAL_PROVIDER
   useEffect(() => {
@@ -469,6 +485,27 @@ export default function EditUserPage() {
                 />
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Branch manager selector for EXECUTOR users */}
+        {form.role === "EXECUTOR" && branchManagers.length > 0 && (
+          <div>
+            <label className="block text-sm font-semibold mb-2" style={{ color: "#2D3748" }}>
+              مدير الفرع (اختياري)
+            </label>
+            <select
+              name="supervisorUserId"
+              value={form.supervisorUserId}
+              onChange={handleChange}
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+              style={{ border: "1px solid #E8E6F0", color: "#2D3748" }}
+            >
+              <option value="">— بدون مدير فرع —</option>
+              {branchManagers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
           </div>
         )}
 

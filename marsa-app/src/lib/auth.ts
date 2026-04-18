@@ -60,6 +60,25 @@ export const authOptions: NextAuthOptions = {
             });
           }
         }
+        if (existingPerms === 0 && user.role === "BRANCH_MANAGER") {
+          const bmKeys = [
+            "projects.view", "tasks.view", "users.view",
+            "clients.view", "tickets.view",
+          ];
+          const perms = await prisma.permission.findMany({
+            where: { key: { in: bmKeys } },
+          });
+          if (perms.length > 0) {
+            await prisma.userPermission.createMany({
+              data: perms.map((p) => ({
+                userId: user.id,
+                permissionId: p.id,
+                grantedById: user.id,
+              })),
+              skipDuplicates: true,
+            });
+          }
+        }
         if (existingPerms === 0 && user.role === "MANAGER") {
           const mgrKeys = [
             "projects.view", "projects.create", "projects.edit",
