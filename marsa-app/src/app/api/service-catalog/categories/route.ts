@@ -14,7 +14,7 @@ export async function GET() {
       );
     }
 
-    if (!["ADMIN", "MANAGER", "CLIENT"].includes(session.user.role)) {
+    if (!["ADMIN", "MANAGER", "CLIENT", "EXECUTOR", "BRANCH_MANAGER"].includes(session.user.role)) {
       return NextResponse.json(
         { error: "غير مصرح لك بالوصول إلى هذه البيانات" },
         { status: 403 }

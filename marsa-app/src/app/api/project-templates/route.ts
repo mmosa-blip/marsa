@@ -7,7 +7,9 @@ import { computeServiceDuration } from "@/lib/service-duration";
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
+    // GET is open to EXECUTOR / BRANCH_MANAGER so they can pick
+    // templates in the project-creation wizard. POST stays admin-only.
+    if (!session || !["ADMIN", "MANAGER", "EXECUTOR", "BRANCH_MANAGER"].includes(session.user.role)) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
     }
 

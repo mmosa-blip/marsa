@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!["ADMIN", "MANAGER", "CLIENT"].includes(session.user.role)) {
+    if (!["ADMIN", "MANAGER", "CLIENT", "EXECUTOR", "BRANCH_MANAGER"].includes(session.user.role)) {
       return NextResponse.json(
         { error: "ليس لديك صلاحية للوصول إلى هذا المورد" },
         { status: 403 }
