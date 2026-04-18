@@ -138,12 +138,35 @@ export default function ExecutorCityPage() {
   // When set, MyTasksView switches to "all tasks of this project" mode.
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
 
-  // Fetch projects with services for the city — runs once on mount
+  // Fetch projects with services for the city — runs once on mount.
+  // After loading, auto-select the most delayed project so the executor
+  // lands directly on their highest-priority work instead of "all tasks".
   useEffect(() => {
     fetch("/api/projects?withServices=true")
       .then((r) => r.json())
-      .then((d) => setProjects(Array.isArray(d) ? d : []))
+      .then((d) => {
+        const list: ApiProject[] = Array.isArray(d) ? d : [];
+        setProjects(list);
+
+        if (list.length > 0 && !pickedProjectId) {
+          const now = Date.now();
+          const sorted = [...list].sort((a, b) => {
+            const aLate = (a.tasks || []).filter(
+              (t) => t.dueDate && new Date(t.dueDate).getTime() < now && t.status !== "DONE" && t.status !== "CANCELLED"
+            ).length;
+            const bLate = (b.tasks || []).filter(
+              (t) => t.dueDate && new Date(t.dueDate).getTime() < now && t.status !== "DONE" && t.status !== "CANCELLED"
+            ).length;
+            if (bLate !== aLate) return bLate - aLate;
+            const aEnd = a.contractEndDate ? new Date(a.contractEndDate).getTime() : Infinity;
+            const bEnd = b.contractEndDate ? new Date(b.contractEndDate).getTime() : Infinity;
+            return aEnd - bEnd;
+          });
+          setPickedProjectId(sorted[0].id);
+        }
+      })
       .catch(() => setProjects([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Track viewport size for responsive canvas
@@ -1138,11 +1161,9 @@ export default function ExecutorCityPage() {
                 <button
                   key={p.id}
                   type="button"
-                  // Toggle: clicking the active chip deselects it and falls
-                  // back to the default "all my tasks" view. This is the
-                  // way to get back to that state now that the explicit
-                  // "كل مهامي" chip has been removed.
-                  onClick={() => setPickedProjectId(active ? null : p.id)}
+                  // Always select — no toggle-off. A project is always
+                  // active so the executor sees a focused task list.
+                  onClick={() => setPickedProjectId(p.id)}
                   title={p.projectCode ? `${p.projectCode} — ${p.name}` : p.name}
                   className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 max-w-[260px]"
                   style={
