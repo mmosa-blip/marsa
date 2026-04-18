@@ -8,7 +8,9 @@ import { addWorkingDays } from "@/lib/working-days";
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
+    // Template-based project creation is open to executors (who now
+    // have projects.create permission) alongside admin/manager.
+    if (!session || !["ADMIN", "MANAGER", "EXECUTOR", "BRANCH_MANAGER"].includes(session.user.role)) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
     }
 

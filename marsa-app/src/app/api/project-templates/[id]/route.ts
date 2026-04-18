@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
+    if (!session || !["ADMIN", "MANAGER", "EXECUTOR", "BRANCH_MANAGER"].includes(session.user.role)) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
     }
 

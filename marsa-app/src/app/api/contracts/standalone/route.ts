@@ -8,7 +8,8 @@ import { prisma } from "@/lib/prisma";
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
+    // Executors need to create inline contracts during project creation.
+    if (!session || !["ADMIN", "MANAGER", "EXECUTOR", "BRANCH_MANAGER"].includes(session.user.role)) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
     }
 
