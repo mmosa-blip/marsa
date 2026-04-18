@@ -17,55 +17,38 @@ export async function GET(
 
     const { id } = await params;
 
-    // Include tasks that either have saved values OR have a template
-    // with requirements (so pending ones show too).
+    // Return every task whose template defines at least one requirement,
+    // regardless of whether the executor has filled values or not.
     const tasks = await prisma.task.findMany({
       where: {
         projectId: id,
         deletedAt: null,
-        OR: [
-          { requirementValues: { some: {} } },
-          { taskTemplate: { requirements: { some: {} } } },
-        ],
+        taskTemplate: {
+          requirements: { some: {} },
+        },
       },
-      orderBy: { updatedAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        updatedAt: true,
+      include: {
+        taskTemplate: {
+          include: {
+            requirements: { orderBy: { order: "asc" } },
+          },
+        },
+        requirementValues: true,
         service: { select: { id: true, name: true } },
         assignee: { select: { id: true, name: true } },
-        taskTemplate: {
-          select: {
-            requirements: {
-              orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-              select: {
-                id: true,
-                label: true,
-                type: true,
-              },
-            },
-          },
-        },
-        requirementValues: {
-          select: {
-            requirementId: true,
-            textValue: true,
-            fileUrl: true,
-            selectedOption: true,
-            updatedAt: true,
-          },
-        },
       },
+      orderBy: { createdAt: "asc" },
     });
 
     const shaped = tasks.map((t) => {
-      const valueMap = new Map(t.requirementValues.map((v) => [v.requirementId, v]));
+      const valueMap = new Map(
+        t.requirementValues.map((v) => [v.requirementId, v])
+      );
       const requirements = (t.taskTemplate?.requirements || []).map((r) => ({
         id: r.id,
         label: r.label,
         type: r.type,
+        isRequired: r.isRequired,
         value: valueMap.get(r.id) || null,
       }));
       return {
