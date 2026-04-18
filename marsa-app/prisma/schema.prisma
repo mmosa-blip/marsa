@@ -401,6 +401,7 @@ model User {
 
   pausedProjects        ProjectPause[]      @relation("PausedProjects")
   resumedProjects       ProjectPause[]      @relation("ResumedProjects")
+  revertedTasks         Task[]              @relation("RevertedTasks")
 
   @@map("users")
 }
@@ -657,6 +658,18 @@ model Task {
   governmentHolds    TaskGovernmentHold[]
 
   requirementValues  TaskRequirementValue[]
+
+  // Task-level grace period — executor requests extra days when overdue
+  taskGraceDays      Int?
+  taskGraceEnd       DateTime?
+  taskGraceApproved  Boolean   @default(false)
+  taskGraceReason    String?   @db.Text
+
+  // Revert audit — tracks who reverted a DONE task back to IN_PROGRESS
+  revertedAt         DateTime?
+  revertedById       String?
+  revertedBy         User?     @relation("RevertedTasks", fields: [revertedById], references: [id])
+  revertReason       String?   @db.Text
 
   @@map("tasks")
 }

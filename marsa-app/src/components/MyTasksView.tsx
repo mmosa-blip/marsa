@@ -192,6 +192,17 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   const [graceDays, setGraceDays] = useState("");
   const [graceSubmitting, setGraceSubmitting] = useState(false);
   const [graceError, setGraceError] = useState<string | null>(null);
+  // Task-level grace request (for overdue tasks, not payment-blocked)
+  const [taskGraceModal, setTaskGraceModal] = useState<{ taskId: string; title: string } | null>(null);
+  const [taskGraceDays, setTaskGraceDays] = useState("");
+  const [taskGraceReason, setTaskGraceReason] = useState("");
+  const [taskGraceSubmitting, setTaskGraceSubmitting] = useState(false);
+  const [taskGraceError, setTaskGraceError] = useState<string | null>(null);
+  // Revert DONE → IN_PROGRESS modal
+  const [revertModal, setRevertModal] = useState<{ taskId: string; title: string } | null>(null);
+  const [revertReason, setRevertReason] = useState("");
+  const [revertSubmitting, setRevertSubmitting] = useState(false);
+  const [revertError, setRevertError] = useState<string | null>(null);
 
   // Bulk selection
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
@@ -1175,6 +1186,26 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                     {/* Row 4: Actions */}
                     <div className="flex items-center gap-2 flex-wrap">
                       {getActionButton(task)}
+                      {isOverdue && task.status !== "DONE" && task.status !== "CANCELLED" && (
+                        <button
+                          type="button"
+                          onClick={() => setTaskGraceModal({ taskId: task.id, title: task.title })}
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: "rgba(37,99,235,0.1)", color: "#2563EB" }}
+                        >
+                          طلب إمهال
+                        </button>
+                      )}
+                      {task.status === "DONE" && (
+                        <button
+                          type="button"
+                          onClick={() => setRevertModal({ taskId: task.id, title: task.title })}
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: "rgba(148,163,184,0.1)", color: "#64748B" }}
+                        >
+                          ↩ تراجع
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2278,6 +2309,58 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
               >
                 إلغاء
               </MarsaButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task grace-period request modal */}
+      {taskGraceModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !taskGraceSubmitting && setTaskGraceModal(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-md p-5" dir="rtl" onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+            <h3 className="text-base font-bold mb-1" style={{ color: "#1C1B2E" }}>طلب إمهال — {taskGraceModal.title}</h3>
+            <p className="text-xs mb-4" style={{ color: "#6B7280" }}>سيتم إرسال الطلب للإدارة للموافقة.</p>
+            <label className="block text-xs font-bold mb-1" style={{ color: "#1C1B2E" }}>عدد الأيام (1-30)</label>
+            <input type="number" min={1} max={30} value={taskGraceDays} onChange={(e) => { setTaskGraceDays(e.target.value); setTaskGraceError(null); }} disabled={taskGraceSubmitting} placeholder="7" className="w-full px-3 py-2 rounded-lg text-sm outline-none mb-2 bg-white" style={{ border: `1px solid ${taskGraceError ? "#DC2626" : "#E2E0D8"}` }} />
+            <label className="block text-xs font-bold mb-1" style={{ color: "#1C1B2E" }}>السبب</label>
+            <textarea rows={2} value={taskGraceReason} onChange={(e) => setTaskGraceReason(e.target.value)} disabled={taskGraceSubmitting} placeholder="سبب التأخير وطلب الإمهال..." className="w-full px-3 py-2 rounded-lg text-sm outline-none mb-2 bg-white" style={{ border: "1px solid #E2E0D8" }} />
+            {taskGraceError && <p className="text-xs mb-2 font-medium" style={{ color: "#DC2626" }}>{taskGraceError}</p>}
+            <div className="flex gap-2">
+              <MarsaButton variant="primary" size="md" className="flex-1" loading={taskGraceSubmitting} disabled={taskGraceSubmitting || !taskGraceDays || !taskGraceReason.trim()} onClick={async () => {
+                const d = Number(taskGraceDays);
+                if (!Number.isFinite(d) || d < 1 || d > 30) { setTaskGraceError("أدخل عدد أيام بين 1 و 30"); return; }
+                setTaskGraceSubmitting(true);
+                try {
+                  const res = await fetch(`/api/tasks/${taskGraceModal.taskId}/grace-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ days: d, reason: taskGraceReason.trim() }) });
+                  if (res.ok) { setTaskGraceModal(null); setTaskGraceDays(""); setTaskGraceReason(""); fetchTasks(); }
+                  else { const e = await res.json().catch(() => ({})); setTaskGraceError(e.error || "فشل إرسال الطلب"); }
+                } finally { setTaskGraceSubmitting(false); }
+              }}>إرسال الطلب</MarsaButton>
+              <MarsaButton variant="secondary" size="md" disabled={taskGraceSubmitting} onClick={() => { setTaskGraceModal(null); setTaskGraceDays(""); setTaskGraceReason(""); setTaskGraceError(null); }}>إلغاء</MarsaButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revert DONE→IN_PROGRESS modal */}
+      {revertModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !revertSubmitting && setRevertModal(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-md p-5" dir="rtl" onClick={(e) => e.stopPropagation()} style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+            <h3 className="text-base font-bold mb-1" style={{ color: "#1C1B2E" }}>↩ التراجع عن إكمال — {revertModal.title}</h3>
+            <p className="text-xs mb-4" style={{ color: "#6B7280" }}>ستعود المهمة إلى حالة "قيد التنفيذ".</p>
+            <label className="block text-xs font-bold mb-1" style={{ color: "#1C1B2E" }}>السبب</label>
+            <textarea rows={2} value={revertReason} onChange={(e) => setRevertReason(e.target.value)} disabled={revertSubmitting} placeholder="لماذا تريد التراجع؟" className="w-full px-3 py-2 rounded-lg text-sm outline-none mb-2 bg-white" style={{ border: "1px solid #E2E0D8" }} />
+            {revertError && <p className="text-xs mb-2 font-medium" style={{ color: "#DC2626" }}>{revertError}</p>}
+            <div className="flex gap-2">
+              <MarsaButton variant="primary" size="md" className="flex-1" loading={revertSubmitting} disabled={revertSubmitting || !revertReason.trim()} style={{ backgroundColor: "#DC2626" }} onClick={async () => {
+                setRevertSubmitting(true);
+                try {
+                  const res = await fetch(`/api/tasks/${revertModal.taskId}/revert`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: revertReason.trim() }) });
+                  if (res.ok) { setRevertModal(null); setRevertReason(""); fetchTasks(); refreshCounts(); }
+                  else { const e = await res.json().catch(() => ({})); setRevertError(e.error || "فشل التراجع"); }
+                } finally { setRevertSubmitting(false); }
+              }}>تأكيد التراجع</MarsaButton>
+              <MarsaButton variant="secondary" size="md" disabled={revertSubmitting} onClick={() => { setRevertModal(null); setRevertReason(""); setRevertError(null); }}>إلغاء</MarsaButton>
             </div>
           </div>
         </div>

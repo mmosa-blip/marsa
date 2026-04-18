@@ -52,7 +52,17 @@ interface InstallmentRequest {
   } | null;
 }
 
-type Tab = "transfers" | "payments" | "grace";
+interface TaskGraceRequest {
+  id: string;
+  title: string;
+  taskGraceDays: number;
+  taskGraceReason: string | null;
+  assignee: { id: string; name: string } | null;
+  service: { id: string; name: string } | null;
+  project: { id: string; name: string; projectCode: string | null } | null;
+}
+
+type Tab = "transfers" | "payments" | "grace" | "taskGrace";
 
 // ─── Component ──────────────────────────────────────────────────
 
@@ -63,6 +73,7 @@ export default function ApprovalsPage() {
   const [transfers, setTransfers] = useState<TransferRequest[]>([]);
   const [partialReqs, setPartialReqs] = useState<InstallmentRequest[]>([]);
   const [graceReqs, setGraceReqs] = useState<InstallmentRequest[]>([]);
+  const [taskGraceReqs, setTaskGraceReqs] = useState<TaskGraceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
 
@@ -77,9 +88,10 @@ export default function ApprovalsPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [tRes, iRes] = await Promise.all([
+      const [tRes, iRes, tgRes] = await Promise.all([
         fetch("/api/task-transfers?status=PENDING_ADMIN"),
         fetch("/api/installments/pending-approvals"),
+        fetch("/api/tasks/pending-grace-requests"),
       ]);
       if (tRes.ok) {
         const d = await tRes.json();
@@ -89,6 +101,10 @@ export default function ApprovalsPage() {
         const d = await iRes.json();
         setPartialReqs(d.partialRequests || []);
         setGraceReqs(d.graceRequests || []);
+      }
+      if (tgRes.ok) {
+        const d = await tgRes.json();
+        setTaskGraceReqs(Array.isArray(d) ? d : []);
       }
     } finally {
       setLoading(false);
@@ -160,14 +176,16 @@ export default function ApprovalsPage() {
     transfers: transfers.length,
     payments: partialReqs.length,
     grace: graceReqs.length,
+    taskGrace: taskGraceReqs.length,
   };
-  const totalPending = counts.transfers + counts.payments + counts.grace;
+  const totalPending = counts.transfers + counts.payments + counts.grace + counts.taskGrace;
 
   // ── Tab config ──
   const tabs: { key: Tab; label: string; icon: typeof ArrowLeftRight; count: number; color: string }[] = [
     { key: "transfers", label: "تحويلات المهام", icon: ArrowLeftRight, count: counts.transfers, color: "#5E5495" },
     { key: "payments", label: "طلبات الدفع", icon: DollarSign, count: counts.payments, color: "#C9A84C" },
-    { key: "grace", label: "طلبات الإمهال", icon: Clock, count: counts.grace, color: "#2563EB" },
+    { key: "grace", label: "إمهال الدفعات", icon: Clock, count: counts.grace, color: "#2563EB" },
+    { key: "taskGrace", label: "إمهال المهام", icon: Clock, count: counts.taskGrace, color: "#059669" },
   ];
 
   if (authStatus === "loading") {
@@ -431,6 +449,53 @@ export default function ApprovalsPage() {
                     </div>
                   );
                 })
+              )}
+            </div>
+          )}
+
+          {/* ── Tab 4: Task Grace Requests ── */}
+          {tab === "taskGrace" && (
+            <div className="space-y-3">
+              {taskGraceReqs.length === 0 ? (
+                <EmptyState icon={Clock} text="لا توجد طلبات إمهال مهام معلّقة" />
+              ) : (
+                taskGraceReqs.map((t) => (
+                  <div key={t.id} className="bg-white rounded-2xl p-5" style={{ border: "1px solid #E2E0D8" }}>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>{t.title}</p>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(5,150,105,0.1)", color: "#059669" }}>
+                            إمهال {t.taskGraceDays} يوم
+                          </span>
+                        </div>
+                        {t.project && (
+                          <p className="text-xs" style={{ color: "#6B7280" }}>
+                            مشروع: <b>{t.project.name}</b>
+                            {t.service && <> — خدمة: {t.service.name}</>}
+                          </p>
+                        )}
+                        {t.assignee && (
+                          <p className="text-xs mt-0.5" style={{ color: "#6B7280" }}>
+                            المنفذ: <b>{t.assignee.name}</b>
+                          </p>
+                        )}
+                        {t.taskGraceReason && (
+                          <p className="text-xs mt-1 p-2 rounded" style={{ backgroundColor: "#F8F6EE", color: "#4B5563" }}>
+                            {t.taskGraceReason}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MarsaButton variant="primary" size="xs" icon={<CheckCircle2 size={13} />} disabled={acting === t.id}
+                          onClick={async () => { setActing(t.id); try { await fetch(`/api/tasks/${t.id}/grace-approve`, { method: "POST" }); fetchAll(); } finally { setActing(null); } }}
+                          style={{ backgroundColor: "#059669" }}>موافقة</MarsaButton>
+                        <MarsaButton variant="danger" size="xs" icon={<X size={13} />} disabled={acting === t.id}
+                          onClick={async () => { setActing(t.id); try { await fetch(`/api/tasks/${t.id}/grace-reject`, { method: "POST" }); fetchAll(); } finally { setActing(null); } }}>رفض</MarsaButton>
+                      </div>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           )}
