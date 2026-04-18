@@ -795,7 +795,7 @@ export default function OperationsRoomClient() {
 
                             {/* Line 2: stats + badges (wrap on mobile) */}
                             <div className="flex flex-wrap items-center gap-1.5 mr-8 md:mr-0 md:mt-0 mt-1 mb-1.5 md:mb-0">
-                              {/* Days remaining pill */}
+                              {/* Days remaining pill — sourced from contractEndDate */}
                               {(() => {
                                 const d = proj.daysRemaining;
                                 let bg = "rgba(148,163,184,0.15)";
@@ -804,20 +804,33 @@ export default function OperationsRoomClient() {
                                 if (d == null) {
                                   label = "بدون تاريخ";
                                 } else {
-                                  label = `${d} يوم متبقي`;
+                                  label = `${d} يوم متبقٍ`;
                                   if (d < 15) { bg = "rgba(220,38,38,0.1)"; fg = "#DC2626"; }
                                   else if (d <= 30) { bg = "rgba(234,88,12,0.1)"; fg = "#EA580C"; }
                                   else { bg = "rgba(34,197,94,0.1)"; fg = "#22C55E"; }
                                 }
                                 return (
-                                  <span className="text-[10px] md:text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5" style={{ backgroundColor: bg, color: fg }}>
-                                    <Clock size={9} /> {label}
+                                  <span
+                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
+                                    style={{ backgroundColor: bg, color: fg }}
+                                    title={
+                                      proj.contractEndDate
+                                        ? `أيام عمل متبقية حتى انتهاء العقد: ${new Date(proj.contractEndDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric" })}`
+                                        : "لا يوجد تاريخ انتهاء للعقد"
+                                    }
+                                  >
+                                    📄 العقد: {label}
                                   </span>
                                 );
                               })()}
+                              {/* Late tasks pill — sourced from task dueDate */}
                               {(proj.lateTasks ?? proj.taskStats.late) > 0 && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#DC2626" }}>
-                                  {proj.lateTasks ?? proj.taskStats.late} متأخرة 🔴
+                                <span
+                                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                  style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#DC2626" }}
+                                  title="عدد المهام التي تجاوزت تاريخ استحقاقها"
+                                >
+                                  ⚠️ {proj.lateTasks ?? proj.taskStats.late} مهمة متأخرة
                                 </span>
                               )}
                               {/* progress */}
