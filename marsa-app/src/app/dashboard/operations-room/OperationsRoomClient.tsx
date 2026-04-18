@@ -773,29 +773,29 @@ export default function OperationsRoomClient() {
                       const projectExecutors = distinctExecutors(proj.services.flatMap((s) => s.tasks));
                       return (
                         <div key={proj.id} style={{ borderTop: "1px solid #F0EDE6" }}>
-                          {/* Project row */}
-                          <div className="flex flex-wrap items-center gap-2 md:gap-3 p-3 pe-4 md:pe-6 transition-colors hover:bg-gray-50" style={{ backgroundColor: "rgba(250,250,248,0.5)" }}>
+                          {/* Project row — vertical card on mobile, horizontal on desktop */}
+                          <div className="p-3 pe-4 md:pe-6 transition-colors hover:bg-gray-50" style={{ backgroundColor: "rgba(250,250,248,0.5)" }}>
+                            {/* Line 1: name + chevron */}
                             <button
                               type="button"
                               onClick={() => toggle(pKey)}
-                              className="flex items-center gap-2 flex-1 text-right min-w-0"
+                              className="flex items-center gap-2 w-full text-right min-w-0 mb-1 md:mb-0"
                             >
                               <ChevronDown
                                 size={16}
                                 className="transition-transform shrink-0"
                                 style={{ color: "#9CA3AF", transform: pOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
                               />
-                              <FolderKanban size={16} style={{ color: "#5E5495" }} />
-                              <span className="text-sm font-semibold truncate" style={{ color: "#1C1B2E" }} title={proj.name}>
+                              <FolderKanban size={16} className="shrink-0" style={{ color: "#5E5495" }} />
+                              <span className="text-sm font-semibold truncate max-w-[200px] md:max-w-none" style={{ color: "#1C1B2E" }} title={proj.name}>
                                 {proj.name}
                               </span>
                               <ProjectCodeBadge code={proj.projectCode} size="xs" />
-                              {/* Days-remaining until contract end.
-                                  Colour buckets:
-                                    >30 → green, 15-30 → orange,
-                                    <15 → red,   null → grey.
-                                  Rendered as a pill so it sits next to
-                                  the progress chip without cramping. */}
+                            </button>
+
+                            {/* Line 2: stats + badges (wrap on mobile) */}
+                            <div className="flex flex-wrap items-center gap-1.5 mr-8 md:mr-0 md:mt-0 mt-1 mb-1.5 md:mb-0">
+                              {/* Days remaining pill */}
                               {(() => {
                                 const d = proj.daysRemaining;
                                 let bg = "rgba(148,163,184,0.15)";
@@ -805,57 +805,26 @@ export default function OperationsRoomClient() {
                                   label = "بدون تاريخ";
                                 } else {
                                   label = `${d} يوم متبقي`;
-                                  if (d < 15) {
-                                    bg = "rgba(220,38,38,0.1)";
-                                    fg = "#DC2626";
-                                  } else if (d <= 30) {
-                                    bg = "rgba(234,88,12,0.1)";
-                                    fg = "#EA580C";
-                                  } else {
-                                    bg = "rgba(34,197,94,0.1)";
-                                    fg = "#22C55E";
-                                  }
+                                  if (d < 15) { bg = "rgba(220,38,38,0.1)"; fg = "#DC2626"; }
+                                  else if (d <= 30) { bg = "rgba(234,88,12,0.1)"; fg = "#EA580C"; }
+                                  else { bg = "rgba(34,197,94,0.1)"; fg = "#22C55E"; }
                                 }
                                 return (
-                                  <span
-                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
-                                    style={{ backgroundColor: bg, color: fg }}
-                                    title={proj.contractEndDate ? `ينتهي العقد: ${new Date(proj.contractEndDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric" })}` : "لا يوجد تاريخ انتهاء للعقد"}
-                                  >
-                                    <Clock size={9} />
-                                    {label}
+                                  <span className="text-[10px] md:text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5" style={{ backgroundColor: bg, color: fg }}>
+                                    <Clock size={9} /> {label}
                                   </span>
                                 );
                               })()}
-                              {/* Late-task count pulled from the top-level
-                                  lateTasks field (falls back to taskStats
-                                  for older responses). 🔴 emoji matches
-                                  the project brief. */}
                               {(proj.lateTasks ?? proj.taskStats.late) > 0 && (
-                                <span
-                                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                                  style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#DC2626" }}
-                                >
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#DC2626" }}>
                                   {proj.lateTasks ?? proj.taskStats.late} متأخرة 🔴
                                 </span>
                               )}
                               {/* progress */}
                               <span className="text-[10px] font-bold" style={{ color: "#6B7280" }}>{proj.progress}%</span>
                               <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#F0EEF5" }}>
-                                <div
-                                  className="h-full rounded-full"
-                                  style={{
-                                    width: `${proj.progress}%`,
-                                    background: "linear-gradient(90deg, #1B2A4A, #C9A84C)",
-                                  }}
-                                />
+                                <div className="h-full rounded-full" style={{ width: `${proj.progress}%`, background: "linear-gradient(90deg, #1B2A4A, #C9A84C)" }} />
                               </div>
-                              {/* badges */}
-                              {proj.taskStats.late > 0 && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5" style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#DC2626" }}>
-                                  <AlertTriangle size={9} /> {proj.taskStats.late}
-                                </span>
-                              )}
                               {proj.taskStats.active > 0 && (
                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5" style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}>
                                   <Clock size={9} /> {proj.taskStats.active}
@@ -867,32 +836,27 @@ export default function OperationsRoomClient() {
                                 </span>
                               )}
                               {proj.isPaused && (
-                                <span
-                                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
-                                  style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#DC2626" }}
-                                  title={
-                                    proj.currentPause
-                                      ? `${proj.currentPause.reason} — منذ ${new Date(proj.currentPause.startDate).toLocaleDateString("ar-SA-u-nu-latn")}`
-                                      : undefined
-                                  }
-                                >
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5" style={{ backgroundColor: "rgba(220,38,38,0.12)", color: "#DC2626" }}>
                                   <Pause size={9} /> موقوف
                                 </span>
                               )}
-                            </button>
-                            <AvatarStack
-                              users={projectExecutors}
-                              disabled={removing}
-                              onRemoveOne={(uid) => removeFromProject(uid, proj.services.map((s) => s.id))}
-                            />
-                            <MarsaButton
-                              variant="secondary"
-                              size="xs"
-                              icon={<UserPlus size={11} />}
-                              onClick={() => openAssign({ type: "project", targetId: proj.id, label: proj.name })}
-                            >
-                              ربط منفذ
-                            </MarsaButton>
+                            </div>
+
+                            {/* Line 3: action buttons — own row on mobile */}
+                            <div className="flex flex-wrap items-center gap-1.5 mr-8 md:mr-0">
+                              <AvatarStack
+                                users={projectExecutors}
+                                disabled={removing}
+                                onRemoveOne={(uid) => removeFromProject(uid, proj.services.map((s) => s.id))}
+                              />
+                              <MarsaButton
+                                variant="secondary"
+                                size="xs"
+                                icon={<UserPlus size={11} />}
+                                onClick={() => openAssign({ type: "project", targetId: proj.id, label: proj.name })}
+                              >
+                                ربط منفذ
+                              </MarsaButton>
                             {proj.isPaused ? (
                               <MarsaButton
                                 variant="secondary"
@@ -932,6 +896,7 @@ export default function OperationsRoomClient() {
                             >
                               📊 تقرير التأخير
                             </MarsaButton>
+                            </div>
                           </div>
 
                           {/* Timeline + delay summary strip */}
@@ -1044,7 +1009,7 @@ export default function OperationsRoomClient() {
                                             when a service template has no own
                                             qualifiedEmployees. */}
                                         <div
-                                          className="flex items-center gap-2 px-4 py-2 flex-wrap"
+                                          className="flex items-center gap-2 px-2 md:px-4 py-2 flex-wrap"
                                           style={{ borderTop: "1px solid #F8F7F3", backgroundColor: "rgba(201,168,76,0.04)" }}
                                         >
                                           <span className="text-[10px] font-bold" style={{ color: "#5E5495" }}>
@@ -1140,7 +1105,7 @@ export default function OperationsRoomClient() {
                                           const tmplId = svc.serviceTemplateId;
                                           return (
                                             <div
-                                              className="flex items-center gap-2 px-4 py-2 flex-wrap"
+                                              className="flex items-center gap-2 px-2 md:px-4 py-2 flex-wrap"
                                               style={{ borderTop: "1px solid #F8F7F3", backgroundColor: "rgba(234,88,12,0.04)" }}
                                             >
                                               <span className="inline-flex items-center gap-1 text-[10px] font-bold" style={{ color: "#9A3412" }}>
