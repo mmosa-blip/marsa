@@ -1359,7 +1359,19 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold" style={{ backgroundColor: "rgba(201,168,76,0.15)", color: "#C9A84C" }}>سريعة</span>
                               )}
                             </span>
-                            <ProjectCodeBadge code={task.project?.projectCode} size="xs" inline />
+                            <div className="flex items-center gap-1.5">
+                              <ProjectCodeBadge code={task.project?.projectCode} size="xs" inline />
+                              {task.project?.id && (
+                                <a
+                                  href={`/dashboard/projects/${task.project.id}/documents`}
+                                  className="text-[9px] font-semibold px-1.5 py-0.5 rounded hover:bg-gray-100 transition-colors flex items-center gap-0.5"
+                                  style={{ color: "#5E5495" }}
+                                >
+                                  <FolderOpen size={10} />
+                                  المتطلبات
+                                </a>
+                              )}
+                            </div>
                           </div>
                         </td>
                         {/* Client */}
@@ -1523,19 +1535,6 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                             <div className="border-t pt-3" style={{ borderColor: "#F0EDE6" }}>
                               {/* Project documents quick-access — visible only inside the
                                   detail panel, never on the task row itself */}
-                              {task.project?.id && (
-                                <div className="mb-3">
-                                  <MarsaButton
-                                    href={`/dashboard/projects/${task.project.id}/documents`}
-                                    variant="secondary"
-                                    size="sm"
-                                    icon={<FolderOpen size={14} />}
-                                  >
-                                    📁 متطلبات المشروع
-                                  </MarsaButton>
-                                </div>
-                              )}
-
                               {/* Waiting-mode controls only make sense while a task is in progress */}
                               {task.status === "IN_PROGRESS" && !task.waitingMode && (
                                 <div>

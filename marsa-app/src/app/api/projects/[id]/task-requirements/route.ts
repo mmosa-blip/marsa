@@ -17,11 +17,16 @@ export async function GET(
 
     const { id } = await params;
 
+    // Include tasks that either have saved values OR have a template
+    // with requirements (so pending ones show too).
     const tasks = await prisma.task.findMany({
       where: {
         projectId: id,
         deletedAt: null,
-        requirementValues: { some: {} },
+        OR: [
+          { requirementValues: { some: {} } },
+          { taskTemplate: { requirements: { some: {} } } },
+        ],
       },
       orderBy: { updatedAt: "desc" },
       select: {

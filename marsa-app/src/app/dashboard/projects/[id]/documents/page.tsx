@@ -211,7 +211,7 @@ export default function ProjectDocumentsPage() {
           <div className="flex items-center gap-2 mb-4">
             <ClipboardList size={18} style={{ color: "#5E5495" }} />
             <h2 className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
-              بيانات المهام المكتملة
+              متطلبات المهام
             </h2>
             <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}>
               {taskReqs.length}
@@ -226,10 +226,18 @@ export default function ProjectDocumentsPage() {
               >
                 <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <CheckCircle2 size={14} style={{ color: "#059669" }} />
+                    <CheckCircle2
+                      size={14}
+                      style={{ color: task.status === "DONE" ? "#059669" : "#EA580C" }}
+                    />
                     <p className="text-sm font-bold truncate" style={{ color: "#1C1B2E" }}>
                       {task.title}
                     </p>
+                    {task.status !== "DONE" && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0" style={{ backgroundColor: "rgba(234,88,12,0.08)", color: "#EA580C" }}>
+                        قيد التنفيذ
+                      </span>
+                    )}
                     {task.service && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: "#EFF6FF", color: "#2563EB" }}>
                         {task.service.name}
@@ -257,7 +265,7 @@ export default function ProjectDocumentsPage() {
                         </span>
                         <span className="flex-1 break-words" style={{ color: "#4B5563" }}>
                           {!v ? (
-                            <span className="text-gray-400">—</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(234,88,12,0.08)", color: "#EA580C" }}>لم تُضف بعد</span>
                           ) : r.type === "FILE" && v.fileUrl ? (
                             <a
                               href={v.fileUrl}

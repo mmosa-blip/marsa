@@ -44,6 +44,8 @@ export default function TaskCompletionRequirementsModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [missingIds, setMissingIds] = useState<Set<string>>(new Set());
+  // Sequential step — shows one requirement at a time
+  const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -182,11 +184,31 @@ export default function TaskCompletionRequirementsModal({
             </div>
           ) : requirements.length === 0 ? (
             <p className="text-sm text-gray-500">لا توجد متطلبات.</p>
-          ) : (
-            <div className="space-y-4">
-              {requirements.map((r) => {
-                const v = values[r.id] || {};
-                const missing = missingIds.has(r.id);
+          ) : (() => {
+            const total = requirements.length;
+            const r = requirements[currentStep];
+            if (!r) return null;
+            const v = values[r.id] || {};
+            const missing = missingIds.has(r.id);
+            const isLast = currentStep >= total - 1;
+            return (
+            <div>
+              {/* Progress bar */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between text-xs mb-1.5" style={{ color: "#6B7280" }}>
+                  <span>المتطلب {currentStep + 1} من {total}</span>
+                  <span>{Math.round(((currentStep + 1) / total) * 100)}%</span>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#F0EEF5" }}>
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${((currentStep + 1) / total) * 100}%`, background: "linear-gradient(90deg, #5E5495, #C9A84C)" }}
+                  />
+                </div>
+              </div>
+
+              {/* Single requirement */}
+              {[r].map((r) => {
                 return (
                   <div
                     key={r.id}
@@ -289,29 +311,51 @@ export default function TaskCompletionRequirementsModal({
                   </div>
                 );
               })}
-            </div>
-          )}
 
-          {error && (
-            <p className="text-xs mt-4 font-medium" style={{ color: "#DC2626" }}>
-              {error}
-            </p>
-          )}
+              {error && (
+                <p className="text-xs mt-3 font-medium" style={{ color: "#DC2626" }}>
+                  {error}
+                </p>
+              )}
+            </div>
+            );
+          })()}
         </div>
 
         <div className="flex gap-3 p-5 border-t border-gray-100">
-          <MarsaButton
-            variant="primary"
-            size="lg"
-            className="flex-1"
-            onClick={handleSubmit}
-            loading={submitting}
-            disabled={loading || submitting || requirements.length === 0}
-            style={{ backgroundColor: "#059669" }}
-            icon={!submitting ? <CheckCircle2 size={16} /> : undefined}
-          >
-            تأكيد الإكمال
-          </MarsaButton>
+          {currentStep > 0 && (
+            <MarsaButton
+              variant="secondary"
+              size="lg"
+              onClick={() => { setCurrentStep((s) => s - 1); setError(null); }}
+            >
+              السابق
+            </MarsaButton>
+          )}
+          {currentStep < requirements.length - 1 ? (
+            <MarsaButton
+              variant="primary"
+              size="lg"
+              className="flex-1"
+              onClick={() => { setCurrentStep((s) => s + 1); setError(null); }}
+              style={{ backgroundColor: "#5E5495" }}
+            >
+              التالي
+            </MarsaButton>
+          ) : (
+            <MarsaButton
+              variant="primary"
+              size="lg"
+              className="flex-1"
+              onClick={handleSubmit}
+              loading={submitting}
+              disabled={loading || submitting || requirements.length === 0}
+              style={{ backgroundColor: "#059669" }}
+              icon={!submitting ? <CheckCircle2 size={16} /> : undefined}
+            >
+              إكمال المهمة
+            </MarsaButton>
+          )}
           <MarsaButton variant="secondary" size="lg" onClick={onClose}>
             إلغاء
           </MarsaButton>
