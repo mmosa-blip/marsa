@@ -197,6 +197,17 @@ export default function NewProjectPage() {
   // 10 and name each one. Persisted to ProjectPartner on submit.
   const [partnersCount, setPartnersCount] = useState<number>(1);
   const [partnerNames, setPartnerNames] = useState<string[]>([""]);
+
+  // Sync the first partner name with the selected client so it's
+  // pre-filled automatically when the user picks a client.
+  useEffect(() => {
+    setPartnerNames((prev) => {
+      const next = [...prev];
+      next[0] = selectedClient?.name || "";
+      return next;
+    });
+  }, [selectedClient]);
+
   const [departments, setDepartments] = useState<{id:string;name:string;nameEn:string|null;color:string|null}[]>([]);
   const [workflowType, setWorkflowType] = useState<"SEQUENTIAL" | "INDEPENDENT">("SEQUENTIAL");
 
@@ -1527,10 +1538,10 @@ export default function NewProjectPage() {
                     {Array.from({ length: partnersCount }).map((_, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <span
-                          className="text-xs font-bold shrink-0 w-16"
-                          style={{ color: "#5E5495" }}
+                          className="text-xs font-bold shrink-0"
+                          style={{ color: "#5E5495", minWidth: i === 0 ? 100 : 64 }}
                         >
-                          الشريك {i + 1}:
+                          {i === 0 ? "الشريك 1 (العميل):" : `الشريك ${i + 1}:`}
                         </span>
                         <input
                           type="text"
