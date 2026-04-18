@@ -68,6 +68,9 @@ interface Task {
   assignee?: { id: string; name: string } | null;
   canStart: boolean;
   blockReason?: string | null;
+  // Task-level grace period fields
+  taskGraceDays?: number | null;
+  taskGraceApproved?: boolean;
   linkedInstallment?: {
     id: string;
     isLocked: boolean;
@@ -1186,15 +1189,25 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                     {/* Row 4: Actions */}
                     <div className="flex items-center gap-2 flex-wrap">
                       {getActionButton(task)}
-                      {isOverdue && task.status !== "DONE" && task.status !== "CANCELLED" && (
+                      {isOverdue && task.status !== "DONE" && task.status !== "CANCELLED" && !task.taskGraceDays && (
                         <button
                           type="button"
                           onClick={() => setTaskGraceModal({ taskId: task.id, title: task.title })}
                           className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                           style={{ backgroundColor: "rgba(37,99,235,0.1)", color: "#2563EB" }}
                         >
-                          طلب إمهال
+                          ⏰ طلب إمهال
                         </button>
+                      )}
+                      {task.taskGraceDays && !task.taskGraceApproved && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(37,99,235,0.08)", color: "#2563EB" }}>
+                          ⏳ طلب إمهال {task.taskGraceDays} يوم قيد المراجعة
+                        </span>
+                      )}
+                      {task.taskGraceApproved && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(5,150,105,0.08)", color: "#059669" }}>
+                          ✅ إمهال مُوافق عليه
+                        </span>
                       )}
                       {task.status === "DONE" && (
                         <button
@@ -1472,6 +1485,32 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                                 >
                                   {t.tasks.transfer}
                                 </MarsaButton>
+                              )}
+                              {/* Grace request for overdue tasks */}
+                              {isOverdue && task.status !== "DONE" && task.status !== "CANCELLED" && !task.taskGraceDays && (
+                                <button
+                                  type="button"
+                                  onClick={() => setTaskGraceModal({ taskId: task.id, title: task.title })}
+                                  className="text-[10px] font-bold px-2 py-1 rounded-full"
+                                  style={{ backgroundColor: "rgba(37,99,235,0.1)", color: "#2563EB" }}
+                                >
+                                  ⏰ طلب إمهال
+                                </button>
+                              )}
+                              {task.taskGraceDays && !task.taskGraceApproved && (
+                                <span className="text-[10px] font-semibold px-2 py-1 rounded-full" style={{ backgroundColor: "rgba(37,99,235,0.08)", color: "#2563EB" }}>
+                                  ⏳ إمهال {task.taskGraceDays} يوم قيد المراجعة
+                                </span>
+                              )}
+                              {task.status === "DONE" && (
+                                <button
+                                  type="button"
+                                  onClick={() => setRevertModal({ taskId: task.id, title: task.title })}
+                                  className="text-[10px] font-bold px-2 py-1 rounded-full"
+                                  style={{ backgroundColor: "rgba(148,163,184,0.1)", color: "#64748B" }}
+                                >
+                                  ↩ تراجع
+                                </button>
                               )}
                             </div>
                           )}
