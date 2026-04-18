@@ -44,7 +44,7 @@ export const authOptions: NextAuthOptions = {
         if (existingPerms === 0 && ["EXECUTOR", "EXTERNAL_PROVIDER"].includes(user.role)) {
           const defaultKeys = [
             "tasks.view", "tasks.update_status", "tasks.transfer",
-            "projects.view", "clients.view", "tickets.view",
+            "projects.view", "projects.create", "clients.view", "clients.create", "tickets.view",
           ];
           const perms = await prisma.permission.findMany({
             where: { key: { in: defaultKeys } },

@@ -212,6 +212,7 @@ const executorGroups: NavGroup[] = [
       { href: "/dashboard/clients", label: "العملاء", tKey: "clients" },
       { href: "/dashboard/task-transfers", label: "طلبات التحويل", tKey: "transfers" },
       { href: "/dashboard/my-projects", label: "مشاريعي", tKey: "myProjects" },
+      { href: "/dashboard/projects/new", label: "مشروع جديد", tKey: "newProject" },
       { href: "/dashboard/my-health", label: "صحة مشاريعي", tKey: "myHealth" },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
       { href: "/dashboard/policies", label: "اللوائح والإرشادات", tKey: "policies" },
