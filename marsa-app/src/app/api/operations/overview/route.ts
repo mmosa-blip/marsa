@@ -39,6 +39,9 @@ export async function GET() {
         id: true,
         name: true,
         projectCode: true,
+        createdAt: true,
+        endDate: true,
+        contractStartDate: true,
         contractEndDate: true,
         isPaused: true,
         pauses: {
@@ -128,14 +131,28 @@ export async function GET() {
         }
       }
 
+      const contractOverdue = !!(contractEnd && contractEnd <= now);
+      const taskOverdue = late > 0;
+      const hasMissingDates = !p.contractStartDate || !p.contractEndDate;
+
       const currentPause = p.pauses[0];
       return {
         id: p.id,
         name: p.name,
         projectCode: p.projectCode,
+        // Contract timeline
+        contractStartDate: p.contractStartDate ? p.contractStartDate.toISOString() : null,
         contractEndDate: p.contractEndDate ? p.contractEndDate.toISOString() : null,
+        // Execution timeline
+        projectStartDate: p.createdAt.toISOString(),
+        projectEndDate: p.endDate ? p.endDate.toISOString() : null,
+        // Delay indicators
         daysRemaining,
         lateTasks: late,
+        contractOverdue,
+        taskOverdue,
+        isOverdue: contractOverdue || taskOverdue,
+        hasMissingDates,
         isPaused: p.isPaused,
         currentPause: currentPause
           ? { reason: currentPause.reason, startDate: currentPause.startDate.toISOString() }

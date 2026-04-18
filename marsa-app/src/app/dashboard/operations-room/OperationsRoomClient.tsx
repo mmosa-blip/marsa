@@ -77,10 +77,19 @@ interface OverviewService {
   tasks: OverviewTask[];
 }
 interface OverviewProject {
-  // Contract fields surfaced for the "X يوم متبقي" and late badges.
+  // Contract timeline
+  contractStartDate?: string | null;
   contractEndDate?: string | null;
+  // Execution timeline
+  projectStartDate?: string | null;
+  projectEndDate?: string | null;
+  // Delay indicators
   daysRemaining?: number | null;
   lateTasks?: number;
+  contractOverdue?: boolean;
+  taskOverdue?: boolean;
+  isOverdue?: boolean;
+  hasMissingDates?: boolean;
   isPaused?: boolean;
   currentPause?: { reason: string; startDate: string } | null;
   id: string;
@@ -924,6 +933,53 @@ export default function OperationsRoomClient() {
                               📊 تقرير التأخير
                             </MarsaButton>
                           </div>
+
+                          {/* Timeline + delay summary strip */}
+                          {pOpen && (
+                            <div
+                              className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-[10px]"
+                              style={{ borderTop: "1px solid #F0EDE6", backgroundColor: "rgba(250,250,248,0.7)" }}
+                            >
+                              {/* Contract timeline */}
+                              <span className="flex items-center gap-1" style={{ color: "#5E5495" }}>
+                                📄 العقد:
+                                {proj.contractStartDate
+                                  ? new Date(proj.contractStartDate).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })
+                                  : "—"}
+                                {" ← "}
+                                {proj.contractEndDate
+                                  ? new Date(proj.contractEndDate).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })
+                                  : "—"}
+                              </span>
+                              {/* Execution timeline */}
+                              <span className="flex items-center gap-1" style={{ color: "#6B7280" }}>
+                                ⚙️ التنفيذ:
+                                {proj.projectStartDate
+                                  ? new Date(proj.projectStartDate).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })
+                                  : "—"}
+                                {" ← "}
+                                {proj.projectEndDate
+                                  ? new Date(proj.projectEndDate).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })
+                                  : "—"}
+                              </span>
+                              {/* Delay badges */}
+                              {proj.contractOverdue && (
+                                <span className="font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#DC2626" }}>
+                                  🔴 متأخر بالعقد
+                                </span>
+                              )}
+                              {(proj.lateTasks ?? 0) > 0 && (
+                                <span className="font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(234,88,12,0.1)", color: "#EA580C" }}>
+                                  ⚠️ {proj.lateTasks} مهمة متأخرة
+                                </span>
+                              )}
+                              {proj.hasMissingDates && (
+                                <span className="font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "rgba(234,88,12,0.08)", color: "#EA580C" }}>
+                                  ⚠️ تواريخ العقد مفقودة
+                                </span>
+                              )}
+                            </div>
+                          )}
 
                           {/* Project children: services */}
                           {pOpen && (
