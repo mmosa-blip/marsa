@@ -1100,20 +1100,24 @@ export default function ExecutorCityPage() {
               onClick={() => setFullscreen(false)}
               aria-label="خروج من ملء الشاشة"
               title="تصغير"
-              className="fixed top-4 left-4 z-[60] flex items-center gap-1.5 rounded-full transition-all hover:shadow-xl"
+              className="fixed z-[9999] flex items-center justify-center gap-1.5 rounded-full transition-all hover:shadow-2xl active:scale-95"
               style={{
-                padding: "8px 14px",
-                backgroundColor: "rgba(255,255,255,0.95)",
-                border: "1px solid #E2E0D8",
+                top: "max(16px, env(safe-area-inset-top, 16px))",
+                left: 16,
+                minWidth: 48,
+                minHeight: 48,
+                padding: "10px 16px",
+                backgroundColor: "#FFFFFF",
+                border: "2px solid #E2E0D8",
                 color: "#1C1B2E",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-                fontSize: 13,
-                fontWeight: 700,
-                backdropFilter: "blur(4px)",
+                boxShadow: "0 6px 24px rgba(0,0,0,0.25)",
+                fontSize: 14,
+                fontWeight: 800,
+                backdropFilter: "blur(6px)",
               }}
             >
-              <X size={18} />
-              تصغير
+              <X size={20} />
+              <span className="hidden sm:inline">تصغير</span>
             </button>
           )}
         </div>
