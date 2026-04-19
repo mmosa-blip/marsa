@@ -305,6 +305,16 @@ export default function NewProjectPage() {
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState(0);
+
+  // Rotate loading messages while submitting
+  useEffect(() => {
+    if (!submitting) { setLoadingMsg(0); return; }
+    const interval = setInterval(() => {
+      setLoadingMsg((prev) => (prev + 1) % 4);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [submitting]);
 
   // ─── Click outside to close dropdown ───
   useEffect(() => {
@@ -2637,6 +2647,37 @@ export default function NewProjectPage() {
           )}
         </div>
       </div>
+
+      {/* Loading overlay */}
+      {submitting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(28,27,46,0.6)", backdropFilter: "blur(4px)" }}>
+          <div className="bg-white rounded-2xl p-8 flex flex-col items-center gap-5 shadow-2xl max-w-sm mx-4" style={{ border: "1px solid #E2E0D8" }}>
+            <div className="relative w-16 h-16">
+              <svg className="animate-spin w-16 h-16" viewBox="0 0 50 50">
+                <circle cx="25" cy="25" r="20" fill="none" stroke="#E2E0D8" strokeWidth="4" />
+                <circle cx="25" cy="25" r="20" fill="none" stroke="url(#spinner-gradient)" strokeWidth="4" strokeLinecap="round" strokeDasharray="80 120" />
+                <defs>
+                  <linearGradient id="spinner-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#C9A84C" />
+                    <stop offset="100%" stopColor="#5E5495" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <p className="text-base font-bold text-center" style={{ color: "#1C1B2E" }}>
+              {[
+                "جاري إنشاء المشروع...",
+                "إضافة الخدمات والمهام...",
+                "ربط المنفذين...",
+                "شبه انتهى...",
+              ][loadingMsg]}
+            </p>
+            <p className="text-xs text-center" style={{ color: "#6B7280" }}>
+              يرجى الانتظار وعدم إغلاق الصفحة
+            </p>
+          </div>
+        </div>
+      )}
 
     </div>
   );
