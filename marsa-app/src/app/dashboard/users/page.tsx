@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import {
-  Users2, Search, Filter, UserPlus, ShieldCheck, UserCog,
+  Users2, Search, Filter, UserPlus, ShieldCheck, UserCog, Users,
   Briefcase, Handshake, Edit3, Ban, CheckCircle, Trash2, Loader2, Download,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -492,6 +493,18 @@ export default function UsersPage() {
                 </label>
               </div>
             </div>
+            {/* Link to full edit page for BRANCH_MANAGER team management */}
+            {editForm.role === "BRANCH_MANAGER" && (
+              <Link
+                href={`/dashboard/users/${editingUser}/edit`}
+                className="flex items-center gap-2 mt-4 px-4 py-3 rounded-xl text-sm font-semibold transition-colors hover:opacity-90"
+                style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C", border: "1px solid rgba(201,168,76,0.25)" }}
+              >
+                <Users size={16} />
+                إدارة فريق المدير
+                <span className="text-xs font-normal mr-auto" style={{ color: "#6B7280" }}>إضافة/إزالة منفذين</span>
+              </Link>
+            )}
             <div className="flex gap-3 mt-5">
               <MarsaButton onClick={handleSaveEdit} disabled={editSaving} loading={editSaving} variant="primary" size="md" className="flex-1">
                 {editSaving ? "جاري الحفظ..." : "حفظ التعديلات"}
