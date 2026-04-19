@@ -9,13 +9,18 @@
  * This function is called when assigning a task for an Investment department
  * project. It overrides the default naive round-robin assignment.
  */
+import type { PrismaClient } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+
+/** Prisma client or transaction client — works for both */
+type PrismaLike = Omit<PrismaClient, "$on" | "$connect" | "$disconnect" | "$transaction" | "$extends">;
 
 interface AssignOptions {
   projectId: string;
   serviceId: string;
   qualifiedEmployeeIds: string[];
   fallbackIndex?: number; // used if all employees have equal load (true tiebreaker)
+  db?: PrismaLike;
 }
 
 /**
@@ -42,13 +47,13 @@ interface AssignOptions {
 export async function pickInvestmentAssignee(
   opts: AssignOptions
 ): Promise<string | null> {
-  const { qualifiedEmployeeIds, fallbackIndex = 0 } = opts;
+  const { qualifiedEmployeeIds, fallbackIndex = 0, db = prisma } = opts;
 
   if (qualifiedEmployeeIds.length === 0) return null;
   if (qualifiedEmployeeIds.length === 1) return qualifiedEmployeeIds[0];
 
   // Find the Investment department ID
-  const dept = await prisma.department.findFirst({
+  const dept = await db.department.findFirst({
     where: { name: { contains: "الاستثمار" } },
     select: { id: true },
   });
@@ -60,7 +65,7 @@ export async function pickInvestmentAssignee(
 
   // Count active tasks per qualified employee in Investment projects
   // (TODO, IN_PROGRESS, IN_REVIEW, WAITING)
-  const activeCounts = await prisma.task.groupBy({
+  const activeCounts = await db.task.groupBy({
     by: ["assigneeId"],
     where: {
       assigneeId: { in: qualifiedEmployeeIds },
@@ -103,9 +108,9 @@ export async function pickInvestmentAssignee(
 /**
  * Returns true if the given department ID belongs to Investment department.
  */
-export async function isInvestmentDepartment(departmentId: string | null | undefined): Promise<boolean> {
+export async function isInvestmentDepartment(departmentId: string | null | undefined, db: PrismaLike = prisma as unknown as PrismaLike): Promise<boolean> {
   if (!departmentId) return false;
-  const dept = await prisma.department.findUnique({
+  const dept = await db.department.findUnique({
     where: { id: departmentId },
     select: { name: true },
   });

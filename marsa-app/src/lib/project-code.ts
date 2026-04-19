@@ -25,6 +25,9 @@
 
 import type { PrismaClient } from "@/generated/prisma/client";
 
+/** Prisma client or transaction client — works for both */
+type PrismaLike = Omit<PrismaClient, "$on" | "$connect" | "$disconnect" | "$transaction" | "$extends">;
+
 export interface GenerateProjectCodeArgs {
   clientId: string;
   departmentId?: string | null;
@@ -48,7 +51,7 @@ export interface GenerateProjectCodeResult {
 }
 
 export async function generateProjectCode(
-  prisma: PrismaClient,
+  prisma: PrismaLike,
   args: GenerateProjectCodeArgs
 ): Promise<GenerateProjectCodeResult> {
   // ── Client number ──

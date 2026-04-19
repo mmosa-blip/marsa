@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { prismaDirect } from "@/lib/prisma-direct";
 import { can, PERMISSIONS, hasPermission } from "@/lib/permissions";
 import { createAuditLog, AuditModule } from "@/lib/audit";
 import type { WorkflowType, ProjectPriority, MilestoneStatus } from "@/generated/prisma/client";
@@ -144,148 +145,614 @@ export async function POST(request: Request) {
       partners?: { name: string; order?: number }[];
     };
 
-    // ── Auto-distribution from DepartmentAssignmentPool ─────────────────
-    // When a department pool is configured and the caller did not pass an
-    // explicit managerId, pick the next manager based on the pool mode:
-    //   • ROUND_ROBIN — the member with the oldest (or null) lastAssigned
-    //                   wins; their lastAssigned is bumped on success.
-    //   • ALL         — the first member (by `order`) becomes managerId
-    //                   and every other member is also added to every
-    //                   task via TaskAssignment upserts further down.
-    // If the caller passed managerId explicitly, we honour that and skip
-    // the pool entirely (admin override).
-    let resolvedManagerId: string = managerId || session.user.id;
-    let poolMode: "ROUND_ROBIN" | "ALL" | null = null;
-    let poolAllMemberIds: string[] = [];
-
-    if (!managerId && departmentId) {
-      const pool = await prisma.departmentAssignmentPool.findMany({
-        where: { departmentId },
-        orderBy: { order: "asc" },
-      });
-      if (pool.length > 0) {
-        const mode = pool[0].mode === "ALL" ? "ALL" : "ROUND_ROBIN";
-        poolMode = mode;
-        if (mode === "ALL") {
-          resolvedManagerId = pool[0].userId;
-          poolAllMemberIds = pool.map((p) => p.userId);
-        } else {
-          const sorted = [...pool].sort((a, b) => {
-            const at = a.lastAssigned?.getTime() ?? 0;
-            const bt = b.lastAssigned?.getTime() ?? 0;
-            return at - bt;
-          });
-          const next = sorted[0];
-          resolvedManagerId = next.userId;
-          await prisma.departmentAssignmentPool.update({
-            where: {
-              departmentId_userId: { departmentId, userId: next.userId },
-            },
-            data: { lastAssigned: new Date() },
-          });
-        }
-      }
-    }
-
-    // If contractId provided, extract totalAmount and installments from contract
-    let contractTotalPrice: number | null = null;
-    let contractInstallments: { title: string; amount: number; dueAfterDays: number | null; order: number }[] = [];
-    if (contractId) {
-      const contract = await prisma.contract.findUnique({
-        where: { id: contractId },
-        select: { variables: true, installments: { orderBy: { order: "asc" } } },
-      });
-      if (contract?.variables) {
-        try {
-          const vars = JSON.parse(contract.variables);
-          const amount = parseFloat(vars.totalAmount || vars.المبلغ_الإجمالي || vars.amount || vars.قيمة_العقد || "0");
-          if (amount > 0) contractTotalPrice = amount;
-        } catch {}
-      }
-      if (contract?.installments && contract.installments.length > 0) {
-        contractInstallments = contract.installments.map((inst) => ({
-          title: inst.title,
-          amount: inst.amount,
-          dueAfterDays: inst.dueAfterDays,
-          order: inst.order,
-        }));
-      }
-    }
-
     if (!name || !clientId) {
       return NextResponse.json({ error: "اسم المشروع والعميل مطلوبان" }, { status: 400 });
     }
 
-    // Generate the human-readable project code BEFORE either create branch.
-    // The same { code, seq } pair is injected into both the full and the
-    // legacy create paths so every new project gets a code consistently.
-    const { code: projectCode, seq: projectSeq } = await generateProjectCode(prisma, {
-      clientId,
-      departmentId,
-      contractId,
-    });
-
     // If services provided, create full project with services, tasks, requirements, and milestones
     if (services && services.length > 0) {
-      const now = new Date();
+      const result = await prismaDirect.$transaction(async (tx) => {
+        // ── Auto-distribution from DepartmentAssignmentPool ─────────────────
+        let resolvedManagerId: string = managerId || session.user.id;
+        let poolMode: "ROUND_ROBIN" | "ALL" | null = null;
+        let poolAllMemberIds: string[] = [];
 
-      // Calculate total duration and price
-      let calculatedPrice = 0;
-      let totalDuration = 0;
+        if (!managerId && departmentId) {
+          const pool = await tx.departmentAssignmentPool.findMany({
+            where: { departmentId },
+            orderBy: { order: "asc" },
+          });
+          if (pool.length > 0) {
+            const mode = pool[0].mode === "ALL" ? "ALL" : "ROUND_ROBIN";
+            poolMode = mode;
+            if (mode === "ALL") {
+              resolvedManagerId = pool[0].userId;
+              poolAllMemberIds = pool.map((p) => p.userId);
+            } else {
+              const sorted = [...pool].sort((a, b) => {
+                const at = a.lastAssigned?.getTime() ?? 0;
+                const bt = b.lastAssigned?.getTime() ?? 0;
+                return at - bt;
+              });
+              const next = sorted[0];
+              resolvedManagerId = next.userId;
+              await tx.departmentAssignmentPool.update({
+                where: {
+                  departmentId_userId: { departmentId, userId: next.userId },
+                },
+                data: { lastAssigned: new Date() },
+              });
+            }
+          }
+        }
 
-      // Fetch all service templates
-      const templateIds = services.map((s) => s.serviceTemplateId);
-      const serviceTemplates = await prisma.serviceTemplate.findMany({
-        where: { id: { in: templateIds } },
+        // If contractId provided, extract totalAmount and installments from contract
+        let contractTotalPrice: number | null = null;
+        let contractInstallments: { title: string; amount: number; dueAfterDays: number | null; order: number }[] = [];
+        if (contractId) {
+          const contract = await tx.contract.findUnique({
+            where: { id: contractId },
+            select: { variables: true, installments: { orderBy: { order: "asc" } } },
+          });
+          if (contract?.variables) {
+            try {
+              const vars = JSON.parse(contract.variables);
+              const amount = parseFloat(vars.totalAmount || vars.المبلغ_الإجمالي || vars.amount || vars.قيمة_العقد || "0");
+              if (amount > 0) contractTotalPrice = amount;
+            } catch {}
+          }
+          if (contract?.installments && contract.installments.length > 0) {
+            contractInstallments = contract.installments.map((inst) => ({
+              title: inst.title,
+              amount: inst.amount,
+              dueAfterDays: inst.dueAfterDays,
+              order: inst.order,
+            }));
+          }
+        }
+
+        // Generate the human-readable project code
+        const { code: projectCode, seq: projectSeq } = await generateProjectCode(tx, {
+          clientId,
+          departmentId,
+          contractId,
+        });
+
+        const now = new Date();
+
+        // Calculate total duration and price
+        let calculatedPrice = 0;
+        let totalDuration = 0;
+
+        // Fetch all service templates
+        const templateIds = services.map((s) => s.serviceTemplateId);
+        const serviceTemplates = await tx.serviceTemplate.findMany({
+          where: { id: { in: templateIds } },
+          include: {
+            category: true,
+            taskTemplates: { orderBy: { sortOrder: "asc" } },
+            qualifiedEmployees: true,
+          },
+        });
+
+        const templateMap = new Map(serviceTemplates.map(t => [t.id, t]));
+
+        // Get executors linked via UserService for each service
+        const serviceExecutors = await tx.userService.findMany({
+          where: { serviceId: { in: services.map(s => s.serviceTemplateId) } },
+          select: { userId: true, serviceId: true },
+        });
+        const executorMap = new Map<string, string[]>();
+        for (const se of serviceExecutors) {
+          if (!executorMap.has(se.serviceId)) executorMap.set(se.serviceId, []);
+          executorMap.get(se.serviceId)!.push(se.userId);
+        }
+
+        // Calculate durations
+        for (const svc of services) {
+          const tmpl = templateMap.get(svc.serviceTemplateId);
+          if (!tmpl) continue;
+          const svcDuration = tmpl.defaultDuration || tmpl.taskTemplates.reduce((s: number, t) => s + t.defaultDuration, 0);
+          calculatedPrice += svc.price || tmpl.defaultPrice || 0;
+
+          if (workflowType === "SEQUENTIAL") {
+            totalDuration += svcDuration;
+          } else {
+            totalDuration = Math.max(totalDuration, svcDuration);
+          }
+        }
+
+        const endDate = addWorkingDays(now, totalDuration);
+
+        // Create project
+        const project = await tx.project.create({
+          data: {
+            name,
+            description: description || null,
+            clientId,
+            managerId: resolvedManagerId,
+            workflowType: (workflowType || "SEQUENTIAL") as WorkflowType,
+            totalPrice: contractTotalPrice || totalPrice || calculatedPrice,
+            status: "ACTIVE",
+            priority: (priority || "MEDIUM") as ProjectPriority,
+            startDate: now,
+            endDate,
+            departmentId: departmentId || null,
+            contractId: contractId || null,
+            contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
+            contractDurationDays: contractDurationDays || null,
+            contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
+            projectCode,
+            projectSeq,
+          },
+        });
+
+        // Persist project partners
+        if (Array.isArray(partners) && partners.length > 0) {
+          for (let pi = 0; pi < partners.length; pi++) {
+            const p = partners[pi];
+            const pname = (p?.name || "").trim();
+            if (!pname) continue;
+            await tx.projectPartner.create({
+              data: {
+                projectId: project.id,
+                name: pname,
+                order: typeof p.order === "number" ? p.order : pi,
+              },
+            });
+          }
+        }
+
+        // ─── "Before project start" payment milestones ───
+        if (contractInstallments.length === 0 && paymentMilestones && paymentMilestones.length > 0) {
+          const beforeStartMilestones = paymentMilestones.filter((p) => p.afterServiceIndex === -1);
+          for (const pm of beforeStartMilestones) {
+            const company = await tx.company.findFirst();
+            let invoiceId: string | undefined;
+            if (company) {
+              const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-PM-PRE`;
+              const invoice = await tx.invoice.create({
+                data: {
+                  invoiceNumber,
+                  title: pm.title,
+                  subtotal: pm.amount,
+                  taxRate: 15,
+                  taxAmount: pm.amount * 0.15,
+                  totalAmount: pm.amount * 1.15,
+                  status: "DRAFT",
+                  dueDate: now,
+                  companyId: company.id,
+                  projectId: project.id,
+                  clientId,
+                  createdById: session.user.id,
+                },
+              });
+              invoiceId = invoice.id;
+            }
+            await tx.projectMilestone.create({
+              data: {
+                projectId: project.id,
+                title: pm.title,
+                type: "PAYMENT",
+                status: "LOCKED",
+                order: -1,
+                ...(invoiceId ? { invoiceId } : {}),
+              },
+            });
+          }
+        }
+
+        // ─── Create services, tasks, and milestones ───
+        let serviceStartDate = new Date(now);
+        let milestoneOrder = 0;
+        const createdServiceIds: string[] = [];
+
+        for (let si = 0; si < services.length; si++) {
+          const svcInput = services[si];
+          const tmpl = templateMap.get(svcInput.serviceTemplateId);
+          if (!tmpl) continue;
+
+          const svcDuration = tmpl.defaultDuration || tmpl.taskTemplates.reduce((s: number, t) => s + t.defaultDuration, 0);
+          const svcPrice = svcInput.price || tmpl.defaultPrice;
+
+          const serviceMode = svcInput.executionMode || "SEQUENTIAL";
+          const serviceIsBackground = svcInput.isBackground || false;
+          const service = await tx.service.create({
+            data: {
+              name: tmpl.name,
+              description: tmpl.description,
+              category: tmpl.category?.name || null,
+              price: svcPrice,
+              duration: svcDuration,
+              clientId,
+              projectId: project.id,
+              serviceTemplateId: svcInput.serviceTemplateId,
+              status: "IN_PROGRESS",
+              serviceOrder: si,
+              executionMode: serviceMode,
+              isBackground: serviceIsBackground,
+            },
+          });
+
+          createdServiceIds.push(service.id);
+
+          // Create SERVICE type milestone
+          await tx.projectMilestone.create({
+            data: {
+              projectId: project.id,
+              title: tmpl.name,
+              type: "SERVICE",
+              status: (si === 0 ? "IN_PROGRESS" : "LOCKED") as MilestoneStatus,
+              order: milestoneOrder++,
+              serviceId: service.id,
+            },
+          });
+
+          // Generate tasks from task templates
+          const taskTemplates = tmpl.taskTemplates;
+          const employees = tmpl.qualifiedEmployees;
+          let taskStartDate = new Date(serviceStartDate);
+
+          // Check if this is an Investment department project
+          const isInvestment = await isInvestmentDepartment(departmentId, tx);
+
+          // Map from TaskTemplate ID to created Task ID
+          const templateToTaskId = new Map<string, string>();
+
+          for (let idx = 0; idx < taskTemplates.length; idx++) {
+            const tt = taskTemplates[idx];
+
+            let startDate: Date;
+            if (tmpl.workflowType === "SEQUENTIAL") {
+              startDate = new Date(taskStartDate);
+            } else {
+              startDate = new Date(serviceStartDate);
+            }
+
+            const dueDate = addWorkingDays(startDate, tt.defaultDuration);
+
+            if (tmpl.workflowType === "SEQUENTIAL") {
+              taskStartDate = new Date(dueDate);
+            }
+
+            // Resolve dependency
+            const taskDependsOnId = tt.dependsOnId ? templateToTaskId.get(tt.dependsOnId) || null : null;
+
+            // Assignee selection
+            let assigneeId: string | null = null;
+            if (executorId) {
+              assigneeId = executorId;
+            } else if (poolMode === "ROUND_ROBIN") {
+              assigneeId = resolvedManagerId;
+            } else if (poolMode === "ALL") {
+              assigneeId = poolAllMemberIds[0] || resolvedManagerId;
+            } else if (isInvestment && employees.length > 0) {
+              assigneeId = await pickInvestmentAssignee({
+                projectId: project.id,
+                serviceId: service.id,
+                qualifiedEmployeeIds: employees.map((e) => e.userId),
+                fallbackIndex: idx,
+                db: tx,
+              });
+            } else {
+              assigneeId = employees.length > 0
+                ? employees[idx % employees.length].userId
+                : (executorMap.get(svcInput.serviceTemplateId)?.[0] || null);
+            }
+
+            const createdTask = await tx.task.create({
+              data: {
+                title: tt.name,
+                status: "TODO",
+                priority: "MEDIUM",
+                order: tt.sortOrder,
+                dueDate,
+                serviceId: service.id,
+                projectId: project.id,
+                taskTemplateId: tt.id,
+                assigneeId,
+                dependsOnId: taskDependsOnId,
+                executionMode: serviceMode,
+              },
+            });
+
+            templateToTaskId.set(tt.id, createdTask.id);
+
+            // Auto-assigned by the system → start immediately
+            if (createdTask.assigneeId) {
+              await tx.taskAssignment.upsert({
+                where: { taskId_userId: { taskId: createdTask.id, userId: createdTask.assigneeId } },
+                create: { taskId: createdTask.id, userId: createdTask.assigneeId },
+                update: {},
+              });
+              const now = new Date();
+              await tx.task.update({
+                where: { id: createdTask.id },
+                data: { assignedAt: now, acceptedAt: now, status: "IN_PROGRESS" },
+              });
+            }
+
+            // Pool ALL-mode co-assignments
+            if (poolMode === "ALL" && poolAllMemberIds.length > 0) {
+              for (const uid of poolAllMemberIds) {
+                if (uid === createdTask.assigneeId) continue;
+                await tx.taskAssignment.upsert({
+                  where: { taskId_userId: { taskId: createdTask.id, userId: uid } },
+                  create: { taskId: createdTask.id, userId: uid },
+                  update: {},
+                });
+              }
+            }
+          }
+
+          // ─── Create PAYMENT milestones after this service ───
+          if (contractInstallments.length === 0 && paymentMilestones && paymentMilestones.length > 0) {
+            const milestonesAfter = paymentMilestones.filter((p) => p.afterServiceIndex === si);
+            for (const pm of milestonesAfter) {
+              const company = await tx.company.findFirst();
+
+              if (company) {
+                const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-PM${milestoneOrder}`;
+                const invoice = await tx.invoice.create({
+                  data: {
+                    invoiceNumber,
+                    title: pm.title,
+                    subtotal: pm.amount,
+                    taxRate: 15,
+                    taxAmount: pm.amount * 0.15,
+                    totalAmount: pm.amount * 1.15,
+                    status: "DRAFT",
+                    dueDate: endDate,
+                    companyId: company.id,
+                    projectId: project.id,
+                    clientId,
+                    createdById: session.user.id,
+                  },
+                });
+
+                await tx.projectMilestone.create({
+                  data: {
+                    projectId: project.id,
+                    title: pm.title,
+                    type: "PAYMENT",
+                    status: "LOCKED",
+                    order: milestoneOrder++,
+                    invoiceId: invoice.id,
+                  },
+                });
+              } else {
+                await tx.projectMilestone.create({
+                  data: {
+                    projectId: project.id,
+                    title: pm.title,
+                    type: "PAYMENT",
+                    status: "LOCKED",
+                    order: milestoneOrder++,
+                  },
+                });
+              }
+            }
+          }
+
+          // Update service start for next service (SEQUENTIAL project workflow)
+          if (workflowType === "SEQUENTIAL") {
+            serviceStartDate = addWorkingDays(serviceStartDate, svcDuration);
+          }
+        }
+
+        // ─── Materialize paymentMilestones as ContractPaymentInstallment rows ───
+        if (
+          project.contractId &&
+          contractInstallments.length === 0 &&
+          paymentMilestones &&
+          paymentMilestones.length > 0
+        ) {
+          const projectServicesOrdered = await tx.service.findMany({
+            where: { projectId: project.id, deletedAt: null },
+            select: {
+              id: true,
+              tasks: {
+                select: { id: true },
+                orderBy: { order: "asc" },
+                take: 1,
+              },
+            },
+            orderBy: { serviceOrder: "asc" },
+          });
+
+          for (let pmi = 0; pmi < paymentMilestones.length; pmi++) {
+            const pm = paymentMilestones[pmi];
+            const nextService = projectServicesOrdered[pm.afterServiceIndex + 1];
+            const firstTaskOfNext = nextService?.tasks[0];
+
+            await tx.contractPaymentInstallment.create({
+              data: {
+                contractId: project.contractId,
+                title: pm.title,
+                amount: pm.amount,
+                order: pmi,
+                isLocked: true,
+                ...(firstTaskOfNext ? { linkedTaskId: firstTaskOfNext.id } : {}),
+              },
+            });
+          }
+        }
+
+        // ─── Create payment milestones from contract installments ───
+        if (contractInstallments.length > 0) {
+          for (let ci = 0; ci < contractInstallments.length; ci++) {
+            const inst = contractInstallments[ci];
+            const dueDate = inst.dueAfterDays
+              ? new Date(now.getTime() + inst.dueAfterDays * 24 * 60 * 60 * 1000)
+              : endDate;
+
+            const company = await tx.company.findFirst();
+            if (company) {
+              const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-CI${ci}`;
+              const invoice = await tx.invoice.create({
+                data: {
+                  invoiceNumber,
+                  title: inst.title,
+                  subtotal: inst.amount,
+                  taxRate: 15,
+                  taxAmount: inst.amount * 0.15,
+                  totalAmount: inst.amount * 1.15,
+                  status: "DRAFT",
+                  dueDate,
+                  companyId: company.id,
+                  projectId: project.id,
+                  clientId,
+                  createdById: session.user.id,
+                },
+              });
+
+              await tx.projectMilestone.create({
+                data: {
+                  projectId: project.id,
+                  title: inst.title,
+                  type: "PAYMENT",
+                  status: ci === 0 ? "UNLOCKED" : "LOCKED",
+                  order: milestoneOrder++,
+                  invoiceId: invoice.id,
+                },
+              });
+            } else {
+              await tx.projectMilestone.create({
+                data: {
+                  projectId: project.id,
+                  title: inst.title,
+                  type: "PAYMENT",
+                  status: ci === 0 ? "UNLOCKED" : "LOCKED",
+                  order: milestoneOrder++,
+                },
+              });
+            }
+          }
+        }
+
+        // Auto-assign unassigned tasks by matching UserService name
+        const allUserServices = await tx.userService.findMany({
+          include: { service: { select: { name: true } } },
+        });
+        const projectServices = await tx.service.findMany({
+          where: { projectId: project.id },
+          select: { id: true, name: true },
+        });
+        for (const us of allUserServices) {
+          const svcName = (us.service as { name: string } | null)?.name;
+          if (!svcName) continue;
+          const matchingIds = projectServices.filter((ps) => ps.name === svcName).map((ps) => ps.id);
+          if (matchingIds.length === 0) continue;
+          const unassignedTasks = await tx.task.findMany({
+            where: { serviceId: { in: matchingIds }, assigneeId: null },
+            select: { id: true },
+          });
+          if (unassignedTasks.length > 0) {
+            await tx.task.updateMany({
+              where: { id: { in: unassignedTasks.map((t) => t.id) } },
+              data: { assigneeId: us.userId, assignedAt: new Date() },
+            });
+            for (const task of unassignedTasks) {
+              await tx.taskAssignment.upsert({
+                where: { taskId_userId: { taskId: task.id, userId: us.userId } },
+                create: { taskId: task.id, userId: us.userId },
+                update: {},
+              });
+            }
+          }
+        }
+
+        return project;
+      }, {
+        timeout: 30000,
+        maxWait: 10000,
+      });
+
+      // Outside transaction: audit log (fire-and-forget)
+      createAuditLog({
+        userId: session.user.id, userName: session.user.name || undefined, userRole: session.user.role,
+        action: "PROJECT_CREATED", module: AuditModule.PROJECTS,
+        entityType: "Project", entityId: result.id, entityName: name,
+        after: { clientId, services: services?.length || 0, contractId: contractId || null },
+      });
+
+      // Outside transaction: final read (pooled client is fine for reads)
+      const fullProject = await prisma.project.findUnique({
+        where: { id: result.id },
         include: {
-          category: true,
-          taskTemplates: { orderBy: { sortOrder: "asc" } },
-          qualifiedEmployees: true,
+          client: { select: { id: true, name: true } },
+          services: { include: { tasks: { orderBy: { order: "asc" } } } },
+          milestones: { orderBy: { order: "asc" } },
+          _count: { select: { tasks: true, services: true } },
         },
       });
 
-      const templateMap = new Map(serviceTemplates.map(t => [t.id, t]));
+      return NextResponse.json(fullProject, { status: 201 });
+    }
 
-      // Get executors linked via UserService for each service
-      const serviceExecutors = await prisma.userService.findMany({
-        where: { serviceId: { in: services.map(s => s.serviceTemplateId) } },
-        select: { userId: true, serviceId: true },
-      });
-      const executorMap = new Map<string, string[]>();
-      for (const se of serviceExecutors) {
-        if (!executorMap.has(se.serviceId)) executorMap.set(se.serviceId, []);
-        executorMap.get(se.serviceId)!.push(se.userId);
-      }
+    // ── Simple project creation (legacy) — wrapped in its own transaction ──
+    const legacyResult = await prismaDirect.$transaction(async (tx) => {
+      // Pool resolution for legacy path
+      let resolvedManagerId: string = managerId || session.user.id;
 
-      // Calculate durations
-      for (const svc of services) {
-        const tmpl = templateMap.get(svc.serviceTemplateId);
-        if (!tmpl) continue;
-        const svcDuration = tmpl.defaultDuration || tmpl.taskTemplates.reduce((s: number, t) => s + t.defaultDuration, 0);
-        calculatedPrice += svc.price || tmpl.defaultPrice || 0;
-
-        if (workflowType === "SEQUENTIAL") {
-          totalDuration += svcDuration;
-        } else {
-          totalDuration = Math.max(totalDuration, svcDuration);
+      if (!managerId && departmentId) {
+        const pool = await tx.departmentAssignmentPool.findMany({
+          where: { departmentId },
+          orderBy: { order: "asc" },
+        });
+        if (pool.length > 0) {
+          const mode = pool[0].mode === "ALL" ? "ALL" : "ROUND_ROBIN";
+          if (mode === "ALL") {
+            resolvedManagerId = pool[0].userId;
+          } else {
+            const sorted = [...pool].sort((a, b) => {
+              const at = a.lastAssigned?.getTime() ?? 0;
+              const bt = b.lastAssigned?.getTime() ?? 0;
+              return at - bt;
+            });
+            const next = sorted[0];
+            resolvedManagerId = next.userId;
+            await tx.departmentAssignmentPool.update({
+              where: {
+                departmentId_userId: { departmentId, userId: next.userId },
+              },
+              data: { lastAssigned: new Date() },
+            });
+          }
         }
       }
 
-      const endDate = addWorkingDays(now, totalDuration);
+      // Contract total price for legacy path
+      let contractTotalPrice: number | null = null;
+      if (contractId) {
+        const contract = await tx.contract.findUnique({
+          where: { id: contractId },
+          select: { variables: true },
+        });
+        if (contract?.variables) {
+          try {
+            const vars = JSON.parse(contract.variables);
+            const amount = parseFloat(vars.totalAmount || vars.المبلغ_الإجمالي || vars.amount || vars.قيمة_العقد || "0");
+            if (amount > 0) contractTotalPrice = amount;
+          } catch {}
+        }
+      }
 
-      // Create project
-      const project = await prisma.project.create({
+      const { code: projectCode, seq: projectSeq } = await generateProjectCode(tx, {
+        clientId,
+        departmentId,
+        contractId,
+      });
+
+      const project = await tx.project.create({
         data: {
           name,
           description: description || null,
           clientId,
           managerId: resolvedManagerId,
-          workflowType: (workflowType || "SEQUENTIAL") as WorkflowType,
-          totalPrice: contractTotalPrice || totalPrice || calculatedPrice,
-          status: "ACTIVE",
           priority: (priority || "MEDIUM") as ProjectPriority,
-          startDate: now,
-          endDate,
+          workflowType: (workflowType || "SEQUENTIAL") as WorkflowType,
+          totalPrice: contractTotalPrice || totalPrice || null,
           departmentId: departmentId || null,
           contractId: contractId || null,
           contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
@@ -296,494 +763,29 @@ export async function POST(request: Request) {
         },
       });
 
-      // Persist project partners (mapped from wizard step 3). Extra rows
-      // get a monotonic order index so the documents page can render them
-      // in the same sequence the user entered them.
-      if (Array.isArray(partners) && partners.length > 0) {
-        for (let pi = 0; pi < partners.length; pi++) {
-          const p = partners[pi];
-          const pname = (p?.name || "").trim();
-          if (!pname) continue;
-          await prisma.projectPartner.create({
-            data: {
-              projectId: project.id,
-              name: pname,
-              order: typeof p.order === "number" ? p.order : pi,
-            },
-          });
-        }
-      }
+      return project;
+    }, {
+      timeout: 10000,
+    });
 
-      // ─── "Before project start" payment milestones ───
-      // Milestones with afterServiceIndex === -1 are paid *before* any
-      // task runs. They used to vanish because the per-service filter
-      // below only matched afterServiceIndex === si for si >= 0. We
-      // materialise them here as ProjectMilestone(type=PAYMENT,
-      // order=-1) so the project detail timeline can render them above
-      // the first service. The matching ContractPaymentInstallment is
-      // still created later in the dedicated block (which locks the
-      // first task of the very first service via linkedTaskId).
-      if (contractInstallments.length === 0 && paymentMilestones && paymentMilestones.length > 0) {
-        const beforeStartMilestones = paymentMilestones.filter((p) => p.afterServiceIndex === -1);
-        for (const pm of beforeStartMilestones) {
-          const company = await prisma.company.findFirst();
-          let invoiceId: string | undefined;
-          if (company) {
-            const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-PM-PRE`;
-            const invoice = await prisma.invoice.create({
-              data: {
-                invoiceNumber,
-                title: pm.title,
-                subtotal: pm.amount,
-                taxRate: 15,
-                taxAmount: pm.amount * 0.15,
-                totalAmount: pm.amount * 1.15,
-                status: "DRAFT",
-                dueDate: now,
-                companyId: company.id,
-                projectId: project.id,
-                clientId,
-                createdById: session.user.id,
-              },
-            });
-            invoiceId = invoice.id;
-          }
-          await prisma.projectMilestone.create({
-            data: {
-              projectId: project.id,
-              title: pm.title,
-              type: "PAYMENT",
-              status: "LOCKED",
-              order: -1,
-              ...(invoiceId ? { invoiceId } : {}),
-            },
-          });
-        }
-      }
+    // Outside transaction: audit log
+    createAuditLog({
+      userId: session.user.id, userName: session.user.name || undefined, userRole: session.user.role,
+      action: "PROJECT_CREATED", module: AuditModule.PROJECTS,
+      entityType: "Project", entityId: legacyResult.id, entityName: name,
+      after: { clientId, contractId: contractId || null },
+    });
 
-      // ─── Create services, tasks, and milestones ───
-      let serviceStartDate = new Date(now);
-      let milestoneOrder = 0;
-      const createdServiceIds: string[] = [];
-
-      for (let si = 0; si < services.length; si++) {
-        const svcInput = services[si];
-        const tmpl = templateMap.get(svcInput.serviceTemplateId);
-        if (!tmpl) continue;
-
-        const svcDuration = tmpl.defaultDuration || tmpl.taskTemplates.reduce((s: number, t) => s + t.defaultDuration, 0);
-        const svcPrice = svcInput.price || tmpl.defaultPrice;
-
-        // Create Service. serviceOrder MUST be set explicitly — leaving it
-        // at the schema default (0) makes every service in the project share
-        // the same value, which breaks the deterministic ordering that
-        // computeCanStart relies on for the "previous service done" gate.
-        // executionMode comes from the wizard's per-service toggle and is
-        // also propagated down to every Task in this service so the
-        // existing computeCanStart (which reads task.executionMode) honors
-        // it without an extra nested join.
-        const serviceMode = svcInput.executionMode || "SEQUENTIAL";
-        const serviceIsBackground = svcInput.isBackground || false;
-        const service = await prisma.service.create({
-          data: {
-            name: tmpl.name,
-            description: tmpl.description,
-            category: tmpl.category?.name || null,
-            price: svcPrice,
-            duration: svcDuration,
-            clientId,
-            projectId: project.id,
-            serviceTemplateId: svcInput.serviceTemplateId,
-            status: "IN_PROGRESS",
-            serviceOrder: si,
-            executionMode: serviceMode,
-            isBackground: serviceIsBackground,
-          },
-        });
-
-        createdServiceIds.push(service.id);
-
-        // Create SERVICE type milestone
-        await prisma.projectMilestone.create({
-          data: {
-            projectId: project.id,
-            title: tmpl.name,
-            type: "SERVICE",
-            status: (si === 0 ? "IN_PROGRESS" : "LOCKED") as MilestoneStatus,
-            order: milestoneOrder++,
-            serviceId: service.id,
-          },
-        });
-
-        // Generate tasks from task templates (one by one for dependency linking)
-        const taskTemplates = tmpl.taskTemplates;
-        const employees = tmpl.qualifiedEmployees;
-        let taskStartDate = new Date(serviceStartDate);
-
-        // Check if this is an Investment department project — different assignment logic
-        const isInvestment = await isInvestmentDepartment(departmentId);
-
-        // Map from TaskTemplate ID to created Task ID
-        const templateToTaskId = new Map<string, string>();
-
-        for (let idx = 0; idx < taskTemplates.length; idx++) {
-          const tt = taskTemplates[idx];
-
-          let startDate: Date;
-          if (tmpl.workflowType === "SEQUENTIAL") {
-            startDate = new Date(taskStartDate);
-          } else {
-            startDate = new Date(serviceStartDate);
-          }
-
-          const dueDate = addWorkingDays(startDate, tt.defaultDuration);
-
-          if (tmpl.workflowType === "SEQUENTIAL") {
-            taskStartDate = new Date(dueDate);
-          }
-
-          // Resolve dependency: map TaskTemplate.dependsOnId to the created Task ID
-          const taskDependsOnId = tt.dependsOnId ? templateToTaskId.get(tt.dependsOnId) || null : null;
-
-          // Assignee selection — depends on the pool mode:
-          //   ROUND_ROBIN: the single executor picked by the pool gets
-          //                ALL tasks (resolvedManagerId). No distribution
-          //                across qualifiedEmployees.
-          //   ALL:         first pool member is primary assignee, the
-          //                rest get TaskAssignment rows (handled below).
-          //   no pool:     Investment → pickInvestmentAssignee,
-          //                others → qualifiedEmployees round-robin.
-          let assigneeId: string | null = null;
-          if (executorId) {
-            // Explicit executor override from the wizard — bypasses
-            // pool logic and qualifiedEmployees entirely.
-            assigneeId = executorId;
-          } else if (poolMode === "ROUND_ROBIN") {
-            assigneeId = resolvedManagerId;
-          } else if (poolMode === "ALL") {
-            assigneeId = poolAllMemberIds[0] || resolvedManagerId;
-          } else if (isInvestment && employees.length > 0) {
-            assigneeId = await pickInvestmentAssignee({
-              projectId: project.id,
-              serviceId: service.id,
-              qualifiedEmployeeIds: employees.map((e) => e.userId),
-              fallbackIndex: idx,
-            });
-          } else {
-            assigneeId = employees.length > 0
-              ? employees[idx % employees.length].userId
-              : (executorMap.get(svcInput.serviceTemplateId)?.[0] || null);
-          }
-
-          const createdTask = await prisma.task.create({
-            data: {
-              title: tt.name,
-              status: "TODO",
-              priority: "MEDIUM",
-              order: tt.sortOrder,
-              dueDate,
-              serviceId: service.id,
-              projectId: project.id,
-              taskTemplateId: tt.id,
-              assigneeId,
-              dependsOnId: taskDependsOnId,
-              // Inherit the service's executionMode so computeCanStart's
-              // per-task lookup honors the wizard's per-service toggle
-              // without an extra join through Service.
-              executionMode: serviceMode,
-            },
-          });
-
-          templateToTaskId.set(tt.id, createdTask.id);
-
-          // Auto-assigned by the system → start immediately, no acceptance step
-          if (createdTask.assigneeId) {
-            await prisma.taskAssignment.upsert({
-              where: { taskId_userId: { taskId: createdTask.id, userId: createdTask.assigneeId } },
-              create: { taskId: createdTask.id, userId: createdTask.assigneeId },
-              update: {},
-            });
-            const now = new Date();
-            await prisma.task.update({
-              where: { id: createdTask.id },
-              data: { assignedAt: now, acceptedAt: now, status: "IN_PROGRESS" },
-            });
-          }
-
-          // Pool ALL-mode: every task is also co-assigned to every other
-          // member of the department pool via TaskAssignment upserts so
-          // they can see/act on it. The primary assigneeId stays on the
-          // task row for dashboards / round-robin visibility, but all
-          // pool members get a row in TaskAssignment.
-          if (poolMode === "ALL" && poolAllMemberIds.length > 0) {
-            for (const uid of poolAllMemberIds) {
-              if (uid === createdTask.assigneeId) continue;
-              await prisma.taskAssignment.upsert({
-                where: { taskId_userId: { taskId: createdTask.id, userId: uid } },
-                create: { taskId: createdTask.id, userId: uid },
-                update: {},
-              });
-            }
-          }
-        }
-
-        // ─── Create PAYMENT milestones after this service (only if no contract installments) ───
-        if (contractInstallments.length === 0 && paymentMilestones && paymentMilestones.length > 0) {
-          const milestonesAfter = paymentMilestones.filter((p) => p.afterServiceIndex === si);
-          for (const pm of milestonesAfter) {
-            // Create invoice for the payment milestone
-            // Find a company for the invoice (use first company or create placeholder)
-            const company = await prisma.company.findFirst();
-
-            if (company) {
-              const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-PM${milestoneOrder}`;
-              const invoice = await prisma.invoice.create({
-                data: {
-                  invoiceNumber,
-                  title: pm.title,
-                  subtotal: pm.amount,
-                  taxRate: 15,
-                  taxAmount: pm.amount * 0.15,
-                  totalAmount: pm.amount * 1.15,
-                  status: "DRAFT",
-                  dueDate: endDate,
-                  companyId: company.id,
-                  projectId: project.id,
-                  clientId,
-                  createdById: session.user.id,
-                },
-              });
-
-              await prisma.projectMilestone.create({
-                data: {
-                  projectId: project.id,
-                  title: pm.title,
-                  type: "PAYMENT",
-                  status: "LOCKED",
-                  order: milestoneOrder++,
-                  invoiceId: invoice.id,
-                },
-              });
-            } else {
-              // No company found, create milestone without invoice
-              await prisma.projectMilestone.create({
-                data: {
-                  projectId: project.id,
-                  title: pm.title,
-                  type: "PAYMENT",
-                  status: "LOCKED",
-                  order: milestoneOrder++,
-                },
-              });
-            }
-          }
-        }
-
-        // Update service start for next service (SEQUENTIAL project workflow)
-        if (workflowType === "SEQUENTIAL") {
-          serviceStartDate = addWorkingDays(serviceStartDate, svcDuration);
-        }
-      }
-
-      // ─── Materialize paymentMilestones as ContractPaymentInstallment rows
-      //     linked to the first task of the NEXT service. This is what
-      //     activates task-level locking: a locked installment locks the
-      //     task it's linked to via Task.linkedInstallment, and unlocking
-      //     happens when finance marks the installment paid.
-      //
-      //     Skipped when:
-      //       - the project has no contract (contractId is null) — the
-      //         installment FK requires a contract
-      //       - the contract already shipped its own installments (those
-      //         take precedence and are wired separately below)
-      //
-      //     Pre-existing ProjectMilestone(type=PAYMENT) + Invoice rows
-      //     created in the per-service loop above are kept untouched for
-      //     backwards compatibility with the cashier/invoice screens.
-      if (
-        project.contractId &&
-        contractInstallments.length === 0 &&
-        paymentMilestones &&
-        paymentMilestones.length > 0
-      ) {
-        // Re-fetch services with their first task (lowest order) so we can
-        // map each milestone's afterServiceIndex → next service → first task.
-        const projectServicesOrdered = await prisma.service.findMany({
-          where: { projectId: project.id, deletedAt: null },
-          select: {
-            id: true,
-            tasks: {
-              select: { id: true },
-              orderBy: { order: "asc" },
-              take: 1,
-            },
-          },
-          orderBy: { serviceOrder: "asc" },
-        });
-
-        for (let pmi = 0; pmi < paymentMilestones.length; pmi++) {
-          const pm = paymentMilestones[pmi];
-          // afterServiceIndex semantics:
-          //   -1  → milestone is paid BEFORE the project starts; locks
-          //         the first task of the very first service
-          //   >=0 → milestone is paid AFTER service[afterServiceIndex];
-          //         locks the first task of service[afterServiceIndex+1]
-          // Both cases collapse to projectServicesOrdered[afterServiceIndex+1].
-          const nextService = projectServicesOrdered[pm.afterServiceIndex + 1];
-          const firstTaskOfNext = nextService?.tasks[0];
-
-          await prisma.contractPaymentInstallment.create({
-            data: {
-              contractId: project.contractId,
-              title: pm.title,
-              amount: pm.amount,
-              order: pmi,
-              isLocked: true,
-              // Link directly at creation when there's a successor task —
-              // this is the bridge that makes Task.linkedInstallment work.
-              ...(firstTaskOfNext ? { linkedTaskId: firstTaskOfNext.id } : {}),
-            },
-          });
-        }
-      }
-
-      // ─── Create payment milestones from contract installments (replaces manual milestones) ───
-      if (contractInstallments.length > 0) {
-        for (let ci = 0; ci < contractInstallments.length; ci++) {
-          const inst = contractInstallments[ci];
-          const dueDate = inst.dueAfterDays
-            ? new Date(now.getTime() + inst.dueAfterDays * 24 * 60 * 60 * 1000)
-            : endDate;
-
-          const company = await prisma.company.findFirst();
-          if (company) {
-            const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-CI${ci}`;
-            const invoice = await prisma.invoice.create({
-              data: {
-                invoiceNumber,
-                title: inst.title,
-                subtotal: inst.amount,
-                taxRate: 15,
-                taxAmount: inst.amount * 0.15,
-                totalAmount: inst.amount * 1.15,
-                status: "DRAFT",
-                dueDate,
-                companyId: company.id,
-                projectId: project.id,
-                clientId,
-                createdById: session.user.id,
-              },
-            });
-
-            await prisma.projectMilestone.create({
-              data: {
-                projectId: project.id,
-                title: inst.title,
-                type: "PAYMENT",
-                status: ci === 0 ? "UNLOCKED" : "LOCKED",
-                order: milestoneOrder++,
-                invoiceId: invoice.id,
-              },
-            });
-          } else {
-            await prisma.projectMilestone.create({
-              data: {
-                projectId: project.id,
-                title: inst.title,
-                type: "PAYMENT",
-                status: ci === 0 ? "UNLOCKED" : "LOCKED",
-                order: milestoneOrder++,
-              },
-            });
-          }
-        }
-      }
-
-      // Auto-assign unassigned tasks by matching UserService name
-      const allUserServices = await prisma.userService.findMany({
-        include: { service: { select: { name: true } } },
-      });
-      const projectServices = await prisma.service.findMany({
-        where: { projectId: project.id },
-        select: { id: true, name: true },
-      });
-      for (const us of allUserServices) {
-        const svcName = (us.service as { name: string } | null)?.name;
-        if (!svcName) continue;
-        const matchingIds = projectServices.filter((ps) => ps.name === svcName).map((ps) => ps.id);
-        if (matchingIds.length === 0) continue;
-        const unassignedTasks = await prisma.task.findMany({
-          where: { serviceId: { in: matchingIds }, assigneeId: null },
-          select: { id: true },
-        });
-        if (unassignedTasks.length > 0) {
-          await prisma.task.updateMany({
-            where: { id: { in: unassignedTasks.map((t) => t.id) } },
-            data: { assigneeId: us.userId, assignedAt: new Date() },
-          });
-          for (const task of unassignedTasks) {
-            await prisma.taskAssignment.upsert({
-              where: { taskId_userId: { taskId: task.id, userId: us.userId } },
-              create: { taskId: task.id, userId: us.userId },
-              update: {},
-            });
-          }
-        }
-      }
-
-      // Return full project
-      const fullProject = await prisma.project.findUnique({
-        where: { id: project.id },
-        include: {
-          client: { select: { id: true, name: true } },
-          services: { include: { tasks: { orderBy: { order: "asc" } } } },
-          milestones: { orderBy: { order: "asc" } },
-          _count: { select: { tasks: true, services: true } },
-        },
-      });
-
-      createAuditLog({
-        userId: session.user.id, userName: session.user.name || undefined, userRole: session.user.role,
-        action: "PROJECT_CREATED", module: AuditModule.PROJECTS,
-        entityType: "Project", entityId: project.id, entityName: name,
-        after: { clientId, services: services?.length || 0, contractId: contractId || null },
-      });
-
-      return NextResponse.json(fullProject, { status: 201 });
-    }
-
-    // Simple project creation (legacy)
-    const project = await prisma.project.create({
-      data: {
-        name,
-        description: description || null,
-        clientId,
-        managerId: resolvedManagerId,
-        priority: (priority || "MEDIUM") as ProjectPriority,
-        workflowType: (workflowType || "SEQUENTIAL") as WorkflowType,
-        totalPrice: contractTotalPrice || totalPrice || null,
-        departmentId: departmentId || null,
-        contractId: contractId || null,
-        contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
-        contractDurationDays: contractDurationDays || null,
-        contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
-        projectCode,
-        projectSeq,
-      },
+    // Re-fetch with relations for the response
+    const legacyProject = await prisma.project.findUnique({
+      where: { id: legacyResult.id },
       include: {
         client: { select: { id: true, name: true } },
         manager: { select: { id: true, name: true } },
       },
     });
 
-    createAuditLog({
-      userId: session.user.id, userName: session.user.name || undefined, userRole: session.user.role,
-      action: "PROJECT_CREATED", module: AuditModule.PROJECTS,
-      entityType: "Project", entityId: project.id, entityName: name,
-      after: { clientId, contractId: contractId || null },
-    });
-
-    return NextResponse.json(project, { status: 201 });
+    return NextResponse.json(legacyProject, { status: 201 });
   } catch (error) {
     console.error("Error creating project:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
