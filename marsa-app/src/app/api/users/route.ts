@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
         ownedCompanies: { select: { name: true } },
         specialization: true,
         isExternal: true,
+        supervisorUserId: true,
       },
       orderBy: { createdAt: "desc" },
     });

@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import {
   ArrowRight, UserCog, User, Mail, Phone, Lock, Save, Loader2,
   Briefcase, Building2, CreditCard, DollarSign, Wrench,
+  Users, Plus, X,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 
@@ -38,6 +39,12 @@ export default function EditUserPage() {
   const [error, setError] = useState("");
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
   const [branchManagers, setBranchManagers] = useState<{ id: string; name: string }[]>([]);
+
+  // Branch Manager team management
+  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string; phone: string }[]>([]);
+  const [availableExecutors, setAvailableExecutors] = useState<{ id: string; name: string; phone: string }[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [addingExecutor, setAddingExecutor] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -85,6 +92,71 @@ export default function EditUserPage() {
         setLoading(false);
       });
   }, [userId]);
+
+  // Fetch team members and available executors for BRANCH_MANAGER
+  const fetchTeamData = () => {
+    if (form.role !== "BRANCH_MANAGER") return;
+    setTeamLoading(true);
+    // Fetch subordinates (executors assigned to this manager)
+    Promise.all([
+      fetch(`/api/users?role=EXECUTOR`).then((r) => r.json()),
+    ])
+      .then(([allExecs]) => {
+        const execList = Array.isArray(allExecs) ? allExecs : allExecs.users || [];
+        const assigned = execList.filter((e: { supervisorUserId?: string }) => e.supervisorUserId === userId);
+        const available = execList.filter(
+          (e: { supervisorUserId?: string | null }) => !e.supervisorUserId || e.supervisorUserId === ""
+        );
+        setTeamMembers(assigned.map((e: { id: string; name: string; phone?: string }) => ({ id: e.id, name: e.name, phone: e.phone || "" })));
+        setAvailableExecutors(available.map((e: { id: string; name: string; phone?: string }) => ({ id: e.id, name: e.name, phone: e.phone || "" })));
+      })
+      .catch(() => {})
+      .finally(() => setTeamLoading(false));
+  };
+
+  useEffect(() => {
+    if (form.role === "BRANCH_MANAGER" && !loading) {
+      fetchTeamData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.role, loading]);
+
+  const handleAddToTeam = async (executorId: string) => {
+    setTeamLoading(true);
+    try {
+      const res = await fetch(`/api/users/${executorId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supervisorUserId: userId }),
+      });
+      if (res.ok) {
+        fetchTeamData();
+        setAddingExecutor("");
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
+  const handleRemoveFromTeam = async (executorId: string) => {
+    setTeamLoading(true);
+    try {
+      const res = await fetch(`/api/users/${executorId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supervisorUserId: null }),
+      });
+      if (res.ok) {
+        fetchTeamData();
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setTeamLoading(false);
+    }
+  };
 
   // Fetch branch managers for EXECUTOR users
   useEffect(() => {
@@ -507,6 +579,92 @@ export default function EditUserPage() {
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
+          </div>
+        )}
+
+        {/* BRANCH_MANAGER: Team management */}
+        {form.role === "BRANCH_MANAGER" && (
+          <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-bold flex items-center gap-2" style={{ color: "#1C1B2E" }}>
+                <Users size={18} style={{ color: "#C9A84C" }} />
+                فريق المدير
+              </h2>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: "rgba(201,168,76,0.15)", color: "#C9A84C" }}>
+                {teamMembers.length} منفذ
+              </span>
+            </div>
+
+            {/* Add executor */}
+            <div className="flex items-center gap-2 mb-4">
+              <select
+                value={addingExecutor}
+                onChange={(e) => setAddingExecutor(e.target.value)}
+                className="flex-1 px-4 py-3 rounded-xl text-sm outline-none cursor-pointer"
+                style={{ border: "1px solid #E2E0D8", color: "#2D3748", backgroundColor: "#FAFAFE" }}
+                disabled={teamLoading}
+              >
+                <option value="">اختر منفذاً لإضافته...</option>
+                {availableExecutors.map((e) => (
+                  <option key={e.id} value={e.id}>{e.name} {e.phone ? `(${e.phone})` : ""}</option>
+                ))}
+              </select>
+              <MarsaButton
+                type="button"
+                variant="primary"
+                size="md"
+                icon={<Plus size={16} />}
+                disabled={!addingExecutor || teamLoading}
+                onClick={() => handleAddToTeam(addingExecutor)}
+              >
+                إضافة
+              </MarsaButton>
+            </div>
+
+            {availableExecutors.length === 0 && teamMembers.length === 0 && !teamLoading && (
+              <p className="text-sm text-center py-4" style={{ color: "#6B7280" }}>
+                لا يوجد منفذين في النظام
+              </p>
+            )}
+
+            {/* Team list */}
+            {teamLoading && teamMembers.length === 0 ? (
+              <div className="flex justify-center py-6">
+                <Loader2 size={24} className="animate-spin" style={{ color: "#C9A84C" }} />
+              </div>
+            ) : teamMembers.length > 0 ? (
+              <div className="space-y-2">
+                {teamMembers.map((member) => (
+                  <div
+                    key={member.id}
+                    className="flex items-center justify-between p-3 rounded-xl transition-colors"
+                    style={{ backgroundColor: "#FAFAFE", border: "1px solid #E2E0D8" }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: "rgba(94,84,149,0.1)" }}>
+                        <User size={16} style={{ color: "#5E5495" }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: "#1C1B2E" }}>{member.name}</p>
+                        {member.phone && (
+                          <p className="text-xs" style={{ color: "#6B7280" }} dir="ltr">{member.phone}</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromTeam(member.id)}
+                      disabled={teamLoading}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-red-50"
+                      style={{ color: "#DC2626" }}
+                      title="إزالة من الفريق"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         )}
 
