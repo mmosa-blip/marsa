@@ -174,7 +174,7 @@ async function getAdminStats() {
     executors,
     allProjectsWithTasks,
   ] = await Promise.all([
-    prisma.user.count({ where: { role: "CLIENT" } }),
+    prisma.user.count({ where: { role: "CLIENT", deletedAt: null, isActive: true } }),
     prisma.project.count({ where: { deletedAt: null } }),
     prisma.project.count({ where: { status: "ACTIVE", deletedAt: null } }),
     prisma.task.findMany({ select: { status: true } }),
@@ -192,7 +192,7 @@ async function getAdminStats() {
       take: 5,
     }),
     prisma.user.findMany({
-      where: { role: "EXECUTOR" },
+      where: { role: "EXECUTOR", deletedAt: null, isActive: true },
       select: {
         id: true,
         name: true,
