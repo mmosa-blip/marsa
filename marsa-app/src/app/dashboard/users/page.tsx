@@ -496,7 +496,7 @@ export default function UsersPage() {
             {/* Link to full edit page for BRANCH_MANAGER team management */}
             {editForm.role === "BRANCH_MANAGER" && (
               <Link
-                href={`/dashboard/users/${editingUser}/edit`}
+                href={`/dashboard/users/${editingUser.id}/edit`}
                 className="flex items-center gap-2 mt-4 px-4 py-3 rounded-xl text-sm font-semibold transition-colors hover:opacity-90"
                 style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C", border: "1px solid rgba(201,168,76,0.25)" }}
               >
@@ -508,7 +508,7 @@ export default function UsersPage() {
             {/* Link to full edit page for EXECUTOR branch manager assignment */}
             {editForm.role === "EXECUTOR" && (
               <Link
-                href={`/dashboard/users/${editingUser}/edit`}
+                href={`/dashboard/users/${editingUser.id}/edit`}
                 className="flex items-center gap-2 mt-4 px-4 py-3 rounded-xl text-sm font-semibold transition-colors hover:opacity-90"
                 style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495", border: "1px solid rgba(94,84,149,0.2)" }}
               >
