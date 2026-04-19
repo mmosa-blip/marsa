@@ -7,7 +7,8 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "npx tsx prisma/seed.ts"
+    "seed": "npx tsx prisma/seed.ts",
+    "backup": "tsx scripts/backup.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -42,6 +43,7 @@
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.2",
     "recharts": "^3.8.0",
+    "resend": "^6.12.0",
     "shadcn": "^4.0.1",
     "signature_pad": "^5.1.3",
     "tailwind-merge": "^3.5.0",
