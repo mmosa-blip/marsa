@@ -18,6 +18,7 @@ interface UserItem {
 // rest of the roles in descending operational relevance.
 const roleConfig: Record<string, { label: string; color: string; bg: string; icon: typeof User }> = {
   EXECUTOR:          { label: "منفذ",           color: "#059669", bg: "#ECFDF5", icon: Wrench },
+  BRANCH_MANAGER:    { label: "مدير فرع",       color: "#92400E", bg: "#FEF3C7", icon: Shield },
   EXTERNAL_PROVIDER: { label: "مورد",            color: "#D97706", bg: "#FFF7ED", icon: Briefcase },
   MANAGER:           { label: "مدير",           color: "#7C3AED", bg: "#F5F3FF", icon: Shield },
   ADMIN:             { label: "مدير النظام",    color: "#DC2626", bg: "#FEF2F2", icon: Shield },
