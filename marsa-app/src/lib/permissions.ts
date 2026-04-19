@@ -88,6 +88,7 @@ export const DEFAULT_EXECUTOR_PERMISSIONS = [
   "tasks.update_status",
   "tasks.transfer",
   "projects.view",
+  "projects.create",
   "clients.view",
   "tickets.view",
 ];
