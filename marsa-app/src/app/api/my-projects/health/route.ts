@@ -78,7 +78,6 @@ export async function GET() {
         OR: [
           { assigneeId: userId },
           { assignments: { some: { userId } } },
-          { service: { executors: { some: { userId } } } },
         ],
       };
       const assignedProjects = await prisma.task.findMany({
