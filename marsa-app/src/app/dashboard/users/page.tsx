@@ -27,6 +27,7 @@ const roleConfig: Record<string, { label: string; bg: string; text: string }> = 
   FINANCE_MANAGER: { label: "مدير مالي", bg: "#ECFDF5", text: "#059669" },
   TREASURY_MANAGER: { label: "أمين صندوق", bg: "#F5F3FF", text: "#7C3AED" },
   EXECUTOR: { label: "منفذ", bg: "#FFF7ED", text: "#EA580C" },
+  BRANCH_MANAGER: { label: "مدير فرع", bg: "#FEF3C7", text: "#92400E" },
   CLIENT: { label: "عميل", bg: "#ECFDF5", text: "#059669" },
   EXTERNAL_PROVIDER: { label: "مقدم خدمة خارجي", bg: "#FDF2F8", text: "#DB2777" },
 };
@@ -471,6 +472,7 @@ export default function UsersPage() {
                     <option value="FINANCE_MANAGER">مدير مالي</option>
                     <option value="TREASURY_MANAGER">أمين صندوق</option>
                     <option value="EXECUTOR">منفذ</option>
+                    <option value="BRANCH_MANAGER">مدير فرع</option>
                     <option value="CLIENT">عميل</option>
                     <option value="EXTERNAL_PROVIDER">مقدم خدمة خارجي</option>
                   </select>
