@@ -92,6 +92,14 @@ export const DEFAULT_EXECUTOR_PERMISSIONS = [
   "tickets.view",
 ];
 
+export const DEFAULT_BRANCH_MANAGER_PERMISSIONS = [
+  "projects.view",
+  "tasks.view",
+  "users.view",
+  "clients.view",
+  "tickets.view",
+];
+
 export const DEFAULT_MANAGER_PERMISSIONS = [
   "projects.view", "projects.create", "projects.edit",
   "contracts.view", "contracts.create", "contracts.approve",
@@ -114,6 +122,8 @@ export async function assignDefaultPermissions(
     defaultKeys = DEFAULT_EXECUTOR_PERMISSIONS;
   } else if (role === "MANAGER") {
     defaultKeys = DEFAULT_MANAGER_PERMISSIONS;
+  } else if (role === "BRANCH_MANAGER") {
+    defaultKeys = DEFAULT_BRANCH_MANAGER_PERMISSIONS;
   }
   if (defaultKeys.length === 0) return;
 

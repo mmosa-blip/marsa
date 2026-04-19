@@ -9,7 +9,7 @@ import {
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import { isValidPhone } from "@/lib/validations";
 
-type Role = "ADMIN" | "MANAGER" | "FINANCE_MANAGER" | "TREASURY_MANAGER" | "EXECUTOR" | "CLIENT" | "EXTERNAL_PROVIDER";
+type Role = "ADMIN" | "MANAGER" | "FINANCE_MANAGER" | "TREASURY_MANAGER" | "EXECUTOR" | "BRANCH_MANAGER" | "CLIENT" | "EXTERNAL_PROVIDER";
 
 const roleOptions: { value: Role; label: string }[] = [
   { value: "ADMIN", label: "مدير النظام" },
@@ -17,6 +17,7 @@ const roleOptions: { value: Role; label: string }[] = [
   { value: "FINANCE_MANAGER", label: "مدير مالي" },
   { value: "TREASURY_MANAGER", label: "أمين صندوق" },
   { value: "EXECUTOR", label: "منفذ" },
+  { value: "BRANCH_MANAGER", label: "مدير فرع" },
   { value: "CLIENT", label: "عميل" },
   { value: "EXTERNAL_PROVIDER", label: "مقدم خدمة خارجي" },
 ];
@@ -33,6 +34,7 @@ export default function NewUserPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
+  const [branchManagers, setBranchManagers] = useState<{ id: string; name: string }[]>([]);
 
   const [form, setForm] = useState({
     name: "",
@@ -48,6 +50,8 @@ export default function NewUserPage() {
     defaultTaskCost: "",
     bankName: "",
     iban: "",
+    // EXECUTOR fields
+    supervisorUserId: "",
   });
 
   useEffect(() => {
@@ -56,6 +60,18 @@ export default function NewUserPage() {
         .then((r) => r.json())
         .then((d) => {
           if (Array.isArray(d)) setSupervisors(d);
+        })
+        .catch(() => {});
+    }
+  }, [form.role]);
+
+  useEffect(() => {
+    if (form.role === "EXECUTOR") {
+      fetch("/api/users?role=BRANCH_MANAGER")
+        .then((r) => r.json())
+        .then((d) => {
+          const list = Array.isArray(d) ? d : d.users || [];
+          setBranchManagers(list);
         })
         .catch(() => {});
     }
@@ -98,6 +114,10 @@ export default function NewUserPage() {
 
       if (form.role === "CLIENT") {
         body.companyName = form.companyName.trim() || undefined;
+      }
+
+      if (form.role === "EXECUTOR" && form.supervisorUserId) {
+        body.supervisorUserId = form.supervisorUserId;
       }
 
       if (form.role === "EXTERNAL_PROVIDER") {
@@ -314,6 +334,32 @@ export default function NewUserPage() {
                 />
               </div>
 
+            </div>
+          </div>
+        )}
+
+        {/* EXECUTOR: Branch manager selector */}
+        {form.role === "EXECUTOR" && branchManagers.length > 0 && (
+          <div className="bg-white rounded-2xl p-6" style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+            <div>
+              <label className="flex items-center gap-1.5 text-sm font-medium mb-2" style={{ color: "#2D3748" }}>
+                <UserCog size={14} style={{ color: "#C9A84C" }} />
+                مدير الفرع (اختياري)
+              </label>
+              <select
+                name="supervisorUserId"
+                value={form.supervisorUserId}
+                onChange={handleChange}
+                className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none cursor-pointer"
+                style={inputStyle}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+              >
+                <option value="">— بدون مدير فرع —</option>
+                {branchManagers.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
             </div>
           </div>
         )}

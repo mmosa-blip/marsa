@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 
-type Role = "ADMIN" | "MANAGER" | "FINANCE_MANAGER" | "TREASURY_MANAGER" | "EXECUTOR" | "CLIENT" | "EXTERNAL_PROVIDER";
+type Role = "ADMIN" | "MANAGER" | "FINANCE_MANAGER" | "TREASURY_MANAGER" | "EXECUTOR" | "BRANCH_MANAGER" | "CLIENT" | "EXTERNAL_PROVIDER";
 
 const roleOptions: { value: Role; label: string }[] = [
   { value: "ADMIN", label: "مدير النظام" },
@@ -16,6 +16,7 @@ const roleOptions: { value: Role; label: string }[] = [
   { value: "FINANCE_MANAGER", label: "مدير مالي" },
   { value: "TREASURY_MANAGER", label: "أمين صندوق" },
   { value: "EXECUTOR", label: "منفذ" },
+  { value: "BRANCH_MANAGER", label: "مدير فرع" },
   { value: "CLIENT", label: "عميل" },
   { value: "EXTERNAL_PROVIDER", label: "مقدم خدمة خارجي" },
 ];
