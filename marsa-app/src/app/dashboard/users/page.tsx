@@ -505,6 +505,18 @@ export default function UsersPage() {
                 <span className="text-xs font-normal mr-auto" style={{ color: "#6B7280" }}>إضافة/إزالة منفذين</span>
               </Link>
             )}
+            {/* Link to full edit page for EXECUTOR branch manager assignment */}
+            {editForm.role === "EXECUTOR" && (
+              <Link
+                href={`/dashboard/users/${editingUser}/edit`}
+                className="flex items-center gap-2 mt-4 px-4 py-3 rounded-xl text-sm font-semibold transition-colors hover:opacity-90"
+                style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495", border: "1px solid rgba(94,84,149,0.2)" }}
+              >
+                <UserCog size={16} />
+                ربط بمدير فرع
+                <span className="text-xs font-normal mr-auto" style={{ color: "#6B7280" }}>فتح صفحة الربط</span>
+              </Link>
+            )}
             <div className="flex gap-3 mt-5">
               <MarsaButton onClick={handleSaveEdit} disabled={editSaving} loading={editSaving} variant="primary" size="md" className="flex-1">
                 {editSaving ? "جاري الحفظ..." : "حفظ التعديلات"}
