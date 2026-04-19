@@ -38,6 +38,25 @@ export async function GET(request: Request) {
         { managerId: session.user.id },
         { id: { in: assignedProjectIds } },
       ];
+    } else if (session.user.role === "BRANCH_MANAGER") {
+      // BRANCH_MANAGER sees only projects where at least one subordinate has an assigned task
+      const subordinates = await prisma.user.findMany({
+        where: { supervisorUserId: session.user.id, deletedAt: null, isActive: true },
+        select: { id: true },
+      });
+      const subIds = subordinates.map((s) => s.id);
+      if (subIds.length > 0) {
+        const subProjects = await prisma.task.findMany({
+          where: { assigneeId: { in: subIds }, projectId: { not: undefined } } as Record<string, unknown>,
+          select: { projectId: true },
+          distinct: ["projectId"],
+        });
+        const subProjectIds = subProjects.map((t) => t.projectId).filter(Boolean) as string[];
+        where.id = { in: subProjectIds };
+      } else {
+        // No subordinates — show nothing
+        where.id = { in: [] };
+      }
     }
 
     const projects = await prisma.project.findMany({

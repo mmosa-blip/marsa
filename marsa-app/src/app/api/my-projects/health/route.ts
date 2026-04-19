@@ -51,9 +51,28 @@ export async function GET() {
       status: { notIn: ["CANCELLED"] },
     };
 
-    // EXECUTOR/EXTERNAL_PROVIDER see only their assigned projects
-    // Match the same 3-way OR used by /api/my-tasks/all
-    if (!isAdmin) {
+    // BRANCH_MANAGER sees projects of their subordinates
+    if (role === "BRANCH_MANAGER") {
+      const subordinates = await prisma.user.findMany({
+        where: { supervisorUserId: userId, deletedAt: null, isActive: true },
+        select: { id: true },
+      });
+      const subIds = subordinates.map((s) => s.id);
+      if (subIds.length === 0) {
+        return NextResponse.json([]);
+      }
+      const subProjects = await prisma.task.findMany({
+        where: { assigneeId: { in: subIds }, projectId: { not: undefined } } as Record<string, unknown>,
+        select: { projectId: true },
+        distinct: ["projectId"],
+      });
+      const projectIds = subProjects.map((t) => t.projectId).filter(Boolean) as string[];
+      if (projectIds.length === 0) {
+        return NextResponse.json([]);
+      }
+      projectWhere.id = { in: projectIds };
+    } else if (!isAdmin) {
+      // EXECUTOR/EXTERNAL_PROVIDER see only their assigned projects
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const taskWhere: any = {
         OR: [
