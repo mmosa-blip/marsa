@@ -239,6 +239,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Completed tasks section
   const [completedData, setCompletedData] = useState<ApiResponse | null>(null);
@@ -712,11 +713,12 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
       // PENDING_TARGET and current user is the target → show accept/decline/complete buttons
       if (ti.status === "PENDING_TARGET" && ti.targetUserId === currentUserId) {
         return (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 md:gap-1 flex-wrap justify-end">
             <MarsaButton
               onClick={() => handleTransferAction(ti.id, "accept")}
               variant="primary" size="xs" icon={<CheckCircle2 size={13} />}
               style={{ backgroundColor: "#059669" }}
+              className="min-h-[36px] md:min-h-0"
             >
               قبول
             </MarsaButton>
@@ -724,12 +726,14 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
               onClick={() => handleTransferAction(ti.id, "accept_complete")}
               variant="primary" size="xs" icon={<CheckCircle2 size={13} />}
               style={{ backgroundColor: "#047857" }}
+              className="min-h-[36px] md:min-h-0"
             >
               إكمال مباشرة
             </MarsaButton>
             <MarsaButton
               onClick={() => handleTransferAction(ti.id, "decline")}
               variant="danger" size="xs" icon={<X size={13} />}
+              className="min-h-[36px] md:min-h-0"
             >
               رفض
             </MarsaButton>
@@ -783,7 +787,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                       remaining,
                     })
                   }
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-amber-100 transition-colors"
+                  className="text-xs md:text-[10px] font-bold px-3 md:px-2 py-1.5 md:py-0.5 rounded-full hover:bg-amber-100 transition-colors"
                   style={{ backgroundColor: "rgba(201,168,76,0.1)", color: "#C9A84C" }}
                 >
                   تم دفع جزئي
@@ -799,7 +803,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                     });
                     setPartialAmount(String(inst.amount));
                   }}
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-green-100 transition-colors"
+                  className="text-xs md:text-[10px] font-bold px-3 md:px-2 py-1.5 md:py-0.5 rounded-full hover:bg-green-100 transition-colors"
                   style={{ backgroundColor: "rgba(5,150,105,0.1)", color: "#059669" }}
                 >
                   تم دفع كامل
@@ -808,7 +812,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                 <button
                   type="button"
                   onClick={() => setGraceModal({ installmentId: inst.id, title: inst.title })}
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full hover:bg-blue-100 transition-colors"
+                  className="text-xs md:text-[10px] font-bold px-3 md:px-2 py-1.5 md:py-0.5 rounded-full hover:bg-blue-100 transition-colors"
                   style={{ backgroundColor: "rgba(37,99,235,0.1)", color: "#2563EB" }}
                 >
                   طلب إمهال
@@ -919,7 +923,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   return (
     // Embedded inside /dashboard/executor-city — the parent owns the height
     // and scrolling. No min-h-screen, no background tint here.
-    <div className="p-6" dir="rtl">
+    <div className="p-4 md:p-6" dir="rtl">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -955,7 +959,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className="flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+              className="flex-1 px-2 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all"
               style={
                 active
                   ? { backgroundColor: "#5E5495", color: "white", boxShadow: "0 2px 6px rgba(94,84,149,0.3)" }
@@ -1012,92 +1016,122 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
 
       {/* Filters */}
       <div
-        className="bg-white rounded-2xl p-4 mb-6 flex items-center gap-3 flex-wrap"
+        className="bg-white rounded-2xl p-3 md:p-4 mb-6"
         style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-          <Search size={16} style={{ color: "#94A3B8" }} />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder={`${t.common.search}...`}
-            className="flex-1 py-2 text-sm outline-none"
-            style={{ color: "#2D3748", backgroundColor: "transparent" }}
-          />
-        </div>
-        <Filter size={16} style={{ color: "#94A3B8" }} />
-        <select
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="px-3 py-2.5 rounded-xl text-sm outline-none bg-white cursor-pointer"
-          style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
-        >
-          <option value="">{t.common.all}</option>
-          <option value="TODO">{t.tasks.status.TODO}</option>
-          <option value="WAITING">{(t.tasks.status as Record<string, string>)["WAITING"] || "في الانتظار"}</option>
-          <option value="IN_PROGRESS">{t.tasks.status.IN_PROGRESS}</option>
-          <option value="IN_REVIEW">{(t.tasks.status as Record<string, string>)["IN_REVIEW"] || "قيد المراجعة"}</option>
-          <option value="WAITING_EXTERNAL">{(t.tasks.status as Record<string, string>)["WAITING_EXTERNAL"] || "بانتظار جهة خارجية"}</option>
-        </select>
-        <select
-          value={priorityFilter}
-          onChange={(e) => { setPriorityFilter(e.target.value); setPage(1); }}
-          className="px-3 py-2.5 rounded-xl text-sm outline-none bg-white cursor-pointer"
-          style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
-        >
-          <option value="">{t.common.all}</option>
-          <option value="LOW">{t.tasks.priority.LOW}</option>
-          <option value="MEDIUM">{t.tasks.priority.MEDIUM}</option>
-          <option value="HIGH">{t.tasks.priority.HIGH}</option>
-          <option value="URGENT">{t.tasks.priority.URGENT}</option>
-        </select>
-        {/* Service Filter */}
-        <select value={serviceFilter} onChange={e => { setServiceFilter(e.target.value); setPage(1); }}
-          className="rounded-xl px-3 py-2 text-sm outline-none"
-          style={{ border: "1px solid #E2E0D8", backgroundColor: "white", color: "#1C1B2E" }}>
-          <option value="">{t.tasks.allServices}</option>
-          {tasks.flatMap((t: Task) => t.service?.name ? [t.service.name] : [])
-            .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
-            .map((s: string) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        {/* Project Filter */}
-        <select value={projectFilter} onChange={e => { setProjectFilter(e.target.value); setPage(1); }}
-          className="rounded-xl px-3 py-2 text-sm outline-none"
-          style={{ border: "1px solid #E2E0D8", backgroundColor: "white", color: "#1C1B2E" }}>
-          <option value="">{t.tasks.allProjects}</option>
-          {tasks.flatMap((t: Task) => t.project?.name ? [t.project.name] : [])
-            .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
-            .map((p: string) => <option key={p} value={p}>{p}</option>)}
-        </select>
-        {/* Time Filter */}
-        <select value={timeFilter} onChange={e => { setTimeFilter(e.target.value); setPage(1); }}
-          className="rounded-xl px-3 py-2 text-sm outline-none"
-          style={{ border: "1px solid #E2E0D8", backgroundColor: "white", color: "#1C1B2E" }}>
-          <option value="">{t.tasks.allTimes}</option>
-          <option value="today">{t.tasks.today}</option>
-          <option value="overdue">{t.tasks.overdue}</option>
-          <option value="future">{t.tasks.upcoming}</option>
-        </select>
+        {/* Row 1: Search + toggle button (always visible) */}
         <div className="flex items-center gap-2">
-          <CalendarDays size={16} style={{ color: "#94A3B8" }} />
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-            className="px-3 py-2 rounded-xl text-sm outline-none bg-white cursor-pointer"
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Search size={16} style={{ color: "#94A3B8" }} />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder={`${t.common.search}...`}
+              className="flex-1 py-2 text-sm outline-none"
+              style={{ color: "#2D3748", backgroundColor: "transparent" }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMobileFilters(!showMobileFilters)}
+            className="md:hidden px-3 py-2.5 rounded-xl text-sm flex items-center gap-1"
             style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
-            title={t.common.from}
-          />
-          <span className="text-xs" style={{ color: "#94A3B8" }}>{t.common.to}</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-            className="px-3 py-2 rounded-xl text-sm outline-none bg-white cursor-pointer"
+          >
+            <Filter size={14} />
+            فلترة
+          </button>
+          {/* Status filter — visible on desktop always */}
+          <div className="hidden md:flex items-center gap-2">
+            <Filter size={16} style={{ color: "#94A3B8" }} />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            className="hidden md:block px-3 py-2.5 rounded-xl text-sm outline-none bg-white cursor-pointer"
             style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
-            title={t.common.to}
-          />
+          >
+            <option value="">{t.common.all}</option>
+            <option value="TODO">{t.tasks.status.TODO}</option>
+            <option value="WAITING">{(t.tasks.status as Record<string, string>)["WAITING"] || "في الانتظار"}</option>
+            <option value="IN_PROGRESS">{t.tasks.status.IN_PROGRESS}</option>
+            <option value="IN_REVIEW">{(t.tasks.status as Record<string, string>)["IN_REVIEW"] || "قيد المراجعة"}</option>
+            <option value="WAITING_EXTERNAL">{(t.tasks.status as Record<string, string>)["WAITING_EXTERNAL"] || "بانتظار جهة خارجية"}</option>
+          </select>
+        </div>
+
+        {/* Row 2: Extra filters — toggled on mobile, always on desktop */}
+        <div className={`${showMobileFilters ? "flex" : "hidden"} md:flex flex-wrap items-center gap-2 mt-3`}>
+          {/* Status filter — mobile only (since desktop shows it in row 1) */}
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            className="md:hidden flex-1 min-w-[120px] px-3 py-2.5 rounded-xl text-sm outline-none bg-white cursor-pointer"
+            style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
+          >
+            <option value="">{t.common.all}</option>
+            <option value="TODO">{t.tasks.status.TODO}</option>
+            <option value="WAITING">{(t.tasks.status as Record<string, string>)["WAITING"] || "في الانتظار"}</option>
+            <option value="IN_PROGRESS">{t.tasks.status.IN_PROGRESS}</option>
+            <option value="IN_REVIEW">{(t.tasks.status as Record<string, string>)["IN_REVIEW"] || "قيد المراجعة"}</option>
+            <option value="WAITING_EXTERNAL">{(t.tasks.status as Record<string, string>)["WAITING_EXTERNAL"] || "بانتظار جهة خارجية"}</option>
+          </select>
+          <select
+            value={priorityFilter}
+            onChange={(e) => { setPriorityFilter(e.target.value); setPage(1); }}
+            className="flex-1 min-w-[100px] md:flex-none px-3 py-2.5 rounded-xl text-sm outline-none bg-white cursor-pointer"
+            style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
+          >
+            <option value="">{t.common.all}</option>
+            <option value="LOW">{t.tasks.priority.LOW}</option>
+            <option value="MEDIUM">{t.tasks.priority.MEDIUM}</option>
+            <option value="HIGH">{t.tasks.priority.HIGH}</option>
+            <option value="URGENT">{t.tasks.priority.URGENT}</option>
+          </select>
+          <select value={serviceFilter} onChange={e => { setServiceFilter(e.target.value); setPage(1); }}
+            className="flex-1 min-w-[100px] md:flex-none rounded-xl px-3 py-2.5 text-sm outline-none"
+            style={{ border: "1px solid #E2E0D8", backgroundColor: "white", color: "#1C1B2E" }}>
+            <option value="">{t.tasks.allServices}</option>
+            {tasks.flatMap((t: Task) => t.service?.name ? [t.service.name] : [])
+              .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+              .map((s: string) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={projectFilter} onChange={e => { setProjectFilter(e.target.value); setPage(1); }}
+            className="flex-1 min-w-[100px] md:flex-none rounded-xl px-3 py-2.5 text-sm outline-none"
+            style={{ border: "1px solid #E2E0D8", backgroundColor: "white", color: "#1C1B2E" }}>
+            <option value="">{t.tasks.allProjects}</option>
+            {tasks.flatMap((t: Task) => t.project?.name ? [t.project.name] : [])
+              .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+              .map((p: string) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select value={timeFilter} onChange={e => { setTimeFilter(e.target.value); setPage(1); }}
+            className="flex-1 min-w-[100px] md:flex-none rounded-xl px-3 py-2.5 text-sm outline-none"
+            style={{ border: "1px solid #E2E0D8", backgroundColor: "white", color: "#1C1B2E" }}>
+            <option value="">{t.tasks.allTimes}</option>
+            <option value="today">{t.tasks.today}</option>
+            <option value="overdue">{t.tasks.overdue}</option>
+            <option value="future">{t.tasks.upcoming}</option>
+          </select>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <CalendarDays size={16} className="shrink-0" style={{ color: "#94A3B8" }} />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+              className="flex-1 sm:flex-none px-3 py-2.5 rounded-xl text-sm outline-none bg-white cursor-pointer"
+              style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
+              title={t.common.from}
+            />
+            <span className="text-xs shrink-0" style={{ color: "#94A3B8" }}>{t.common.to}</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+              className="flex-1 sm:flex-none px-3 py-2.5 rounded-xl text-sm outline-none bg-white cursor-pointer"
+              style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
+              title={t.common.to}
+            />
+          </div>
         </div>
       </div>
 

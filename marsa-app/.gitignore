@@ -50,3 +50,4 @@ next-env.d.ts
 # Local scratch directory (instruction files, browser downloads, shortcuts)
 Downloads/
 backups/
+*.backup

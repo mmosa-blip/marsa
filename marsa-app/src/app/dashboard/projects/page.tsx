@@ -77,6 +77,7 @@ export default function ProjectsPage() {
   const [departments, setDepartments] = useState<{id:string;name:string}[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   useEffect(() => { document.title = "المشاريع | مرسى"; }, []);
 
@@ -133,11 +134,11 @@ export default function ProjectsPage() {
   const uniqueClients = Array.from(new Map(projects.map(p => [p.client?.id, p.client])).values()).filter(Boolean);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6 md:mb-8">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: "#1C1B2E" }}>{t.projects.title}</h1>
+          <h1 className="text-xl md:text-2xl font-bold" style={{ color: "#1C1B2E" }}>{t.projects.title}</h1>
           <p className="text-sm mt-1 text-gray-500">{t.projects.subtitle}</p>
         </div>
         <MarsaButton href="/dashboard/projects/new" variant="primary" size="lg" icon={<Plus size={18} />}>
@@ -146,10 +147,11 @@ export default function ProjectsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-6">
         <MarsaButton
           variant="primary"
           icon={<Download size={16} />}
+          className="hidden sm:inline-flex"
           onClick={() => {
             const headers = [
               { key: "name", label: t.projects.projectName },
@@ -172,7 +174,7 @@ export default function ProjectsPage() {
         >
           {`${t.common.download} Excel`}
         </MarsaButton>
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative flex-1 min-w-0">
           <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -185,38 +187,51 @@ export default function ProjectsPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+          className="px-3 md:px-4 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
         >
           <option value="">{t.projects.allStatuses}</option>
           {Object.entries(statusColors).map(([k]) => <option key={k} value={k}>{(t.projects.status as Record<string, string>)[k] || k}</option>)}
         </select>
-        <select
-          value={clientFilter}
-          onChange={(e) => setClientFilter(e.target.value)}
-          className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+        {/* Toggle extra filters on mobile */}
+        <button
+          type="button"
+          onClick={() => setShowMobileFilters(!showMobileFilters)}
+          className="sm:hidden px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white flex items-center gap-1"
+          style={{ color: "#2D3748" }}
         >
-          <option value="">{t.common.all}</option>
-          {uniqueClients.map((c) => c && <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-3 py-2.5 rounded-xl border text-sm outline-none bg-white"
-          style={{ borderColor: "#E8E6F0", color: "#2D3748" }}
-        >
-          <option value="">كل الأنواع</option>
-          <option value="project">مشاريع</option>
-          <option value="quick">طلبات خدمات</option>
-        </select>
-        <select
-          value={filterDept}
-          onChange={(e) => { setFilterDept(e.target.value); }}
-          className="px-3 py-2.5 rounded-xl text-sm outline-none bg-white"
-          style={{ border: "1px solid #E2E0D8" }}
-        >
-          <option value="">جميع الأقسام</option>
-          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
+          <Filter size={14} />
+          مزيد
+        </button>
+        {/* Extra filters — always visible on sm+, toggled on mobile */}
+        <div className={`${showMobileFilters ? "flex" : "hidden"} sm:flex flex-wrap items-center gap-2 md:gap-3 w-full sm:w-auto`}>
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            className="flex-1 sm:flex-none px-3 md:px-4 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+          >
+            <option value="">{t.common.all}</option>
+            {uniqueClients.map((c) => c && <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="flex-1 sm:flex-none px-3 py-2.5 rounded-xl border text-sm outline-none bg-white"
+            style={{ borderColor: "#E8E6F0", color: "#2D3748" }}
+          >
+            <option value="">كل الأنواع</option>
+            <option value="project">مشاريع</option>
+            <option value="quick">طلبات خدمات</option>
+          </select>
+          <select
+            value={filterDept}
+            onChange={(e) => { setFilterDept(e.target.value); }}
+            className="flex-1 sm:flex-none px-3 py-2.5 rounded-xl text-sm outline-none bg-white"
+            style={{ border: "1px solid #E2E0D8" }}
+          >
+            <option value="">جميع الأقسام</option>
+            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
       </div>
 
       {/* Projects List */}
@@ -244,7 +259,7 @@ export default function ProjectsPage() {
               <div key={project.id} className="relative group">
               <Link
                 href={`/dashboard/projects/${project.id}`}
-                className="block bg-white rounded-2xl p-6 transition-all duration-200 hover:-translate-y-0.5"
+                className="block bg-white rounded-2xl p-4 md:p-6 transition-all duration-200 hover:-translate-y-0.5"
                 style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
                 onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 8px 25px rgba(27,42,74,0.1)"; e.currentTarget.style.borderColor = "#C9A84C"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.03)"; e.currentTarget.style.borderColor = "#E8E6F0"; }}
@@ -303,7 +318,7 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Bottom Info */}
-                <div className="flex items-center gap-6 text-xs text-gray-400">
+                <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs text-gray-400">
                   <span className="flex items-center gap-1">
                     <User size={13} />
                     {project.client?.name || "—"}
@@ -315,18 +330,18 @@ export default function ProjectsPage() {
                     </span>
                   )}
                   {project.totalPrice && (
-                    <span className="flex items-center gap-1">
+                    <span className="hidden sm:flex items-center gap-1">
                       <DollarSign size={13} />
                       {project.totalPrice.toLocaleString("en-US")} {t.common.currency}
                     </span>
                   )}
-                  <span className="flex items-center gap-1">
+                  <span className="hidden sm:flex items-center gap-1">
                     <Calendar size={13} />
                     {formatDate(project.startDate)}
                   </span>
                   <span>{project.completedTasks}/{project.totalTasks} {t.projects.tasks}</span>
                   {project.contractDurationDays && (
-                    <span className="flex items-center gap-1">
+                    <span className="hidden md:flex items-center gap-1">
                       <Timer size={13} />
                       {project.contractDurationDays} يوم SLA
                     </span>
@@ -345,7 +360,7 @@ export default function ProjectsPage() {
                 </div>
               ) : (
                 <MarsaButton variant="dangerSoft" size="sm" iconOnly icon={<Trash2 size={15} />}
-                  className="absolute top-4 left-4 hidden group-hover:flex"
+                  className="absolute top-3 left-3 md:top-4 md:left-4 flex md:hidden md:group-hover:flex"
                   onClick={(e) => { e.preventDefault(); setConfirmId(project.id); }}
                 />
               )}
