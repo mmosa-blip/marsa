@@ -27,17 +27,14 @@ export async function GET(request: Request) {
     if (session.user.role === "CLIENT") {
       where.clientId = session.user.id;
     } else if (session.user.role === "EXECUTOR") {
-      // EXECUTOR sees projects they manage OR have assigned tasks in
+      // EXECUTOR sees only projects where they have assigned tasks
       const assignedProjects = await prisma.task.findMany({
         where: { assigneeId: session.user.id, projectId: { not: undefined } } as Record<string, unknown>,
         select: { projectId: true },
         distinct: ["projectId"],
       });
       const assignedProjectIds = assignedProjects.map((t) => t.projectId).filter(Boolean) as string[];
-      where.OR = [
-        { managerId: session.user.id },
-        { id: { in: assignedProjectIds } },
-      ];
+      where.id = { in: assignedProjectIds };
     } else if (session.user.role === "BRANCH_MANAGER") {
       // BRANCH_MANAGER sees only projects where at least one subordinate has an assigned task
       const subordinates = await prisma.user.findMany({
