@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth, requireRole } from "@/lib/api-auth";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-
+    const session = await requireAuth();
     const isAdmin = ["ADMIN", "MANAGER"].includes(session.user.role);
 
     const templates = await prisma.contractTemplate.findMany({
@@ -23,6 +18,7 @@ export async function GET() {
 
     return NextResponse.json(templates);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error fetching contract templates:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
@@ -30,10 +26,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const session = await requireRole(["ADMIN", "MANAGER"]);
 
     const { title, content, description, marginTop, marginBottom, marginLeft, marginRight, fontSize, textAlign, letterheadImage } = await request.json();
 
@@ -72,6 +65,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(template, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error creating contract template:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }

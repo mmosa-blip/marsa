@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
@@ -41,6 +37,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(updated);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
@@ -48,10 +45,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const session = await requireRole(["ADMIN", "MANAGER"]);
 
     const body = await request.json();
 
@@ -81,6 +75,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(reminder, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }

@@ -1,18 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-
-    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { searchParams } = request.nextUrl;
     const module = searchParams.get("module") || "";
@@ -88,6 +80,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error fetching audit logs:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }

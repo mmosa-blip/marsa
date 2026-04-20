@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeSaudiPhone, isValidSaudiPhone } from "@/lib/validations";
+import { requireRole } from "@/lib/api-auth";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import * as XLSX from "xlsx";
@@ -27,10 +26,7 @@ interface ImportResult {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -140,6 +136,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Import error:", error);
     const msg = error instanceof Error ? error.message : "حدث خطأ";
     return NextResponse.json({ error: `خطأ في استيراد الملف: ${msg}` }, { status: 500 });
