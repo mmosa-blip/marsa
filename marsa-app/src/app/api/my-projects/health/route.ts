@@ -13,6 +13,7 @@ interface ProjectHealth {
   totalTasks: number;
   doneTasks: number;
   inProgressTasks: number;
+  notStartedTasks: number;
   overdueTasks: number;
   // SLA metrics
   contractStartDate: string | null;
@@ -122,9 +123,11 @@ export async function GET() {
     const now = new Date();
 
     const healthData: ProjectHealth[] = projects.map((project) => {
+      const IN_PROGRESS_STATUSES = ["IN_PROGRESS", "WAITING_EXTERNAL", "WAITING", "IN_REVIEW"];
       const totalTasks = project.tasks.length;
       const doneTasks = project.tasks.filter((t) => t.status === "DONE").length;
-      const inProgressTasks = project.tasks.filter((t) => t.status === "IN_PROGRESS").length;
+      const notStartedTasks = project.tasks.filter((t) => t.status === "TODO").length;
+      const inProgressTasks = project.tasks.filter((t) => IN_PROGRESS_STATUSES.includes(t.status)).length;
       const overdueTasks = project.tasks.filter(
         (t) => t.dueDate && new Date(t.dueDate) < now && t.status !== "DONE" && t.status !== "CANCELLED"
       ).length;
@@ -233,6 +236,7 @@ export async function GET() {
         totalTasks,
         doneTasks,
         inProgressTasks,
+        notStartedTasks,
         overdueTasks,
         contractStartDate: (project.contractStartDate || project.startDate)?.toISOString() || null,
         contractEndDate: (project.contractEndDate || project.endDate)?.toISOString() || null,

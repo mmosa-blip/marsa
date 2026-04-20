@@ -26,6 +26,7 @@ interface ProjectHealth {
   totalTasks: number;
   doneTasks: number;
   inProgressTasks: number;
+  notStartedTasks: number;
   overdueTasks: number;
   contractStartDate: string | null;
   contractEndDate: string | null;
@@ -180,23 +181,23 @@ function ProjectCard({ project }: { project: ProjectHealth }) {
           </div>
         </div>
 
-        {/* Metrics Grid */}
+        {/* Metrics Grid — RTL order: متأخرة | لم تبدأ | قيد التنفيذ | مكتملة */}
         <div className="grid grid-cols-4 gap-2 mb-3">
-          <div className="rounded-xl p-2 text-center" style={{ backgroundColor: "#F0EEF5" }}>
-            <p className="text-lg font-bold" style={{ color: "#1C1B2E" }}>{project.totalTasks}</p>
-            <p className="text-[10px]" style={{ color: "#6B7280" }}>المهام</p>
+          <div className="rounded-xl p-2 text-center" style={{ backgroundColor: project.overdueTasks > 0 ? "#FEF2F2" : "#F0EEF5" }}>
+            <p className="text-lg font-bold" style={{ color: project.overdueTasks > 0 ? "#DC2626" : "#6B7280" }}>{project.overdueTasks}</p>
+            <p className="text-[10px]" style={{ color: "#6B7280" }}>متأخرة</p>
           </div>
-          <div className="rounded-xl p-2 text-center" style={{ backgroundColor: "#DCFCE7" }}>
-            <p className="text-lg font-bold" style={{ color: "#059669" }}>{project.doneTasks}</p>
-            <p className="text-[10px]" style={{ color: "#6B7280" }}>مكتملة</p>
+          <div className="rounded-xl p-2 text-center" style={{ backgroundColor: project.notStartedTasks > 0 ? "#FEF3C7" : "#F0EEF5" }}>
+            <p className="text-lg font-bold" style={{ color: project.notStartedTasks > 0 ? "#B45309" : "#6B7280" }}>{project.notStartedTasks}</p>
+            <p className="text-[10px]" style={{ color: "#6B7280" }}>لم تبدأ</p>
           </div>
           <div className="rounded-xl p-2 text-center" style={{ backgroundColor: "#DBEAFE" }}>
             <p className="text-lg font-bold" style={{ color: "#2563EB" }}>{project.inProgressTasks}</p>
             <p className="text-[10px]" style={{ color: "#6B7280" }}>قيد التنفيذ</p>
           </div>
-          <div className="rounded-xl p-2 text-center" style={{ backgroundColor: project.overdueTasks > 0 ? "#FEF2F2" : "#F0EEF5" }}>
-            <p className="text-lg font-bold" style={{ color: project.overdueTasks > 0 ? "#DC2626" : "#6B7280" }}>{project.overdueTasks}</p>
-            <p className="text-[10px]" style={{ color: "#6B7280" }}>متأخرة</p>
+          <div className="rounded-xl p-2 text-center" style={{ backgroundColor: "#DCFCE7" }}>
+            <p className="text-lg font-bold" style={{ color: "#059669" }}>{project.doneTasks}</p>
+            <p className="text-[10px]" style={{ color: "#6B7280" }}>مكتملة</p>
           </div>
         </div>
 
