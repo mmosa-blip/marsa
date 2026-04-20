@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment-assign";
 import { addWorkingDays } from "@/lib/working-days";
+import { computeProjectDuration } from "@/lib/service-duration";
 
 export async function POST(request: Request) {
   try {
@@ -56,10 +57,12 @@ export async function POST(request: Request) {
     // If contractId provided, extract totalAmount and installments from contract
     let contractTotalPrice: number | null = null;
     let contractInstallments: { title: string; amount: number; dueAfterDays: number | null; order: number }[] = [];
+    let contractStartDate: Date | null = null;
+    let contractEndDate: Date | null = null;
     if (contractId) {
       const contract = await prisma.contract.findUnique({
         where: { id: contractId },
-        select: { variables: true, installments: { orderBy: { order: "asc" } } },
+        select: { variables: true, startDate: true, endDate: true, installments: { orderBy: { order: "asc" } } },
       });
       if (contract?.variables) {
         try {
@@ -68,6 +71,8 @@ export async function POST(request: Request) {
           if (amount > 0) contractTotalPrice = amount;
         } catch {}
       }
+      contractStartDate = contract?.startDate ?? null;
+      contractEndDate = contract?.endDate ?? null;
       if (contract?.installments && contract.installments.length > 0) {
         contractInstallments = contract.installments.map((inst) => ({
           title: inst.title,
@@ -116,32 +121,28 @@ export async function POST(request: Request) {
 
     const now = new Date();
     let totalPrice = 0;
-    let projectEndDate = new Date(now);
 
-    // حساب تاريخ انتهاء المشروع والسعر الإجمالي
-    if (template.workflowType === "SEQUENTIAL") {
-      let cumulativeDays = 0;
-      for (const pts of template.services) {
-        const st = pts.serviceTemplate;
-        const serviceDuration =
-          st.defaultDuration ??
-          st.taskTemplates.reduce((sum, t) => sum + t.defaultDuration, 0);
-        cumulativeDays += serviceDuration;
-        totalPrice += st.defaultPrice ?? 0;
-      }
-      projectEndDate = addWorkingDays(projectEndDate, cumulativeDays);
-    } else {
-      let maxDuration = 0;
-      for (const pts of template.services) {
-        const st = pts.serviceTemplate;
-        const serviceDuration =
-          st.defaultDuration ??
-          st.taskTemplates.reduce((sum, t) => sum + t.defaultDuration, 0);
-        if (serviceDuration > maxDuration) maxDuration = serviceDuration;
-        totalPrice += st.defaultPrice ?? 0;
-      }
-      projectEndDate = addWorkingDays(projectEndDate, maxDuration);
-    }
+    // Per-service metadata for both the price sum and the critical-path
+    // duration calculation. Services keep their template-level
+    // executionMode and isBackground so computeProjectDuration can
+    // respect parallel branches and skip background work. This replaces
+    // the old SUM-everything-when-SEQUENTIAL / MAX-everything-when-
+    // PARALLEL branching that ignored per-service modes entirely.
+    const serviceDurations = template.services.map((pts) => {
+      const st = pts.serviceTemplate;
+      const duration =
+        st.defaultDuration ??
+        st.taskTemplates.reduce((sum, t) => sum + t.defaultDuration, 0);
+      totalPrice += st.defaultPrice ?? 0;
+      return {
+        duration,
+        executionMode: pts.executionMode as string,
+        isBackground: pts.isBackground,
+      };
+    });
+
+    const totalDuration = computeProjectDuration(serviceDurations);
+    const projectEndDate = addWorkingDays(new Date(now), totalDuration);
 
     // إنشاء المشروع - use contract price if available
     const finalPrice = contractTotalPrice || totalPrice;
@@ -158,6 +159,8 @@ export async function POST(request: Request) {
         totalPrice: finalPrice,
         startDate: now,
         endDate: projectEndDate,
+        ...(contractStartDate ? { contractStartDate } : {}),
+        ...(contractEndDate ? { contractEndDate } : {}),
         ...(contractId ? { contractId } : {}),
         ...(departmentId ? { departmentId } : {}),
       },
@@ -172,19 +175,24 @@ export async function POST(request: Request) {
     for (const pts of template.services) {
       const st = pts.serviceTemplate;
 
+      const svcDurationFallback =
+        st.defaultDuration ??
+        st.taskTemplates.reduce((sum, t) => sum + t.defaultDuration, 0);
+
       const service = await prisma.service.create({
         data: {
           name: st.name,
           description: st.description,
           price: st.defaultPrice,
-          duration: st.defaultDuration,
+          duration: svcDurationFallback,
           category: st.category?.name ?? null,
           clientId,
           projectId: project.id,
+          serviceTemplateId: st.id,
           status: "IN_PROGRESS",
-          executionMode: ((pts as unknown as { executionMode?: string }).executionMode || "SEQUENTIAL") as "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT",
-          isBackground: !!(pts as unknown as { isBackground?: boolean }).isBackground,
-          serviceOrder: (pts as unknown as { sortOrder?: number }).sortOrder ?? 0,
+          executionMode: pts.executionMode,
+          isBackground: pts.isBackground,
+          serviceOrder: pts.sortOrder,
         },
       });
 

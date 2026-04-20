@@ -9,6 +9,7 @@ import type { WorkflowType, ProjectPriority, MilestoneStatus } from "@/generated
 import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment-assign";
 import { generateProjectCode } from "@/lib/project-code";
 import { addWorkingDays } from "@/lib/working-days";
+import { computeProjectDuration } from "@/lib/service-duration";
 
 export async function GET(request: Request) {
   try {
@@ -205,10 +206,12 @@ export async function POST(request: Request) {
         // If contractId provided, extract totalAmount and installments from contract
         let contractTotalPrice: number | null = null;
         let contractInstallments: { title: string; amount: number; dueAfterDays: number | null; order: number }[] = [];
+        let contractFallbackStart: Date | null = null;
+        let contractFallbackEnd: Date | null = null;
         if (contractId) {
           const contract = await tx.contract.findUnique({
             where: { id: contractId },
-            select: { variables: true, installments: { orderBy: { order: "asc" } } },
+            select: { variables: true, startDate: true, endDate: true, installments: { orderBy: { order: "asc" } } },
           });
           if (contract?.variables) {
             try {
@@ -217,6 +220,8 @@ export async function POST(request: Request) {
               if (amount > 0) contractTotalPrice = amount;
             } catch {}
           }
+          contractFallbackStart = contract?.startDate ?? null;
+          contractFallbackEnd = contract?.endDate ?? null;
           if (contract?.installments && contract.installments.length > 0) {
             contractInstallments = contract.installments.map((inst) => ({
               title: inst.title,
@@ -238,7 +243,6 @@ export async function POST(request: Request) {
 
         // Calculate total duration and price
         let calculatedPrice = 0;
-        let totalDuration = 0;
 
         // Fetch all service templates
         const templateIds = services.map((s) => s.serviceTemplateId);
@@ -264,20 +268,26 @@ export async function POST(request: Request) {
           executorMap.get(se.serviceId)!.push(se.userId);
         }
 
-        // Calculate durations
+        // Critical-path duration: each service carries its own
+        // executionMode and isBackground, so the project-level
+        // workflowType no longer forces SUM-everything or MAX-everything.
+        // computeProjectDuration folds adjacent PARALLEL services into
+        // a single max-of-group, adds SEQUENTIAL ones linearly, and
+        // skips anything marked isBackground or INDEPENDENT.
+        const serviceDurations: { duration: number; executionMode: string; isBackground: boolean }[] = [];
         for (const svc of services) {
           const tmpl = templateMap.get(svc.serviceTemplateId);
           if (!tmpl) continue;
           const svcDuration = tmpl.defaultDuration || tmpl.taskTemplates.reduce((s: number, t) => s + t.defaultDuration, 0);
           calculatedPrice += svc.price || tmpl.defaultPrice || 0;
-
-          if (workflowType === "SEQUENTIAL") {
-            totalDuration += svcDuration;
-          } else {
-            totalDuration = Math.max(totalDuration, svcDuration);
-          }
+          serviceDurations.push({
+            duration: svcDuration,
+            executionMode: svc.executionMode || "SEQUENTIAL",
+            isBackground: !!svc.isBackground,
+          });
         }
 
+        const totalDuration = computeProjectDuration(serviceDurations);
         const endDate = addWorkingDays(now, totalDuration);
 
         // Create project
@@ -295,9 +305,9 @@ export async function POST(request: Request) {
             endDate,
             departmentId: departmentId || null,
             contractId: contractId || null,
-            contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
+            contractStartDate: contractStartDate ? new Date(contractStartDate) : contractFallbackStart,
             contractDurationDays: contractDurationDays || null,
-            contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
+            contractEndDate: contractEndDate ? new Date(contractEndDate) : contractFallbackEnd,
             projectCode,
             projectSeq,
           },
@@ -738,12 +748,14 @@ export async function POST(request: Request) {
         }
       }
 
-      // Contract total price for legacy path
+      // Contract total price + SLA dates for legacy path
       let contractTotalPrice: number | null = null;
+      let legacyContractStart: Date | null = null;
+      let legacyContractEnd: Date | null = null;
       if (contractId) {
         const contract = await tx.contract.findUnique({
           where: { id: contractId },
-          select: { variables: true },
+          select: { variables: true, startDate: true, endDate: true },
         });
         if (contract?.variables) {
           try {
@@ -752,6 +764,8 @@ export async function POST(request: Request) {
             if (amount > 0) contractTotalPrice = amount;
           } catch {}
         }
+        legacyContractStart = contract?.startDate ?? null;
+        legacyContractEnd = contract?.endDate ?? null;
       }
 
       const { code: projectCode, seq: projectSeq } = await generateProjectCode(tx, {
@@ -771,9 +785,9 @@ export async function POST(request: Request) {
           totalPrice: contractTotalPrice || totalPrice || null,
           departmentId: departmentId || null,
           contractId: contractId || null,
-          contractStartDate: contractStartDate ? new Date(contractStartDate) : null,
+          contractStartDate: contractStartDate ? new Date(contractStartDate) : legacyContractStart,
           contractDurationDays: contractDurationDays || null,
-          contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
+          contractEndDate: contractEndDate ? new Date(contractEndDate) : legacyContractEnd,
           projectCode,
           projectSeq,
         },

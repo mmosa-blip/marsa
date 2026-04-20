@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { addWorkingDays } from "@/lib/working-days";
+import { computeServiceDuration } from "@/lib/service-duration";
 
 export async function POST(request: Request) {
   try {
@@ -43,8 +44,33 @@ export async function POST(request: Request) {
     }
 
     const now = new Date();
-    const totalDuration = template.taskTemplates.reduce((sum, t) => sum + (t.defaultDuration || 1), 0);
+    // Quick service is a single-service project, so its duration is
+    // just the critical-path of its task templates — respects sameDay,
+    // INDEPENDENT, and adjacent PARALLEL groups instead of blindly
+    // summing every task.
+    const totalDuration = computeServiceDuration(
+      template.taskTemplates.map((t) => ({
+        defaultDuration: t.defaultDuration || 1,
+        executionMode: t.executionMode as string,
+        sameDay: t.sameDay,
+      }))
+    );
     const endDate = addWorkingDays(now, totalDuration);
+
+    // If this quick service is tied to a contract, pull the contract's
+    // SLA dates so project.contractEndDate is populated from the same
+    // source of truth that /operations/overview uses — keeps "متبقي X
+    // يوم" consistent across pages.
+    let contractFallbackStart: Date | null = null;
+    let contractFallbackEnd: Date | null = null;
+    if (contractId) {
+      const contract = await prisma.contract.findUnique({
+        where: { id: contractId },
+        select: { startDate: true, endDate: true },
+      });
+      contractFallbackStart = contract?.startDate ?? null;
+      contractFallbackEnd = contract?.endDate ?? null;
+    }
 
     // Create project with service and tasks in a transaction
     const project = await prisma.$transaction(async (tx) => {
@@ -63,6 +89,8 @@ export async function POST(request: Request) {
           managerId: session.user.id,
           isQuickService: true,
           ...(contractId && { contractId }),
+          ...(contractFallbackStart && { contractStartDate: contractFallbackStart }),
+          ...(contractFallbackEnd && { contractEndDate: contractFallbackEnd }),
         },
       });
 
