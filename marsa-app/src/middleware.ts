@@ -1,42 +1,46 @@
-import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
+import type { NextRequest } from "next/server";
 
-// Global auth gate. Previously every /api route had to call
-// getServerSession manually — a handful slipped through unprotected
-// (/api/hr/companies GET, /api/admin/stop-impersonate, etc.). This
-// middleware fails-closed: any request that isn't on the public
-// allow-list must carry a valid next-auth session cookie, or the
-// request is rejected before it reaches the route handler.
-export default withAuth(
-  function middleware() {
+// Global auth gate. Unlike next-auth/middleware `withAuth` (which always
+// redirects to /login), this splits the response by request type:
+//   - /api/*  → 401 JSON so fetch() callers get a machine-readable error
+//   - pages   → 302 redirect to /login with callbackUrl preserved
+// Public endpoints bypass both. Every route that isn't on the allow-list
+// must carry a valid next-auth session cookie, or the request is
+// rejected before reaching the route handler.
+const publicPaths = [
+  "/api/auth",         // next-auth callbacks
+  "/api/uploadthing",  // uploadthing has its own auth
+  "/api/cron",         // Vercel Cron hits with CRON_SECRET header
+  "/login",
+  "/register",
+  "/forgot-password",
+];
+
+export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+
+  if (publicPaths.some((p) => path.startsWith(p))) {
     return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        const path = req.nextUrl.pathname;
-
-        // Public endpoints. Keep this list short and review it when
-        // adding new routes — anything here is reachable without a
-        // session.
-        const publicPaths = [
-          "/api/auth",         // next-auth callbacks (sign-in, callback, etc.)
-          "/api/uploadthing",  // uploadthing has its own auth layer
-          "/api/cron",         // Vercel Cron hits these with a CRON_SECRET header
-          "/login",
-          "/register",
-        ];
-
-        if (publicPaths.some((p) => path.startsWith(p))) {
-          return true;
-        }
-
-        // Everything else (both /api/* and page routes) requires a session.
-        return !!token;
-      },
-    },
   }
-);
+
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+
+  if (!token) {
+    if (path.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "Unauthorized", message: "يجب تسجيل الدخول" },
+        { status: 401 }
+      );
+    }
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("callbackUrl", path);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
