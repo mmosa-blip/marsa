@@ -71,6 +71,9 @@ export default function CashierPage() {
   const [showNewClient, setShowNewClient] = useState(false);
   const [newClient, setNewClient] = useState({ name: "", phone: "", email: "", companyName: "" });
   const [creatingClient, setCreatingClient] = useState(false);
+  // One-time plaintext password shown to the cashier after quick-create.
+  // Cleared when the cashier dismisses the banner — never sent again.
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
 
   // ===== Step 2 State =====
   const [services, setServices] = useState<ServiceCatalog[]>([]);
@@ -143,24 +146,23 @@ export default function CashierPage() {
     if (!newClient.name) return;
     setCreatingClient(true);
     try {
-      const res = await fetch("/api/auth/register", {
+      // Server-side generates the random password and attaches the
+      // company in a single request. The password comes back once so we
+      // can show it to the cashier — they must hand it to the client
+      // before closing this dialog.
+      const res = await fetch("/api/clients/quick-create", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newClient.name,
           email: newClient.email || `${Date.now()}@temp.marsa.sa`,
-          password: "12345678",
           phone: newClient.phone || null,
+          companyName: newClient.companyName || null,
         }),
       });
       if (res.ok) {
-        const user = await res.json();
-        // إنشاء شركة إذا أُدخل اسمها
-        if (newClient.companyName) {
-          await fetch("/api/hr/companies", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: newClient.companyName, ownerId: user.id }),
-          });
-        }
+        const data = await res.json();
+        const user = data.user;
+        setGeneratedPassword(data.password);
         selectClient({ id: user.id, name: user.name, email: user.email, phone: newClient.phone, companyName: newClient.companyName || null });
         setShowNewClient(false);
         setNewClient({ name: "", phone: "", email: "", companyName: "" });
@@ -324,6 +326,31 @@ export default function CashierPage() {
                     <input type="text" value={newClient.companyName} onChange={(e) => setNewClient({ ...newClient, companyName: e.target.value })} placeholder="اسم الشركة (اختياري)" className="w-full px-4 py-3.5 rounded-xl text-sm outline-none" style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.15)" }} />
                     <MarsaButton variant="gold" size="lg" onClick={handleCreateClient} disabled={!newClient.name || creatingClient} loading={creatingClient} className="w-full py-4">
                       {creatingClient ? "جارٍ الإنشاء..." : "إضافة العميل"}
+                    </MarsaButton>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* One-time password banner. Shows after quick-create. The
+                cashier must copy/hand it to the client before dismissing —
+                the plaintext is not retrievable again. */}
+            {generatedPassword && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setGeneratedPassword(null)}>
+                <div className="rounded-2xl w-full max-w-md p-6" style={{ backgroundColor: "#1F2937" }} onClick={(e) => e.stopPropagation()}>
+                  <h3 className="text-lg font-bold mb-3" style={{ color: "#FCD34D" }}>كلمة المرور المؤقتة</h3>
+                  <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.7)" }}>
+                    انسخ كلمة المرور وسلّمها للعميل. لن تُعرض مرة أخرى. سيُطلب من العميل تغييرها عند أول تسجيل دخول.
+                  </p>
+                  <div className="rounded-xl px-4 py-3 mb-4 font-mono text-lg text-center" style={{ backgroundColor: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(252,211,77,0.4)" }}>
+                    {generatedPassword}
+                  </div>
+                  <div className="flex gap-2">
+                    <MarsaButton variant="gold" size="md" onClick={() => { navigator.clipboard?.writeText(generatedPassword); }} className="flex-1">
+                      نسخ
+                    </MarsaButton>
+                    <MarsaButton variant="ghost" size="md" onClick={() => setGeneratedPassword(null)} className="flex-1" style={{ color: "white", border: "1px solid rgba(255,255,255,0.2)" }}>
+                      تم
                     </MarsaButton>
                   </div>
                 </div>

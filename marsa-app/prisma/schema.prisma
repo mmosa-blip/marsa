@@ -306,6 +306,11 @@ model User {
   signatureImage         String?           @db.Text
   stampImage             String?           @db.Text
   isActive               Boolean           @default(true)
+  // Force-password-change flag. Set to true whenever the system generates
+  // a password on the user's behalf (Excel import, cashier quick-create,
+  // admin-created accounts). Login flow should redirect to a change-
+  // password screen until the user has chosen their own password.
+  mustChangePassword     Boolean           @default(false)
   deletedAt              DateTime?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt

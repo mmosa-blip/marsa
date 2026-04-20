@@ -4,15 +4,25 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeSaudiPhone, isValidSaudiPhone } from "@/lib/validations";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import * as XLSX from "xlsx";
 
-const DEFAULT_PASSWORD = "Marsa@2026";
+// Random per-user password. Shown to the importer once in the response
+// and never persisted in plaintext. Users get mustChangePassword=true so
+// the login flow forces them to pick their own password on first sign-in.
+function generateRandomPassword(): string {
+  return crypto.randomBytes(12).toString("hex");
+}
 
 interface ImportResult {
   total: number;
   imported: number;
   skipped: number;
   errors: { row: number; name: string; reason: string }[];
+  // One-time plaintext credentials. The importer must copy these
+  // somewhere safe (e.g. print-and-hand, SMS) before closing the dialog —
+  // they are not stored anywhere server-side.
+  credentials: { name: string; phone: string; password: string }[];
 }
 
 export async function POST(request: NextRequest) {
@@ -44,10 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "لا توجد بيانات في الملف" }, { status: 400 });
     }
 
-    // Hash the default password once
-    const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 12);
-
-    const result: ImportResult = { total: rows.length, imported: 0, skipped: 0, errors: [] };
+    const result: ImportResult = { total: rows.length, imported: 0, skipped: 0, errors: [], credentials: [] };
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
@@ -90,6 +97,13 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        // Per-row random password — never the same across users, never
+        // reused across imports. Hashed immediately; the plaintext goes
+        // into the response once and is dropped from memory after the
+        // request finishes.
+        const plainPassword = generateRandomPassword();
+        const hashedPassword = await bcrypt.hash(plainPassword, 12);
+
         // Create user
         const user = await prisma.user.create({
           data: {
@@ -98,8 +112,11 @@ export async function POST(request: NextRequest) {
             email: email || null,
             password: hashedPassword,
             role: "CLIENT",
+            mustChangePassword: true,
           },
         });
+
+        result.credentials.push({ name, phone, password: plainPassword });
 
         // Create company if provided
         if (companyName) {

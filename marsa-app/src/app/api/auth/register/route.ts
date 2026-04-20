@@ -6,7 +6,10 @@ import { passwordSchema, normalizePhone, isValidPhone } from "@/lib/validations"
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { password, name, phone, email, role } = body;
+    // SELF-REGISTRATION: role is always CLIENT — never trust `role` from the
+    // request body. Admin/manager/executor accounts must be created through
+    // protected admin endpoints (e.g. /api/users POST with an ADMIN session).
+    const { password, name, phone, email } = body;
 
     if (!name) {
       return NextResponse.json({ error: "الاسم مطلوب" }, { status: 400 });
@@ -49,7 +52,9 @@ export async function POST(request: Request) {
         password: hashedPassword,
         name,
         email: email?.trim() || null,
-        role: role || "CLIENT",
+        // Hardcoded — the request body's `role` is intentionally ignored
+        // (see SELF-REGISTRATION comment above).
+        role: "CLIENT",
       },
       select: {
         id: true,
