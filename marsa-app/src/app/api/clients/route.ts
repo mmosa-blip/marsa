@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can, PERMISSIONS, getUserPermissions } from "@/lib/permissions";
+import { parsePagination, paginationMeta, withPaginationHeaders } from "@/lib/pagination";
 
 export async function GET(request: Request) {
   try {
@@ -50,33 +51,47 @@ export async function GET(request: Request) {
       }
     }
 
-    const clients = await prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        avatar: true,
-        createdAt: true,
-        authorizationType: true,
-        ownedCompanies: { select: { id: true, name: true } },
-        clientProjects: {
-          select: {
-            id: true, status: true,
-            invoices: { select: { totalAmount: true } },
+    // DB-level pagination. status=active/inactive filters in memory
+    // against a computed field (isActive = activeProjects>0 ||
+    // clientServices.status==IN_PROGRESS) so the returned page may be
+    // shorter than `take` when that filter is applied — that's
+    // intentional. X-Total-Count reflects the DB row count, not the
+    // post-filter count, which is the correct invariant for pagers
+    // (they enumerate what the DB has).
+    const { page, take, skip } = parsePagination(new URL(request.url));
+
+    const [clients, totalCount] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          avatar: true,
+          createdAt: true,
+          authorizationType: true,
+          ownedCompanies: { select: { id: true, name: true } },
+          clientProjects: {
+            select: {
+              id: true, status: true,
+              invoices: { select: { totalAmount: true } },
+            },
+          },
+          clientServices: {
+            select: { id: true, status: true },
+          },
+          clientInvoices: { select: { totalAmount: true } },
+          documents: {
+            select: { id: true, status: true, expiryDate: true },
           },
         },
-        clientServices: {
-          select: { id: true, status: true },
-        },
-        clientInvoices: { select: { totalAmount: true } },
-        documents: {
-          select: { id: true, status: true, expiryDate: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+      }),
+      prisma.user.count({ where }),
+    ]);
 
     const now = new Date();
     const result = clients.map((c) => {
@@ -110,7 +125,10 @@ export async function GET(request: Request) {
     const filtered = status === "active" ? result.filter((c) => c.isActive)
       : status === "inactive" ? result.filter((c) => !c.isActive) : result;
 
-    return NextResponse.json(filtered);
+    return withPaginationHeaders(
+      NextResponse.json(filtered),
+      paginationMeta(totalCount, page, take)
+    );
   } catch (error) {
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });

@@ -10,6 +10,7 @@ import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment
 import { generateProjectCode } from "@/lib/project-code";
 import { addWorkingDays } from "@/lib/working-days";
 import { computeProjectDuration } from "@/lib/service-duration";
+import { parsePagination, paginationMeta, withPaginationHeaders } from "@/lib/pagination";
 
 export async function GET(request: Request) {
   try {
@@ -57,30 +58,40 @@ export async function GET(request: Request) {
       }
     }
 
-    const projects = await prisma.project.findMany({
-      where,
-      include: {
-        client: { select: { id: true, name: true, email: true } },
-        manager: { select: { id: true, name: true, email: true } },
-        department: { select: { id: true, name: true, nameEn: true, color: true } },
-        tasks: { select: { id: true, status: true, dueDate: true } },
-        _count: { select: { services: true } },
-        ...(withServices
-          ? {
-              services: {
-                select: {
-                  id: true,
-                  name: true,
-                  status: true,
-                  tasks: { select: { id: true, status: true, dueDate: true } },
+    // Pagination (query params: ?page=1&take=50). Response body stays
+    // an array for backward-compat with existing UI consumers; the page
+    // metadata lives in X-Total-Count / X-Page / X-Pages headers.
+    const { page, take, skip } = parsePagination(new URL(request.url));
+
+    const [projects, total] = await Promise.all([
+      prisma.project.findMany({
+        where,
+        include: {
+          client: { select: { id: true, name: true, email: true } },
+          manager: { select: { id: true, name: true, email: true } },
+          department: { select: { id: true, name: true, nameEn: true, color: true } },
+          tasks: { select: { id: true, status: true, dueDate: true } },
+          _count: { select: { services: true } },
+          ...(withServices
+            ? {
+                services: {
+                  select: {
+                    id: true,
+                    name: true,
+                    status: true,
+                    tasks: { select: { id: true, status: true, dueDate: true } },
+                  },
+                  orderBy: { serviceOrder: "asc" },
                 },
-                orderBy: { serviceOrder: "asc" },
-              },
-            }
-          : {}),
-      },
-      orderBy: { createdAt: "desc" },
-    });
+              }
+            : {}),
+        },
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+      }),
+      prisma.project.count({ where }),
+    ]);
 
     const projectsWithProgress = projects.map((p) => {
       const total = p.tasks.length;
@@ -93,7 +104,10 @@ export async function GET(request: Request) {
       };
     });
 
-    return NextResponse.json(projectsWithProgress);
+    return withPaginationHeaders(
+      NextResponse.json(projectsWithProgress),
+      paginationMeta(total, page, take)
+    );
   } catch (error) {
     console.error("Error fetching projects:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });

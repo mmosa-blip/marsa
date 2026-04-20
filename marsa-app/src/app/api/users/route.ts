@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { createUserSchema, normalizePhone, isValidPhone } from "@/lib/validations";
 import { createAuditLog, AuditModule } from "@/lib/audit";
 import { can, PERMISSIONS, assignDefaultPermissions } from "@/lib/permissions";
+import { parsePagination, paginationMeta, withPaginationHeaders } from "@/lib/pagination";
 
 export async function GET(request: NextRequest) {
   try {
@@ -73,26 +74,40 @@ export async function GET(request: NextRequest) {
       where.isActive = isActive === "true";
     }
 
-    const users = await prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        phone: true,
-        isActive: true,
-        createdAt: true,
-        authorizationType: true,
-        ownedCompanies: { select: { name: true } },
-        specialization: true,
-        isExternal: true,
-        supervisorUserId: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    // Pagination (query params: ?page=1&take=50). Body stays an array
+    // for backward-compat; metadata in X-* headers. transferTargets
+    // bypass above returns the full list unpaginated — it's a picker,
+    // not a listing, and callers expect everyone on a single render.
+    const { page, take, skip } = parsePagination(new URL(request.url));
 
-    return NextResponse.json(users);
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          isActive: true,
+          createdAt: true,
+          authorizationType: true,
+          ownedCompanies: { select: { name: true } },
+          specialization: true,
+          isExternal: true,
+          supervisorUserId: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    return withPaginationHeaders(
+      NextResponse.json(users),
+      paginationMeta(total, page, take)
+    );
   } catch (error) {
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
