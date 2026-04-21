@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 // GET /api/installments/pending-approvals
 // Returns two arrays:
@@ -12,10 +11,7 @@ import { prisma } from "@/lib/prisma";
 //                     grace period that hasn't been approved yet.
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const sharedInclude = {
       contract: {
@@ -61,6 +57,7 @@ export async function GET() {
 
     return NextResponse.json({ partialRequests, graceRequests });
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error("pending-approvals error:", e);
     return NextResponse.json({ error: "فشل التحميل" }, { status: 500 });
   }

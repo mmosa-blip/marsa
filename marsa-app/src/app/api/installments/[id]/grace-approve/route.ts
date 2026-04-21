@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createNotifications } from "@/lib/notifications";
+import { requireRole } from "@/lib/api-auth";
 
 // POST /api/installments/[id]/grace-approve
 // Admin/manager approves the grace-period request. Computes the end
@@ -14,10 +13,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     const inst = await prisma.contractPaymentInstallment.findUnique({
@@ -75,6 +71,7 @@ export async function POST(
 
     return NextResponse.json(updated);
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error("grace-approve error:", e);
     return NextResponse.json({ error: "فشل الموافقة" }, { status: 500 });
   }
