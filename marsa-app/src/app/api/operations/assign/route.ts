@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 /**
  * NOTE: This file deliberately avoids `prisma.$transaction`. The runtime
@@ -159,10 +158,7 @@ async function getProjectExecutorIds(projectId: string): Promise<string[]> {
 //           operations-room avatar stack.
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const body = await request.json();
     const { type, targetId } = body as { type?: string; targetId?: string };
@@ -319,6 +315,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: "type غير صالح" }, { status: 400 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("operations/assign error:", error);
     const msg = error instanceof Error ? error.message : "حدث خطأ";
     return NextResponse.json({ error: msg }, { status: 500 });

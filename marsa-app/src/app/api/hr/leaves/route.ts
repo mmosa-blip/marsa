@@ -1,20 +1,17 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth, requireRole } from "@/lib/api-auth";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
     const leaves = await prisma.leaveRequest.findMany({
       include: { employee: { select: { id: true, name: true, department: true, avatar: true } } },
       orderBy: { createdAt: "desc" },
     });
     return NextResponse.json(leaves);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
@@ -22,8 +19,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+    await requireAuth();
     const body = await request.json();
     if (!body.employeeId || !body.type || !body.startDate || !body.endDate) {
       return NextResponse.json({ error: "بيانات ناقصة" }, { status: 400 });
@@ -40,6 +36,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(leave, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
