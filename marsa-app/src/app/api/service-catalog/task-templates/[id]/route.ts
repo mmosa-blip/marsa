@@ -1,28 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "غير مصرح لك بالوصول" },
-        { status: 401 }
-      );
-    }
-
-    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json(
-        { error: "ليس لديك صلاحية للوصول إلى هذا المورد" },
-        { status: 403 }
-      );
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     const body = await request.json();
@@ -55,6 +40,7 @@ export async function PATCH(
 
     return NextResponse.json(taskTemplate);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("خطأ في تحديث قالب المهمة:", error);
     return NextResponse.json(
       { error: "حدث خطأ أثناء تحديث قالب المهمة" },
@@ -68,21 +54,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "غير مصرح لك بالوصول" },
-        { status: 401 }
-      );
-    }
-
-    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json(
-        { error: "ليس لديك صلاحية للوصول إلى هذا المورد" },
-        { status: 403 }
-      );
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
 
@@ -105,6 +77,7 @@ export async function DELETE(
       { message: "تم حذف قالب المهمة بنجاح" }
     );
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("خطأ في حذف قالب المهمة:", error);
     return NextResponse.json(
       { error: "حدث خطأ أثناء حذف قالب المهمة" },

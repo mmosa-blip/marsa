@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { computeServiceDuration } from "@/lib/service-duration";
+import { requireRole } from "@/lib/api-auth";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER", "EXECUTOR", "BRANCH_MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER", "EXECUTOR", "BRANCH_MANAGER"]);
 
     const { id } = await params;
 
@@ -78,6 +74,7 @@ export async function GET(
     // is defined as working days; Saudi week = 6 days, Saturday off).
     return NextResponse.json({ ...template, totalDurationDays });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error fetching project template:", error);
     return NextResponse.json(
       { error: "حدث خطأ أثناء جلب قالب المشروع" },
@@ -91,10 +88,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     const body = await request.json();
@@ -201,6 +195,7 @@ export async function PATCH(
 
     return NextResponse.json(template);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error updating project template:", error);
     return NextResponse.json(
       { error: "حدث خطأ أثناء تحديث قالب المشروع" },
@@ -214,10 +209,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
 
@@ -236,6 +228,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "تم حذف قالب المشروع بنجاح" });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error deleting project template:", error);
     return NextResponse.json(
       { error: "حدث خطأ أثناء حذف قالب المشروع" },
