@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { countWorkingDays } from "@/lib/working-days";
+import { logger } from "@/lib/logger";
 
 interface ProjectHealth {
   id: string;
@@ -44,7 +45,7 @@ export async function GET() {
     const role = session.user.role;
     const isAdmin = role === "ADMIN" || role === "MANAGER";
 
-    console.log("[health] userId:", userId, "role:", role, "isAdmin:", isAdmin);
+    logger.debug("[health] session context", { userId, role, isAdmin });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const projectWhere: any = {
@@ -88,10 +89,10 @@ export async function GET() {
       });
       const projectIds = assignedProjects.map((t) => t.projectId).filter(Boolean) as string[];
 
-      console.log("[health] non-admin projectIds:", projectIds);
+      logger.debug("[health] non-admin projectIds", { count: projectIds.length });
 
       if (projectIds.length === 0) {
-        console.log("[health] returning empty — no assigned projects");
+        logger.debug("[health] returning empty — no assigned projects");
         return NextResponse.json([]);
       }
       projectWhere.id = { in: projectIds };
@@ -117,8 +118,7 @@ export async function GET() {
       },
     });
 
-    console.log("[health] projects found:", projects.length, "names:", projects.map(p => p.name));
-    console.log("[health] projectWhere:", JSON.stringify(projectWhere));
+    logger.debug("[health] projects found", { count: projects.length, projectWhere });
 
     const now = new Date();
 
@@ -261,7 +261,7 @@ export async function GET() {
     return NextResponse.json(healthData);
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));
-    console.error("[health] ERROR:", err.message, err.stack);
+    logger.error("[health] ERROR", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
