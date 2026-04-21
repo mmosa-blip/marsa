@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateProjectCode } from "@/lib/project-code";
 import { createAuditLog, AuditModule } from "@/lib/audit";
+import { requireRole } from "@/lib/api-auth";
 
 /**
  * PATCH /api/projects/:id/code
@@ -23,10 +22,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const session = await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     const body = await request.json();
@@ -136,6 +132,7 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error renumbering project:", error);
     const msg = error instanceof Error ? error.message : "حدث خطأ";
     return NextResponse.json({ error: msg }, { status: 500 });

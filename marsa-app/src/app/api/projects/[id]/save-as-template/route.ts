@@ -1,17 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const session = await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     const body = await request.json();
@@ -93,6 +89,7 @@ export async function POST(
 
     return NextResponse.json(template, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error saving project as template:", error);
     return NextResponse.json(
       { error: "حدث خطأ أثناء حفظ المشروع كقالب" },

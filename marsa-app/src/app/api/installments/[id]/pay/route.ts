@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createNotifications } from "@/lib/notifications";
+import { requireAuth } from "@/lib/api-auth";
 
 // POST /api/installments/[id]/pay
 // body: { amount }
@@ -15,20 +14,16 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const session = await requireAuth();
 
-    // Executor path is blocked — full payment confirmation must go
-    // through an admin/manager.
+    // Executor path is blocked with a specific message — they should hit
+    // /partial-request instead. Other non-admin roles get a generic 403.
     if (session.user.role === "EXECUTOR") {
       return NextResponse.json(
         { error: "يجب موافقة الإدارة على تأكيد السداد الكامل" },
         { status: 403 }
       );
     }
-
     if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
     }
@@ -87,6 +82,7 @@ export async function POST(
 
     return NextResponse.json(updated);
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error("installment pay error:", e);
     return NextResponse.json({ error: "فشل تأكيد السداد" }, { status: 500 });
   }

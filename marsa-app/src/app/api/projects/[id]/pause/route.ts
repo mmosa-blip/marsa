@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createNotifications } from "@/lib/notifications";
+import { requireRole } from "@/lib/api-auth";
 
 const ALLOWED_REASONS = ["PAYMENT_DELAY", "CLIENT_REQUEST", "OTHER"] as const;
 type PauseReason = (typeof ALLOWED_REASONS)[number];
@@ -14,10 +13,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const session = await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     const body = await req.json();
@@ -87,6 +83,7 @@ export async function POST(
 
     return NextResponse.json(pause, { status: 201 });
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error("pause error:", e);
     return NextResponse.json({ error: "فشل إيقاف المشروع" }, { status: 500 });
   }

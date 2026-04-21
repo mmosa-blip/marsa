@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment-assign";
 import { addWorkingDays } from "@/lib/working-days";
+import { requireRole } from "@/lib/api-auth";
 
 // POST /api/projects/[id]/branches
 // Body: { branches: string[] } — branch names (e.g. ["كندا", "بريطانيا"])
@@ -16,10 +15,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id: projectId } = await params;
     const body = await request.json();
@@ -144,6 +140,7 @@ export async function POST(
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error creating branches:", error);
     const msg = error instanceof Error ? error.message : "حدث خطأ";
     return NextResponse.json({ error: msg }, { status: 500 });
