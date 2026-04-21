@@ -1,17 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { computeServiceDuration } from "@/lib/service-duration";
+import { requireRole } from "@/lib/api-auth";
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
     // GET is open to EXECUTOR / BRANCH_MANAGER so they can pick
     // templates in the project-creation wizard. POST stays admin-only.
-    if (!session || !["ADMIN", "MANAGER", "EXECUTOR", "BRANCH_MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER", "EXECUTOR", "BRANCH_MANAGER"]);
 
     const { searchParams } = new URL(request.url);
     const active = searchParams.get("active");
@@ -71,6 +67,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(templatesWithDuration);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error fetching project templates:", error);
     return NextResponse.json(
       { error: "حدث خطأ أثناء جلب قوالب المشاريع" },
@@ -81,10 +78,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const session = await requireRole(["ADMIN", "MANAGER"]);
 
     const body = await request.json();
     const { name, description, workflowType, isSystem, services, milestones } = body;
@@ -170,6 +164,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(template, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error creating project template:", error);
     return NextResponse.json(
       { error: "حدث خطأ أثناء إنشاء قالب المشروع" },

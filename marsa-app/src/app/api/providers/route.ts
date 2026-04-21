@@ -1,22 +1,11 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 import bcrypt from "bcryptjs";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-
-    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json(
-        { error: "ليس لديك صلاحية للوصول" },
-        { status: 403 }
-      );
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const providers = await prisma.user.findMany({
       where: { role: "EXTERNAL_PROVIDER" },
@@ -66,6 +55,7 @@ export async function GET() {
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error fetching providers:", error);
     return NextResponse.json({ error: "حدث خطأ في جلب البيانات" }, { status: 500 });
   }
@@ -73,17 +63,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-
-    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json(
-        { error: "ليس لديك صلاحية لإنشاء مزود خدمة" },
-        { status: 403 }
-      );
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const body = await request.json();
     const {
@@ -153,6 +133,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(provider, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error creating provider:", error);
     return NextResponse.json(
       { error: "حدث خطأ في إنشاء مزود الخدمة" },

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth, requireRole } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    // All staff can view opportunities (not just admin/manager)
+    const session = await requireAuth();
+    // All staff can view opportunities (not just admin/manager). Gate
+    // CLIENT out explicitly — they don't belong in the CRM funnel view.
     if (session.user.role === "CLIENT") {
       return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
     }
@@ -37,6 +36,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(opportunities);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
@@ -44,11 +44,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const session = await requireRole(["ADMIN", "MANAGER"]);
 
     const body = await request.json();
     const {
@@ -111,6 +107,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(opportunity, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Opportunity CREATE error:", error);
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: `خطأ في إنشاء الفرصة: ${msg}` }, { status: 500 });

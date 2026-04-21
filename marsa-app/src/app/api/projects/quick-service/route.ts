@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { addWorkingDays } from "@/lib/working-days";
 import { computeServiceDuration } from "@/lib/service-duration";
+import { requireRole } from "@/lib/api-auth";
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const session = await requireRole(["ADMIN", "MANAGER"]);
 
     const body = await request.json();
     const { clientId, serviceTemplateId, notes, contractId } = body;
@@ -162,6 +158,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error creating quick service:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }

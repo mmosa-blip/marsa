@@ -1,25 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "يجب تسجيل الدخول أولاً" },
-        { status: 401 }
-      );
-    }
-
-    if (!["ADMIN", "MANAGER", "CLIENT", "EXECUTOR", "BRANCH_MANAGER"].includes(session.user.role)) {
-      return NextResponse.json(
-        { error: "غير مصرح لك بالوصول إلى هذه البيانات" },
-        { status: 403 }
-      );
-    }
+    const session = await requireRole(["ADMIN", "MANAGER", "CLIENT", "EXECUTOR", "BRANCH_MANAGER"]);
 
     const categories = await prisma.serviceCategory.findMany({
       where: {
@@ -62,6 +47,7 @@ export async function GET() {
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error fetching service categories:", error);
     return NextResponse.json(
       { error: "حدث خطأ في جلب تصنيفات الخدمات" },
@@ -72,21 +58,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "يجب تسجيل الدخول أولاً" },
-        { status: 401 }
-      );
-    }
-
-    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json(
-        { error: "غير مصرح لك بإنشاء تصنيفات" },
-        { status: 403 }
-      );
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const body = await request.json();
     const { name, description, icon, color, sortOrder } = body;
@@ -115,6 +87,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(category, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error creating service category:", error);
     return NextResponse.json(
       { error: "حدث خطأ في إنشاء التصنيف" },
