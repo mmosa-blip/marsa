@@ -414,6 +414,8 @@ model User {
   resumedProjects       ProjectPause[]      @relation("ResumedProjects")
   revertedTasks         Task[]              @relation("RevertedTasks")
 
+  @@index([role, isActive, deletedAt])
+  @@index([supervisorUserId, isActive])
   @@map("users")
 }
 
@@ -478,6 +480,7 @@ model Service {
   executors          UserService[]  @relation("ServiceExecutors")
   deptPayments       DepartmentPayment[] @relation("ServiceDeptPayments")
 
+  @@index([projectId, deletedAt])
   @@map("services")
 }
 
@@ -552,6 +555,9 @@ model Project {
   // history table carries the per-event detail.
   isPaused           Boolean  @default(false)
 
+  @@index([clientId, status])
+  @@index([departmentId, status])
+  @@index([deletedAt, status])
   @@map("projects")
 }
 
@@ -682,6 +688,10 @@ model Task {
   revertedBy         User?     @relation("RevertedTasks", fields: [revertedById], references: [id])
   revertReason       String?   @db.Text
 
+  @@index([assigneeId, status])
+  @@index([projectId, deletedAt])
+  @@index([serviceId, status])
+  @@index([dueDate, status])
   @@map("tasks")
 }
 
@@ -1656,6 +1666,7 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@index([entityType, entityId])
+  @@index([userId, createdAt])
   @@map("audit_logs")
 }
 
