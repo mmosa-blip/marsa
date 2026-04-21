@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const session = await requireAuth();
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
@@ -49,6 +45,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(transfers);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }

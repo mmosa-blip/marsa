@@ -1,28 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "غير مصرح لك بالوصول" },
-        { status: 401 }
-      );
-    }
-
-    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json(
-        { error: "ليس لديك صلاحية للوصول إلى هذا المورد" },
-        { status: 403 }
-      );
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
 
@@ -44,6 +29,7 @@ export async function GET(
 
     return NextResponse.json(taskTemplates);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("خطأ في جلب قوالب المهام:", error);
     return NextResponse.json(
       { error: "حدث خطأ أثناء جلب قوالب المهام" },
@@ -57,21 +43,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "غير مصرح لك بالوصول" },
-        { status: 401 }
-      );
-    }
-
-    if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json(
-        { error: "ليس لديك صلاحية للوصول إلى هذا المورد" },
-        { status: 403 }
-      );
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     const body = await request.json();
@@ -110,6 +82,7 @@ export async function POST(
 
     return NextResponse.json(taskTemplate, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("خطأ في إنشاء قالب المهمة:", error);
     return NextResponse.json(
       { error: "حدث خطأ أثناء إنشاء قالب المهمة" },

@@ -1,17 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth, requireRole } from "@/lib/api-auth";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    await requireAuth();
 
     const { id } = await params;
 
@@ -82,6 +78,7 @@ export async function GET(
       completedTasks: done,
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error fetching project:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
@@ -92,10 +89,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    await requireAuth();
 
     const { id } = await params;
     const body = await request.json();
@@ -107,6 +101,7 @@ export async function PATCH(
 
     return NextResponse.json(project);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error updating project:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
@@ -117,10 +112,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
 
@@ -137,6 +129,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "تم حذف المشروع" });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error deleting project:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }

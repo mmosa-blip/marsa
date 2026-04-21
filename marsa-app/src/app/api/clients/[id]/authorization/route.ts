@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/api-auth";
 
 // GET — view authorization status (client self or admin/manager)
 export async function GET(
@@ -9,8 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+    const session = await requireAuth();
 
     const { id } = await params;
 
@@ -32,6 +30,7 @@ export async function GET(
 
     return NextResponse.json(user);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
@@ -43,8 +42,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+    const session = await requireAuth();
 
     const { id } = await params;
 
@@ -81,6 +79,7 @@ export async function POST(
 
     return NextResponse.json(updated);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }

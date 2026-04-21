@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth, requireRole } from "@/lib/api-auth";
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+    const session = await requireAuth();
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
@@ -33,6 +31,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(requests);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
@@ -40,10 +39,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "CLIENT") {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    const session = await requireRole(["CLIENT"]);
 
     const body = await request.json();
 
@@ -82,6 +78,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(serviceRequest, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }

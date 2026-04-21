@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const session = await requireAuth();
 
     const { id } = await params;
     const isAdmin = ["ADMIN", "MANAGER"].includes(session.user.role);
@@ -232,6 +228,7 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error generating contract PDF:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }

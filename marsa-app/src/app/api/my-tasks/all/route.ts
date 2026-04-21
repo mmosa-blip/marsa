@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { reassignStaleTasks } from "@/lib/task-assignment";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const session = await requireAuth();
 
     // Fire-and-forget stale task reassignment
     reassignStaleTasks().catch(() => {});
@@ -342,6 +338,7 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error fetching my tasks:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
