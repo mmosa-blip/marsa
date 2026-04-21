@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createNotification, createNotifications } from "@/lib/notifications";
 import { createAuditLog, AuditModule } from "@/lib/audit";
+import { requireAuth } from "@/lib/api-auth";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const session = await requireAuth();
 
     const { id } = await params;
     const body = await request.json();
@@ -340,6 +336,7 @@ export async function PATCH(
 
     return NextResponse.json({ error: "إجراء غير معروف" }, { status: 400 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }

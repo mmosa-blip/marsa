@@ -1,21 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 // GET /api/tasks/pending-grace-requests
 // ADMIN/MANAGER only — returns tasks with a pending (unapproved) grace request.
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
-
-    const isStaff = ["ADMIN", "MANAGER"].includes(session.user.role);
-    if (!isStaff) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const tasks = await prisma.task.findMany({
       where: {
@@ -33,6 +24,7 @@ export async function GET() {
 
     return NextResponse.json(tasks);
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error("pending-grace-requests error:", e);
     return NextResponse.json(
       { error: "فشل جلب طلبات الإمهال" },

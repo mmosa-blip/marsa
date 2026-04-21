@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   createNotification,
   createNotifications,
 } from "@/lib/notifications";
 import { taskTransferSchema } from "@/lib/validations";
+import { requireAuth } from "@/lib/api-auth";
 
 // POST — executor/provider submits a transfer request
 export async function POST(
@@ -14,10 +13,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const session = await requireAuth();
 
     const { id } = await params;
     const body = await request.json();
@@ -167,6 +163,7 @@ export async function POST(
 
     return NextResponse.json(transferRequest, { status: 201 });
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
@@ -178,10 +175,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    const session = await requireAuth();
 
     const { id: taskId } = await params;
 
@@ -197,6 +191,7 @@ export async function GET(
 
     return NextResponse.json(transfers);
   } catch (error) {
+    if (error instanceof Response) return error;
     console.error("Error:", error);
     return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
