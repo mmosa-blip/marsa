@@ -1,33 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-    return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
+  try {
+    await requireRole(["ADMIN", "MANAGER"]);
+    const { id } = await params;
+    const userServices = await prisma.userService.findMany({
+      where: { userId: id },
+      include: { service: { select: { id: true, name: true, category: true } } },
+    });
+    return NextResponse.json(userServices);
+  } catch (e) {
+    if (e instanceof Response) return e;
+    throw e;
   }
-  const { id } = await params;
-  const userServices = await prisma.userService.findMany({
-    where: { userId: id },
-    include: { service: { select: { id: true, name: true, category: true } } },
-  });
-  return NextResponse.json(userServices);
 }
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-    return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-  }
-  const { id } = await params;
+  try {
+    await requireRole(["ADMIN", "MANAGER"]);
+    const { id } = await params;
   const { serviceId } = await request.json();
   const userService = await prisma.userService.upsert({
     where: { userId_serviceId: { userId: id, serviceId } },
@@ -86,18 +85,20 @@ export async function POST(
   }
 
   return NextResponse.json(userService, { status: 201 });
+  } catch (e) {
+    if (e instanceof Response) return e;
+    throw e;
+  }
 }
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-    return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-  }
-  const { id: userId } = await params;
-  const body = await request.json().catch(() => ({}));
+  try {
+    await requireRole(["ADMIN", "MANAGER"]);
+    const { id: userId } = await params;
+    const body = await request.json().catch(() => ({}));
   const { serviceId } = body as { serviceId?: string };
   if (!serviceId) {
     return NextResponse.json({ error: "serviceId مطلوب" }, { status: 400 });
@@ -134,4 +135,8 @@ export async function DELETE(
   }
 
   return NextResponse.json({ message: "تم إلغاء ربط الخدمة" });
+  } catch (e) {
+    if (e instanceof Response) return e;
+    throw e;
+  }
 }

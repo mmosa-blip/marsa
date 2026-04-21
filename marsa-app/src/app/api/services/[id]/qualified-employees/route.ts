@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 // GET /api/services/[id]/qualified-employees
 export async function GET(
@@ -9,10 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     const rows = await prisma.userService.findMany({
@@ -24,6 +20,7 @@ export async function GET(
     });
     return NextResponse.json(rows.map((r) => r.user).filter(Boolean));
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error(e);
     return NextResponse.json({ error: "فشل التحميل" }, { status: 500 });
   }
@@ -35,10 +32,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     const body = await req.json();
@@ -70,6 +64,7 @@ export async function POST(
 
     return NextResponse.json(row.user, { status: 201 });
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error(e);
     return NextResponse.json({ error: "فشل الإضافة" }, { status: 500 });
   }

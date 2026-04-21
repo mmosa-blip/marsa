@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
 
 // PATCH /api/task-requirements/[id]
 export async function PATCH(
@@ -9,10 +8,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     const body = await req.json();
@@ -40,6 +36,7 @@ export async function PATCH(
     });
     return NextResponse.json(updated);
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error(e);
     return NextResponse.json({ error: "فشل تعديل المتطلب" }, { status: 500 });
   }
@@ -51,15 +48,13 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !["ADMIN", "MANAGER"].includes(session.user.role)) {
-      return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
-    }
+    await requireRole(["ADMIN", "MANAGER"]);
 
     const { id } = await params;
     await prisma.taskRequirement.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (e) {
+    if (e instanceof Response) return e;
     console.error(e);
     return NextResponse.json({ error: "فشل حذف المتطلب" }, { status: 500 });
   }
