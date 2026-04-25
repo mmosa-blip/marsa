@@ -70,7 +70,7 @@ interface ProjectType {
   progress: number;
   totalTasks: number;
   completedTasks: number;
-  client: { id: string; name: string; email: string };
+  client: { id: string; name: string; email: string; phone?: string | null };
   manager: { id: string; name: string; email: string } | null;
   department?: { id: string; name: string; nameEn?: string; color: string | null } | null;
   contract?: {
@@ -160,6 +160,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // Project code edit modal — admins/managers can change the project's
   // contract number from here, which regenerates projectCode server-side.
   const [showCodeModal, setShowCodeModal] = useState(false);
+  // Celebration modal — only meaningful when project.status === "COMPLETED".
+  const [showCelebrationModal, setShowCelebrationModal] = useState(false);
+  const [waCopied, setWaCopied] = useState(false);
   // Inline rename: admins can edit the project name from the header.
   // The auto-name from the create page was "{template} - {client}" — this
   // is the only place to override that after the project exists.
@@ -438,6 +441,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {isAdmin && project.status === "COMPLETED" && (
+              <MarsaButton
+                variant="gold"
+                onClick={() => { setShowCelebrationModal(true); setWaCopied(false); }}
+              >
+                🎉 احتفالية الإنجاز
+              </MarsaButton>
+            )}
             <MarsaButton
               variant="secondary"
               icon={<FolderOpen size={16} />}
@@ -1196,6 +1207,112 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       )}
+
+      {/* Celebration modal — image preview + downloads + WhatsApp message */}
+      {showCelebrationModal && project.status === "COMPLETED" && (() => {
+        const imageUrl = `/api/projects/${id}/celebration/image`;
+        const reportUrl = `/api/projects/${id}/celebration/report`;
+        const clientName = project.client?.name ?? "العميل الكريم";
+        const waMessage = `مرحباً ${clientName}،\nيسعدنا إعلامكم بإكمال مشروع ${project.name} بنجاح ✨\nنرفق لكم:\n- شهادة إنجاز\n- تقرير شامل\nشكراً لثقتكم بمرسى.`;
+        const phone = project.client?.phone?.replace(/[^\d]/g, "");
+        const waLink = phone
+          ? `https://wa.me/${phone}?text=${encodeURIComponent(waMessage)}`
+          : null;
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setShowCelebrationModal(false)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              dir="rtl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-5 border-b border-gray-200">
+                <h3 className="text-lg font-bold" style={{ color: "#1C1B2E" }}>
+                  🎉 احتفالية إنجاز المشروع
+                </h3>
+                <MarsaButton
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  icon={<X size={20} />}
+                  onClick={() => setShowCelebrationModal(false)}
+                />
+              </div>
+
+              <div className="p-5 space-y-5">
+                {/* Image preview */}
+                <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imageUrl}
+                    alt="بطاقة الاحتفالية"
+                    className="w-full h-auto"
+                    style={{ aspectRatio: "1200 / 630" }}
+                  />
+                </div>
+
+                {/* Download buttons */}
+                <div className="flex flex-wrap gap-2">
+                  <MarsaButton
+                    variant="gold"
+                    href={imageUrl}
+                    {...({ download: `celebration-${project.projectCode || project.id}.png` } as Record<string, unknown>)}
+                  >
+                    تحميل الصورة
+                  </MarsaButton>
+                  <MarsaButton variant="secondary" href={reportUrl} {...({ target: "_blank" } as Record<string, unknown>)}>
+                    تحميل التقرير
+                  </MarsaButton>
+                  {waLink && (
+                    <MarsaButton variant="secondary" href={waLink} {...({ target: "_blank", rel: "noopener noreferrer" } as Record<string, unknown>)}>
+                      فتح في واتساب
+                    </MarsaButton>
+                  )}
+                </div>
+
+                {/* WhatsApp text */}
+                <div>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: "#374151" }}>
+                    نص جاهز للنسخ
+                  </label>
+                  <textarea
+                    readOnly
+                    value={waMessage}
+                    rows={6}
+                    className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none"
+                    style={{ borderColor: "#E5E7EB", backgroundColor: "#FAFAFE", lineHeight: 1.7 }}
+                  />
+                  <div className="flex justify-end mt-2">
+                    <MarsaButton
+                      variant="secondary"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(waMessage);
+                          setWaCopied(true);
+                          setTimeout(() => setWaCopied(false), 2000);
+                        } catch {
+                          /* clipboard blocked — user can select+copy manually */
+                        }
+                      }}
+                    >
+                      {waCopied ? "✓ تم النسخ" : "نسخ النص"}
+                    </MarsaButton>
+                  </div>
+                </div>
+
+                {!phone && (
+                  <p className="text-xs" style={{ color: "#9CA3AF" }}>
+                    لإضافة زر فتح واتساب مباشرة، أضف رقم جوال للعميل في صفحته.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
