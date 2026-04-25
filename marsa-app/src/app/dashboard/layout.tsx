@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { ROUTES } from "@/lib/routes";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { ToastProvider } from "@/components/Toast";
 import GlobalSearch from "@/components/GlobalSearch";
@@ -700,7 +701,7 @@ function DashboardLayoutInner({
                 {t.nav.profile}
               </Link>
               <button
-                onClick={() => signOut({ callbackUrl: "/auth/login" })}
+                onClick={() => signOut({ callbackUrl: ROUTES.LOGIN })}
                 className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors"
                 style={{ color: "#DC2626", backgroundColor: "rgba(220,38,38,0.08)" }}
                 onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(220,38,38,0.15)"; }}
@@ -761,7 +762,7 @@ function DashboardLayoutInner({
                   {t.nav.profile}
                 </Link>
                 <button
-                  onClick={() => signOut({ callbackUrl: "/auth/login" })}
+                  onClick={() => signOut({ callbackUrl: ROUTES.LOGIN })}
                   className={`flex items-center gap-2.5 px-4 py-3 text-sm w-full ${isRTL ? "text-right" : "text-left"} transition-colors hover:bg-red-50`}
                   style={{ color: "#DC2626" }}
                 >

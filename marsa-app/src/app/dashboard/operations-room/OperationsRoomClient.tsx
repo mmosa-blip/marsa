@@ -42,6 +42,7 @@ import {
   Building2,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import { ROUTES } from "@/lib/routes";
 import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 import DepartmentPoolManager from "@/components/DepartmentPoolManager";
 import { exportDelayReportPDF } from "@/lib/delay-report-pdf";
@@ -702,7 +703,7 @@ export default function OperationsRoomClient() {
   };
 
   if (status === "loading") return null;
-  if (!session) redirect("/auth/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   return (
     <div className="p-4 md:p-8 overflow-x-hidden" dir="rtl">

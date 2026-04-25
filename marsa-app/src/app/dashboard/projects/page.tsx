@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
 import {
   Plus,
   FolderKanban,
@@ -94,7 +95,7 @@ export default function ProjectsPage() {
   }, [filterDept]);
 
   if (authStatus === "loading") return null;
-  if (!session) redirect("/auth/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   function fetchProjects() {
     const params = new URLSearchParams();

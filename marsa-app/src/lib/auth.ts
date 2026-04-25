@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { normalizeSaudiPhone } from "@/lib/validations";
+import { ROUTES } from "@/lib/routes";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -180,7 +181,7 @@ export const authOptions: NextAuthOptions = {
   },
 
   pages: {
-    signIn: "/auth/login",
+    signIn: ROUTES.LOGIN,
   },
 
   session: {

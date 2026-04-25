@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
 import ClientDashboard from "./ClientDashboard";
 import AdminDashboard from "./AdminDashboard";
 import EmployeeDashboard from "./EmployeeDashboard";
@@ -28,7 +29,7 @@ export default function DashboardPage() {
   }, [status]);
 
   if (status === "loading") return null;
-  if (!session) redirect("/auth/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   if (loading) {
     return (

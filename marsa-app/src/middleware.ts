@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
+import { ROUTES } from "@/lib/routes";
 
 // Global auth gate. Unlike next-auth/middleware `withAuth` (which always
 // redirects to /login), this splits the response by request type:
@@ -34,7 +35,7 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
-    const loginUrl = new URL("/auth/login", req.url);
+    const loginUrl = new URL(ROUTES.LOGIN, req.url);
     loginUrl.searchParams.set("callbackUrl", path);
     return NextResponse.redirect(loginUrl);
   }

@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { ROUTES } from "@/lib/routes";
 import {
   ArrowRight,
   ArrowLeft,
@@ -77,7 +78,7 @@ export default function DocumentUploadWizardPage({
 
   useEffect(() => {
     if (sessionStatus === "unauthenticated") {
-      router.push("/auth/login");
+      router.push(ROUTES.LOGIN);
     }
   }, [sessionStatus, router]);
 

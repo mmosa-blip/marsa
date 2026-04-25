@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail, Lock, User, Phone, Smartphone } from "lucide-react";
 import MarsaLogo from "@/components/MarsaLogo";
 import { MarsaButton } from "@/components/ui/MarsaButton";
+import { ROUTES } from "@/lib/routes";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -60,7 +61,7 @@ export default function RegisterPage() {
         return;
       }
 
-      router.push("/auth/login?registered=true");
+      router.push(`${ROUTES.LOGIN}?registered=true`);
     } catch {
       setError("حدث خطأ في الاتصال بالخادم");
       setLoading(false);
@@ -319,7 +320,7 @@ export default function RegisterPage() {
           <div className="mt-6 text-center">
             <p className="text-sm" style={{ color: "#2D3748", opacity: 0.6 }}>
               لديك حساب بالفعل؟{" "}
-              <MarsaButton href="/auth/login" variant="link">
+              <MarsaButton href={ROUTES.LOGIN} variant="link">
                 سجّل دخولك
               </MarsaButton>
             </p>

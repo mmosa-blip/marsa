@@ -8,6 +8,7 @@ import MarsaLogo from "@/components/MarsaLogo";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import { useLang } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { ROUTES } from "@/lib/routes";
 
 const departments = [
   { icon: TrendingUp, name: "الاستثمار", color: "#5E5495" },
@@ -216,7 +217,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm mt-6" style={{ color: "rgba(255,255,255,0.4)" }}>
             {t.auth.noAccount}{" "}
-            <MarsaButton href="/auth/register" variant="link">{t.auth.registerNow}</MarsaButton>
+            <MarsaButton href={ROUTES.REGISTER} variant="link">{t.auth.registerNow}</MarsaButton>
           </p>
 
           <div className="mt-8 text-center">

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
 import {
   CreditCard,
   Clock,
@@ -149,7 +150,7 @@ export default function PaymentRequestsPage() {
   }, [statusFilter]);
 
   if (authStatus === "loading") return null;
-  if (!session) redirect("/auth/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   function formatDate(d: string | null) {
     if (!d) return "—";

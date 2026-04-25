@@ -19,6 +19,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Loader2, X, Building2 } from "lucide-react";
 import MyTasksView from "@/components/MyTasksView";
+import { ROUTES } from "@/lib/routes";
 
 interface ApiService {
   id: string;
@@ -1021,7 +1022,7 @@ export default function ExecutorCityPage() {
   }
 
   if (status === "loading") return null;
-  if (!session) redirect("/auth/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   return (
     // Single vertical scroll for the whole page. The city sits at the top

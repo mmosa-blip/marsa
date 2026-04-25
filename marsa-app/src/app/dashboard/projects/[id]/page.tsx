@@ -3,6 +3,7 @@
 import { useState, useEffect, use, useRef, Fragment } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
 import {
   ArrowRight,
   Calendar,
@@ -176,7 +177,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   }, [authStatus, id]);
 
   if (authStatus === "loading") return null;
-  if (!session) redirect("/auth/login");
+  if (!session) redirect(ROUTES.LOGIN);
 
   const isAdmin = session.user.role === "ADMIN" || session.user.role === "MANAGER";
   // Executors use the project detail page as a read-only dashboard —
