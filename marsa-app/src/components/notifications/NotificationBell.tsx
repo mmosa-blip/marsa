@@ -356,7 +356,7 @@ export default function NotificationBell() {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <p
-                        className="text-sm leading-relaxed"
+                        className="text-sm leading-relaxed whitespace-pre-line"
                         style={{
                           color: "#2D3748",
                           fontWeight: !notification.isRead ? 600 : 400,

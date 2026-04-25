@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/api-auth";
+import { createNotifications } from "@/lib/notifications";
+import { projectAssignedMessage } from "@/lib/project-tips";
+import { logger } from "@/lib/logger";
 
 /**
  * NOTE: This file deliberately avoids `prisma.$transaction`. The runtime
@@ -241,6 +244,54 @@ export async function POST(request: NextRequest) {
         const r = await assignServiceTasksToUsers(s.id, userIds, now, projectExecutorIds);
         tasksMoved += r.tasksMoved;
         totalLinked += r.totalLinked;
+      }
+
+      // Rich PROJECT_ASSIGNED notification — one per recipient. Best-effort:
+      // a notification failure must never roll back the assignment itself.
+      try {
+        const proj = await prisma.project.findUnique({
+          where: { id: project.id },
+          select: {
+            name: true,
+            projectCode: true,
+            startDate: true,
+            contractEndDate: true,
+            endDate: true,
+            client: { select: { name: true } },
+          },
+        });
+        if (proj) {
+          // Per-user task count: tasks now owned by that executor in this project.
+          const taskCounts = await prisma.task.groupBy({
+            by: ["assigneeId"],
+            where: {
+              service: { projectId: project.id, deletedAt: null },
+              assigneeId: { in: userIds },
+              deletedAt: null,
+            },
+            _count: { _all: true },
+          });
+          const countByUser = Object.fromEntries(
+            taskCounts.map((g) => [g.assigneeId ?? "", g._count._all])
+          );
+          await createNotifications(
+            userIds.map((uid) => ({
+              userId: uid,
+              type: "NEW_TASK" as const,
+              message: projectAssignedMessage({
+                projectName: proj.name,
+                projectCode: proj.projectCode,
+                clientName: proj.client?.name ?? null,
+                startDate: proj.startDate,
+                endDate: proj.contractEndDate ?? proj.endDate,
+                taskCount: countByUser[uid] ?? 0,
+              }),
+              link: `/dashboard/projects/${project.id}`,
+            }))
+          );
+        }
+      } catch (e) {
+        logger.warn("project-assigned notification failed", { e: String(e) });
       }
 
       return NextResponse.json({
