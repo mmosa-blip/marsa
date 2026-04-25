@@ -60,6 +60,10 @@ export async function GET(request: NextRequest) {
         { name: { contains: q } },
         { phone: { contains: q } },
         { email: { not: null, contains: q } },
+        // Company-name match — meaningful for the CLIENT picker; costs
+        // nothing extra for other roles since they typically have no
+        // owned companies.
+        { ownedCompanies: { some: { name: { contains: q } } } },
       ];
     }
 
@@ -72,9 +76,10 @@ export async function GET(request: NextRequest) {
         role: true,
         phone: true,
         avatar: true,
+        ownedCompanies: { select: { id: true, name: true }, take: 1 },
       },
       orderBy: { name: "asc" },
-      take: 30,
+      take: 20,
     });
 
     return NextResponse.json(users);

@@ -44,6 +44,8 @@ interface ClientUser {
   name: string;
   email: string;
   role: string;
+  phone?: string | null;
+  ownedCompanies?: { id: string; name: string }[];
 }
 
 interface ServiceTemplate {
@@ -1174,26 +1176,34 @@ export default function NewProjectPage() {
                     className="absolute z-20 w-full mt-2 bg-white rounded-xl shadow-xl overflow-hidden"
                     style={{ border: "1px solid #E2E0D8" }}
                   >
-                    {clientResults.map((client) => (
-                      <button
-                        key={client.id}
-                        onClick={() => selectClient(client)}
-                        className="flex items-center gap-3 w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors"
-                      >
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                          style={{ backgroundColor: "#5E5495" }}
+                    {clientResults.map((client) => {
+                      const company = client.ownedCompanies?.[0];
+                      const subtitle = [client.phone, company?.name, client.email]
+                        .filter(Boolean)
+                        .join(" · ");
+                      return (
+                        <button
+                          key={client.id}
+                          onClick={() => selectClient(client)}
+                          className="flex items-center gap-3 w-full px-4 py-3 text-right hover:bg-gray-50 transition-colors"
                         >
-                          {client.name.charAt(0)}
-                        </div>
-                        <div className="flex-1 text-right">
-                          <p className="text-sm font-medium" style={{ color: "#1C1B2E" }}>
-                            {client.name}
-                          </p>
-                          <p className="text-xs text-gray-400">{client.email}</p>
-                        </div>
-                      </button>
-                    ))}
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                            style={{ backgroundColor: "#5E5495" }}
+                          >
+                            {client.name.charAt(0)}
+                          </div>
+                          <div className="flex-1 text-right min-w-0">
+                            <p className="text-sm font-medium truncate" style={{ color: "#1C1B2E" }}>
+                              {client.name}
+                            </p>
+                            {subtitle && (
+                              <p className="text-xs text-gray-400 truncate">{subtitle}</p>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
                 {showClientDropdown && clientResults.length === 0 && clientSearch.length >= 2 && !searchingClients && (
