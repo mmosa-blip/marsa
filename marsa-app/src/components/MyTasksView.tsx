@@ -83,6 +83,9 @@ interface Task {
     gracePeriodDays: number | null;
     gracePeriodEnd: string | null;
     gracePeriodApproved: boolean;
+    confirmationStatus: string | null;
+    recordedById: string | null;
+    rejectionReason: string | null;
   } | null;
   startedById?: string | null;
   startedBy?: { id: string; name: string } | null;
@@ -190,6 +193,10 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   const [partialAmount, setPartialAmount] = useState("");
   const [partialSubmitting, setPartialSubmitting] = useState(false);
   const [partialError, setPartialError] = useState<string | null>(null);
+  // Receipt-confirmation flow — executor records that the client paid the
+  // installment in full. The installment is unlocked immediately but stays
+  // PENDING_CONFIRMATION until a finance approver confirms via /confirm-payment.
+  const [recordingPaymentId, setRecordingPaymentId] = useState<string | null>(null);
   // Grace-period-request modal — executor asks for X days of unlocked access.
   const [graceModal, setGraceModal] = useState<{ installmentId: string; title: string } | null>(null);
   const [graceDays, setGraceDays] = useState("");
@@ -792,21 +799,35 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                 >
                   تم دفع جزئي
                 </button>
-                {/* Button 2: Full payment */}
+                {/* Button 2: Record full receipt — admin confirms after */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setPartialModal({
-                      installmentId: inst.id,
-                      title: inst.title,
-                      remaining: inst.amount,
-                    });
-                    setPartialAmount(String(inst.amount));
+                  disabled={recordingPaymentId === inst.id}
+                  onClick={async () => {
+                    if (recordingPaymentId) return;
+                    if (!window.confirm(`تأكيد استلام كامل قيمة "${inst.title}" (${inst.amount.toLocaleString("en-US")})؟ يحتاج تأكيد من الإدارة بعد التسجيل.`)) {
+                      return;
+                    }
+                    setRecordingPaymentId(inst.id);
+                    try {
+                      const res = await fetch(
+                        `/api/installments/${inst.id}/record-payment`,
+                        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+                      );
+                      if (res.ok) {
+                        fetchTasks();
+                      } else {
+                        const e = await res.json().catch(() => ({}));
+                        window.alert(e.error || "فشل تسجيل الاستلام");
+                      }
+                    } finally {
+                      setRecordingPaymentId(null);
+                    }
                   }}
-                  className="text-xs md:text-[10px] font-bold px-3 md:px-2 py-1.5 md:py-0.5 rounded-full hover:bg-green-100 transition-colors"
+                  className="text-xs md:text-[10px] font-bold px-3 md:px-2 py-1.5 md:py-0.5 rounded-full hover:bg-green-100 transition-colors disabled:opacity-50"
                   style={{ backgroundColor: "rgba(5,150,105,0.1)", color: "#059669" }}
                 >
-                  تم دفع كامل
+                  {recordingPaymentId === inst.id ? "جارٍ التسجيل..." : "تأكيد استلام الدفعة"}
                 </button>
                 {/* Button 3: Grace period */}
                 <button
@@ -832,6 +853,11 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
             {inst && inst.gracePeriodApproved && inst.gracePeriodEnd && (
               <span className="text-[10px] font-semibold" style={{ color: "#059669" }}>
                 مهلة نشطة حتى {new Date(inst.gracePeriodEnd).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric" })}
+              </span>
+            )}
+            {inst && inst.confirmationStatus === "REJECTED" && inst.rejectionReason && (
+              <span className="text-[10px] font-semibold max-w-[260px] text-right" style={{ color: "#DC2626" }}>
+                رُفض تسجيل الاستلام: {inst.rejectionReason}
               </span>
             )}
           </div>

@@ -11,6 +11,7 @@ import {
   X,
   Loader2,
   AlertTriangle,
+  Receipt,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import ProjectCodeBadge from "@/components/ProjectCodeBadge";
@@ -52,6 +53,12 @@ interface InstallmentRequest {
   } | null;
 }
 
+interface ConfirmationRequest extends InstallmentRequest {
+  recordedAt: string | null;
+  recordedById: string | null;
+  recordedByName: string | null;
+}
+
 interface TaskGraceRequest {
   id: string;
   title: string;
@@ -62,7 +69,7 @@ interface TaskGraceRequest {
   project: { id: string; name: string; projectCode: string | null } | null;
 }
 
-type Tab = "transfers" | "payments" | "grace" | "taskGrace";
+type Tab = "transfers" | "payments" | "grace" | "taskGrace" | "confirmations";
 
 // ─── Component ──────────────────────────────────────────────────
 
@@ -73,13 +80,17 @@ export default function ApprovalsPage() {
   const [transfers, setTransfers] = useState<TransferRequest[]>([]);
   const [partialReqs, setPartialReqs] = useState<InstallmentRequest[]>([]);
   const [graceReqs, setGraceReqs] = useState<InstallmentRequest[]>([]);
+  const [confirmReqs, setConfirmReqs] = useState<ConfirmationRequest[]>([]);
   const [taskGraceReqs, setTaskGraceReqs] = useState<TaskGraceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
+  // Reject-reason modal state for the confirmation flow.
+  const [rejectModal, setRejectModal] = useState<{ id: string; title: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => {
     if (authStatus === "authenticated" && session?.user?.role) {
-      if (!["ADMIN", "MANAGER"].includes(session.user.role)) {
+      if (!["ADMIN", "MANAGER", "FINANCE_MANAGER"].includes(session.user.role)) {
         redirect("/dashboard");
       }
     }
@@ -101,6 +112,7 @@ export default function ApprovalsPage() {
         const d = await iRes.json();
         setPartialReqs(d.partialRequests || []);
         setGraceReqs(d.graceRequests || []);
+        setConfirmReqs(d.confirmationRequests || []);
       }
       if (tgRes.ok) {
         const d = await tgRes.json();
@@ -171,19 +183,55 @@ export default function ApprovalsPage() {
     }
   };
 
+  const handleConfirmReceipt = async (id: string) => {
+    setActing(id);
+    try {
+      await fetch(`/api/installments/${id}/confirm-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "CONFIRM" }),
+      });
+      fetchAll();
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const submitReject = async () => {
+    if (!rejectModal) return;
+    const reason = rejectReason.trim();
+    if (reason.length === 0) return;
+    setActing(rejectModal.id);
+    try {
+      await fetch(`/api/installments/${rejectModal.id}/confirm-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "REJECT", rejectionReason: reason }),
+      });
+      setRejectModal(null);
+      setRejectReason("");
+      fetchAll();
+    } finally {
+      setActing(null);
+    }
+  };
+
   // ── Counts ──
   const counts = {
     transfers: transfers.length,
     payments: partialReqs.length,
     grace: graceReqs.length,
     taskGrace: taskGraceReqs.length,
+    confirmations: confirmReqs.length,
   };
-  const totalPending = counts.transfers + counts.payments + counts.grace + counts.taskGrace;
+  const totalPending =
+    counts.transfers + counts.payments + counts.grace + counts.taskGrace + counts.confirmations;
 
   // ── Tab config ──
   const tabs: { key: Tab; label: string; icon: typeof ArrowLeftRight; count: number; color: string }[] = [
     { key: "transfers", label: "تحويلات المهام", icon: ArrowLeftRight, count: counts.transfers, color: "#5E5495" },
     { key: "payments", label: "طلبات الدفع", icon: DollarSign, count: counts.payments, color: "#C9A84C" },
+    { key: "confirmations", label: "تأكيد الدفعات", icon: Receipt, count: counts.confirmations, color: "#0EA5E9" },
     { key: "grace", label: "إمهال الدفعات", icon: Clock, count: counts.grace, color: "#2563EB" },
     { key: "taskGrace", label: "إمهال المهام", icon: Clock, count: counts.taskGrace, color: "#059669" },
   ];
@@ -453,6 +501,85 @@ export default function ApprovalsPage() {
             </div>
           )}
 
+          {/* ── Tab 5: Receipt Confirmations ── */}
+          {tab === "confirmations" && (
+            <div className="space-y-3">
+              {confirmReqs.length === 0 ? (
+                <EmptyState icon={Receipt} text="لا توجد دفعات بانتظار التأكيد" />
+              ) : (
+                confirmReqs.map((inst) => {
+                  const proj = inst.contract?.project;
+                  return (
+                    <div
+                      key={inst.id}
+                      className="bg-white rounded-2xl p-5"
+                      style={{ border: "1px solid #E2E0D8" }}
+                    >
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+                              {inst.title}
+                            </p>
+                            <span
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                              style={{ backgroundColor: "rgba(14,165,233,0.1)", color: "#0EA5E9" }}
+                            >
+                              بانتظار التأكيد
+                            </span>
+                          </div>
+                          {proj && (
+                            <p className="text-xs" style={{ color: "#6B7280" }}>
+                              مشروع: <b>{proj.name}</b>{" "}
+                              <ProjectCodeBadge code={proj.projectCode} size="xs" inline />
+                              {proj.client && <> — عميل: <b>{proj.client.name}</b></>}
+                            </p>
+                          )}
+                          <p className="text-xs mt-1" style={{ color: "#6B7280" }}>
+                            المبلغ: <b style={{ color: "#C9A84C" }}>{inst.amount.toLocaleString("en-US")}</b>
+                            {inst.recordedByName && <> — سجَّلها: <b>{inst.recordedByName}</b></>}
+                            {inst.recordedAt && (
+                              <> — في {new Date(inst.recordedAt).toLocaleDateString("ar-SA-u-nu-latn", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</>
+                            )}
+                          </p>
+                          {inst.linkedTask?.assignee && (
+                            <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
+                              المهمة: {inst.linkedTask.title} — المنفذ: <b>{inst.linkedTask.assignee.name}</b>
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <MarsaButton
+                            variant="primary"
+                            size="xs"
+                            icon={<CheckCircle2 size={13} />}
+                            disabled={acting === inst.id}
+                            onClick={() => handleConfirmReceipt(inst.id)}
+                            style={{ backgroundColor: "#059669" }}
+                          >
+                            تأكيد
+                          </MarsaButton>
+                          <MarsaButton
+                            variant="danger"
+                            size="xs"
+                            icon={<X size={13} />}
+                            disabled={acting === inst.id}
+                            onClick={() => {
+                              setRejectModal({ id: inst.id, title: inst.title });
+                              setRejectReason("");
+                            }}
+                          >
+                            رفض
+                          </MarsaButton>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
           {/* ── Tab 4: Task Grace Requests ── */}
           {tab === "taskGrace" && (
             <div className="space-y-3">
@@ -500,6 +627,70 @@ export default function ApprovalsPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Reject-reason modal for receipt confirmations */}
+      {rejectModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          onClick={() => {
+            if (acting !== rejectModal.id) {
+              setRejectModal(null);
+              setRejectReason("");
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+            style={{ boxShadow: "0 20px 50px rgba(0,0,0,0.2)" }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <AlertTriangle size={20} style={{ color: "#DC2626" }} />
+              <h3 className="text-base font-bold" style={{ color: "#1C1B2E" }}>
+                رفض تسجيل الدفعة
+              </h3>
+            </div>
+            <p className="text-sm mb-3" style={{ color: "#6B7280" }}>
+              {rejectModal.title}
+            </p>
+            <label className="block text-xs font-semibold mb-2" style={{ color: "#374151" }}>
+              سبب الرفض <span style={{ color: "#DC2626" }}>*</span>
+            </label>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={4}
+              placeholder="اشرح للمنفّذ سبب الرفض حتى يتمكن من تصحيح التسجيل"
+              className="w-full px-3 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#C9A84C]"
+              style={{ borderColor: "#E5E7EB" }}
+              autoFocus
+            />
+            <div className="flex items-center justify-end gap-2 mt-4">
+              <MarsaButton
+                variant="link"
+                size="xs"
+                disabled={acting === rejectModal.id}
+                onClick={() => {
+                  setRejectModal(null);
+                  setRejectReason("");
+                }}
+              >
+                إلغاء
+              </MarsaButton>
+              <MarsaButton
+                variant="danger"
+                size="xs"
+                icon={<X size={13} />}
+                disabled={acting === rejectModal.id || rejectReason.trim().length === 0}
+                onClick={submitReject}
+              >
+                {acting === rejectModal.id ? "جارٍ الرفض..." : "تأكيد الرفض"}
+              </MarsaButton>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
