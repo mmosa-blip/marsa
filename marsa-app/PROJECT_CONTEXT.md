@@ -300,3 +300,18 @@ UPLOADTHING_TOKEN=
 - linkedTaskId يُقبل في payload
 
 **سبب القاعدة:** قبل 2026-04-25 كانت كل الأقساط isLocked=false (ثغرة).
+
+---
+
+## ميزة الاحتفالية (Celebration)
+
+عند `project.status === COMPLETED`، الأدمن يقدر يولّد:
+- صورة احتفالية: `GET /api/projects/[id]/celebration/image` (PNG 1200x630 عبر `next/og`)
+- تقرير قابل للطباعة: `GET /api/projects/[id]/celebration/report` (HTML auto-print، يُحفظ كـ PDF من المتصفح — نفس نمط `delay-report-pdf` و `contract-pdf`)
+
+**الصلاحية:** ADMIN, MANAGER فقط. `status` غير COMPLETED → 409.
+**الموارد:** تُولَّد on-demand، لا تُحفظ في DB أو UploadThing.
+**AuditLog:** `PROJECT_CELEBRATION_DOWNLOADED` (severity=INFO) مع `meta.type ∈ {"image","report"}`.
+**الخطوط:** Tajawal Regular/Bold في `/public/fonts/` للصورة (server-side)؛ Google Fonts CSS للتقرير (browser-side).
+
+**UI:** زر ذهبي "🎉 احتفالية الإنجاز" في رأس صفحة المشروع → modal يحوي معاينة الصورة، زرَّي تحميل، نص واتساب جاهز قابل للنسخ، ورابط `wa.me` اختياري لو `client.phone` موجود.
