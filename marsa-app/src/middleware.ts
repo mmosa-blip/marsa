@@ -13,8 +13,8 @@ const publicPaths = [
   "/api/auth",         // next-auth callbacks
   "/api/uploadthing",  // uploadthing has its own auth
   "/api/cron",         // Vercel Cron hits with CRON_SECRET header
-  "/login",
-  "/register",
+  "/auth/login",
+  "/auth/register",
   "/forgot-password",
 ];
 
@@ -34,7 +34,7 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
-    const loginUrl = new URL("/login", req.url);
+    const loginUrl = new URL("/auth/login", req.url);
     loginUrl.searchParams.set("callbackUrl", path);
     return NextResponse.redirect(loginUrl);
   }

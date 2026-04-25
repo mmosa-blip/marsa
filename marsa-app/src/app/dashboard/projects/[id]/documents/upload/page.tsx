@@ -77,7 +77,7 @@ export default function DocumentUploadWizardPage({
 
   useEffect(() => {
     if (sessionStatus === "unauthenticated") {
-      router.push("/login");
+      router.push("/auth/login");
     }
   }, [sessionStatus, router]);
 
