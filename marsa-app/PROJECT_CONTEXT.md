@@ -112,11 +112,12 @@ src/
 - فريق المشاريع الافتراضي (DepartmentPoolManager)
 
 ### 4.5 صفحة الموافقات (/dashboard/approvals)
-4 tabs:
+5 tabs:
 1. تحويلات المهام (PENDING_ADMIN)
 2. طلبات الدفع (جزئي/كامل)
-3. إمهال الدفعات (grace)
-4. إمهال المهام (task grace)
+3. تأكيد الدفعات (PENDING_CONFIRMATION) — راجع قسم "نظام الدفعات" أسفل الملف
+4. إمهال الدفعات (grace)
+5. إمهال المهام (task grace)
 
 ### 4.6 المالية
 - ContractPaymentInstallment + partial payment + grace period
@@ -124,6 +125,7 @@ src/
 - DepartmentPayment + installments
 - Cashier module
 - Invoices + tax calculation (15% VAT)
+- للتفاصيل الكاملة لـ `confirmationStatus` و workflow record/confirm، راجع قسم "نظام الدفعات (Payments)" أسفل الملف.
 
 ### 4.7 المستندات
 - DocType + DocumentGroup + ProjectDocument (per department)
