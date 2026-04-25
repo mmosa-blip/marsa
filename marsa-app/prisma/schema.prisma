@@ -1498,6 +1498,17 @@ model ContractPaymentInstallment {
   gracePeriodDays       Int?
   gracePeriodEnd        DateTime?
   gracePeriodApproved   Boolean  @default(false)
+  // Receipt-confirmation workflow: an executor (or admin/manager) records
+  // that a payment was received from the client; the installment unlocks
+  // immediately for downstream work, but stays in PENDING_CONFIRMATION
+  // until a finance approver confirms or rejects. A REJECT re-locks the
+  // installment and the linked task and stores the reason.
+  recordedById          String?
+  recordedAt            DateTime?
+  confirmedById         String?
+  confirmedAt           DateTime?
+  confirmationStatus    String?     // PENDING_CONFIRMATION | CONFIRMED | REJECTED
+  rejectionReason       String?
   tickets        Ticket[]
   createdAt    DateTime @default(now())
 
