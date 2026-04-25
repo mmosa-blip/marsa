@@ -126,12 +126,14 @@ export async function POST(request: NextRequest) {
           ? {
               installments: {
                 create: installments.map(
-                  (inst: { title: string; amount: number; percentage?: number; dueAfterDays?: number }, idx: number) => ({
+                  (inst: { title: string; amount: number; percentage?: number; dueAfterDays?: number; linkedTaskId?: string | null }, idx: number) => ({
                     title: inst.title,
                     amount: inst.amount,
                     percentage: inst.percentage ?? null,
                     dueAfterDays: inst.dueAfterDays ?? null,
                     order: idx,
+                    isLocked: idx > 0,
+                    linkedTaskId: inst.linkedTaskId ?? null,
                   })
                 ),
               },
