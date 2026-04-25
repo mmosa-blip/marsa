@@ -180,6 +180,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "اسم المشروع والعميل مطلوبان" }, { status: 400 });
     }
 
+    // Validate executorId override — must exist, be EXECUTOR, and be active.
+    // Pool/department membership is intentionally NOT enforced here so the
+    // creator can pick any qualified executor regardless of department.
+    if (executorId) {
+      const exec = await prisma.user.findUnique({
+        where: { id: executorId },
+        select: { role: true, isActive: true, deletedAt: true },
+      });
+      if (!exec || exec.deletedAt || !exec.isActive || exec.role !== "EXECUTOR") {
+        return NextResponse.json(
+          { error: "المنفذ المختار غير صالح" },
+          { status: 400 }
+        );
+      }
+    }
+
     // If services provided, create full project with services, tasks, requirements, and milestones
     if (services && services.length > 0) {
       const result = await prismaDirect.$transaction(async (tx) => {

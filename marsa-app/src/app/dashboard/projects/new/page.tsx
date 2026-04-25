@@ -294,9 +294,14 @@ export default function NewProjectPage() {
   const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [loadingManagers, setLoadingManagers] = useState(false);
   const [selectedManagerId, setSelectedManagerId] = useState("");
-  // Executor override — lets the user pick a specific executor from
-  // the department pool instead of relying on auto-distribution.
+  // Executor override — admin/manager can pick ANY active executor.
+  // Pool restriction was removed: previously this dropdown only showed
+  // members of the chosen department's assignment-pool, which forced
+  // creators to add the executor to a department first. Now the full
+  // active EXECUTOR list is shown; auto-distribution remains the default
+  // when no override is selected.
   const [poolMembers, setPoolMembers] = useState<{ userId: string; user: { id: string; name: string; role: string } }[]>([]);
+  const [allExecutors, setAllExecutors] = useState<{ id: string; name: string; specialization: string | null }[]>([]);
   const [selectedExecutorId, setSelectedExecutorId] = useState("");
 
   // ─── Step 5 (review) state ───
@@ -348,7 +353,8 @@ export default function NewProjectPage() {
       .finally(() => setLoadingManagers(false));
   }, [currentStep, managers.length]);
 
-  // ─── Fetch department pool members for executor picker ───
+  // ─── Fetch department pool members (still used for default routing
+  //     hints and backward compat) ───
   useEffect(() => {
     if (!departmentId) { setPoolMembers([]); setSelectedExecutorId(""); return; }
     fetch(`/api/departments/${departmentId}/assignment-pool`)
@@ -356,6 +362,23 @@ export default function NewProjectPage() {
       .then((data) => { if (Array.isArray(data)) setPoolMembers(data); })
       .catch(() => setPoolMembers([]));
   }, [departmentId]);
+
+  // ─── Fetch ALL active executors for the override picker (no pool gate) ───
+  useEffect(() => {
+    fetch("/api/users?role=EXECUTOR&isActive=true&take=500")
+      .then((r) => r.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data ?? []);
+        setAllExecutors(
+          list.map((u: { id: string; name: string; specialization?: string | null }) => ({
+            id: u.id,
+            name: u.name,
+            specialization: u.specialization ?? null,
+          }))
+        );
+      })
+      .catch(() => setAllExecutors([]));
+  }, []);
 
   // ─── Fetch project templates on mount ───
   useEffect(() => {
@@ -1691,19 +1714,20 @@ export default function NewProjectPage() {
                 </div>
               )}
 
-              {/* Executor picker — select a specific executor from the
-                  department pool instead of auto-distribution. */}
-              {poolMembers.length > 0 && (
+              {/* Executor picker — choose ANY active executor (no pool
+                  restriction). When left empty, auto-distribution keeps
+                  using the department pool / round-robin path. */}
+              {allExecutors.length > 0 && (
                 <div className="mt-6 pt-5" style={{ borderTop: "1px solid #F0EDE6" }}>
                   <div className="flex items-center gap-2 mb-2">
                     <ListChecks size={16} style={{ color: "#059669" }} />
                     <h3 className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
                       المنفذ المسؤول
                     </h3>
-                    <span className="text-xs" style={{ color: "#9CA3AF" }}>(اختياري)</span>
+                    <span className="text-xs" style={{ color: "#9CA3AF" }}>(اختياري — أي منفّذ نشط)</span>
                   </div>
                   <p className="text-xs mb-4" style={{ color: "#6B7280" }}>
-                    إذا تركته فارغاً سيُختار تلقائياً من فريق المشاريع الافتراضي بالتناوب
+                    إذا تركته فارغاً سيُختار تلقائياً من فريق القسم الافتراضي بالتناوب
                   </p>
                   <select
                     value={selectedExecutorId}
@@ -1711,10 +1735,10 @@ export default function NewProjectPage() {
                     className="w-full px-4 py-3 rounded-xl text-sm transition-all outline-none cursor-pointer"
                     style={{ border: "1px solid #E2E0D8", backgroundColor: "#FAFAFE", color: "#2D3748" }}
                   >
-                    <option value="">-- اختيار تلقائي من الفريق --</option>
-                    {poolMembers.map((m) => (
-                      <option key={m.userId} value={m.userId}>
-                        {m.user.name}
+                    <option value="">-- اختيار تلقائي من فريق القسم --</option>
+                    {allExecutors.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}{u.specialization ? ` — ${u.specialization}` : ""}
                       </option>
                     ))}
                   </select>
