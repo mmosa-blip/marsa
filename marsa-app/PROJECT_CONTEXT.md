@@ -261,3 +261,40 @@ UPLOADTHING_TOKEN=
 - أسبوع العمل السعودي: 6 أيام (السبت إجازة) — `src/lib/working-days.ts`
 - PWA: `public/sw.js` + `manifest.json`
 - الـ seed: `npx tsx prisma/seed.ts` (entry point في `package.json`)
+
+---
+
+## نظام الدفعات (Payments)
+
+### Workflow استلام الدفعات (2026-04-25)
+
+**التسجيل (EXECUTOR):**
+- API: POST /api/installments/[id]/record-payment
+- صلاحية: EXECUTOR (مرتبط بمهمة القسط) أو ADMIN/MANAGER
+- يحدّث: paymentStatus=PAID, isLocked=false, confirmationStatus=PENDING_CONFIRMATION
+- يفتح المهمة المرتبطة + القسط التالي تلقائياً
+- إشعارات لـ ADMIN/MANAGER/FINANCE_MANAGER
+- AuditLog: INSTALLMENT_RECORDED (severity=WARN)
+
+**التأكيد (ADMIN/MANAGER/FINANCE_MANAGER):**
+- API: POST /api/installments/[id]/confirm-payment
+- action: CONFIRM | REJECT
+- REJECT يتطلب rejectionReason
+- REJECT يعكس كل شي: paymentStatus=UNPAID, isLocked=true
+- AuditLog: INSTALLMENT_CONFIRMED (WARN) أو INSTALLMENT_REJECTED (CRITICAL)
+
+**الواجهات:**
+- المنفذ: زر "تأكيد استلام الدفعة" في MyTasksView (يستدعي record-payment)
+- الأدمن: tab "تأكيد الدفعات" في /dashboard/approvals (5th tab)
+
+**الأقساط القديمة:**
+- pay, mark_paid, partial-*, grace-* لا تزال تعمل
+- workflow الجديد إضافي بجوارها
+
+### قواعد إنشاء العقد (مهم!)
+
+عند POST /api/contracts:
+- isLocked = idx > 0 (الأول مفتوح، الباقي مقفل)
+- linkedTaskId يُقبل في payload
+
+**سبب القاعدة:** قبل 2026-04-25 كانت كل الأقساط isLocked=false (ثغرة).
