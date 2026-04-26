@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole } from "@/lib/api-auth";
+import { pusherServer } from "@/lib/pusher";
+import { logger } from "@/lib/logger";
 
 export async function PATCH(
   request: Request,
@@ -33,7 +35,11 @@ export async function PATCH(
       }
     }
 
-    // Payment-task locking: block status changes if linked installment is locked
+    // Pre-update snapshot — needed for the payment-locked guard AND for the
+    // city-canvas Pusher fan-out below (we only want to fire if the status
+    // actually changes, and we need the previous value to know that).
+    let prevStatus: string | null = null;
+    let prevProjectId: string | null = null;
     if (body.status) {
       const existingTask = await prisma.task.findUnique({
         where: { id },
@@ -46,6 +52,8 @@ export async function PATCH(
           { status: 403 }
         );
       }
+      prevStatus = existingTask?.status ?? null;
+      prevProjectId = existingTask?.projectId ?? null;
     }
 
     // If assigneeId is being set manually, also create TaskAssignment record
@@ -70,6 +78,31 @@ export async function PATCH(
         create: { taskId: id, userId: task.assigneeId },
         update: {},
       });
+    }
+
+    // ── Realtime fan-out for the city canvas ──
+    // The /dashboard/executor-city and /dashboard/all-cities pages listen
+    // on the public "task-updates" channel. We fire only on real status
+    // transitions, and only for tasks tied to a project (skipping any
+    // orphan/personal tasks that wouldn't have a building to update).
+    const projectId = task.projectId ?? prevProjectId;
+    if (body.status && prevStatus !== null && task.status !== prevStatus && projectId) {
+      try {
+        await pusherServer.trigger("task-updates", "status-changed", {
+          projectId,
+          taskId: task.id,
+          status: task.status,
+        });
+        if (task.status === "DONE" && prevStatus !== "DONE") {
+          await pusherServer.trigger("task-updates", "task-completed", {
+            projectId,
+            taskId: task.id,
+          });
+        }
+      } catch (err) {
+        // Pusher availability isn't a hard dependency — log and move on.
+        logger.error("Pusher task-updates trigger failed", err, { taskId: id });
+      }
     }
 
     return NextResponse.json(task);
