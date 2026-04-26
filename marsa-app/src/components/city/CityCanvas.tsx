@@ -49,6 +49,29 @@ export type BuildingState =
   | "TASK_LATE"   // any task past dueDate, not COLLAPSED/AT_RISK — police out front
   | "IN_PROGRESS";
 
+// Single source of truth for "is every service of this project fully done?".
+// Both the canvas and external consumers (CityStatsBar, page-level badges)
+// must agree on completion or counts will drift.
+export function isProjectComplete(p: CityApiProject): boolean {
+  const services = p.services || [];
+  if (services.length === 0) return false;
+  return services.every((s) => {
+    const total = s.tasks?.length || 0;
+    const done = s.tasks?.filter((t) => t.status === "DONE").length || 0;
+    return total > 0 && done >= total;
+  });
+}
+
+// Stable sort weight, smaller = drawn first (= further left on the canvas).
+// Reading right-to-left in Arabic, the most urgent state shows up first.
+const STATE_ORDER: Record<BuildingState, number> = {
+  COMPLETED: 0,
+  IN_PROGRESS: 1,
+  TASK_LATE: 2,
+  AT_RISK: 3,
+  COLLAPSED: 4,
+};
+
 interface BuildingStateInput {
   isComplete: boolean;
   status: string;
@@ -247,7 +270,16 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
     const padX = 50;
     const slot = viewport.w < 640 ? 110 : viewport.w < 1024 ? 130 : 150;
 
-    const buildings: BuildingLayout[] = projects.map((p, idx) => {
+    // Sort projects up-front by lifecycle priority so the most urgent
+    // (COLLAPSED) lands on the right edge of the canvas — Arabic readers
+    // hit it first — and COMPLETED celebrations sit on the left as the
+    // tail. The original index is then re-applied to compute building x.
+    const ordered = projects
+      .map((p) => ({ p, state: getBuildingState({ ...p, isComplete: isProjectComplete(p) }) }))
+      .sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state])
+      .map(({ p }) => p);
+
+    const buildings: BuildingLayout[] = ordered.map((p, idx) => {
       const services = p.services || [];
       const allFloors: FloorLayout[] = services.map((s) => {
         const total = s.tasks?.length || 0;
@@ -291,7 +323,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
       const DOOR_H = 14;
       const baseHeight = floorsHeight + DOOR_H + 4;
 
-      const isComplete = allFloors.length > 0 && allFloors.every((f) => f.isComplete);
+      const isComplete = isProjectComplete(p);
       const state = getBuildingState({ ...p, isComplete });
 
       const execList = p.executors || [];
@@ -1164,6 +1196,68 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         // Single police cruiser to flag the slipping deadline.
         drawPoliceCar(b.x, carY, time);
       }
+
+      // Timeline strip — only for in-flight projects. A finished tower
+      // doesn't need a clock under it, that's a celebration moment.
+      if (!b.isComplete) {
+        drawTimelineStrip(b);
+      }
+    }
+
+    function drawTimelineStrip(b: BuildingLayout) {
+      const start =
+        (b.startDate && new Date(b.startDate).getTime()) ||
+        (b.contractStartDate && new Date(b.contractStartDate).getTime()) ||
+        (b.createdAt && new Date(b.createdAt).getTime()) ||
+        null;
+      const end =
+        (b.endDate && new Date(b.endDate).getTime()) ||
+        (b.contractEndDate && new Date(b.contractEndDate).getTime()) ||
+        null;
+      if (!start || !end || end <= start) return;
+
+      const now = Date.now();
+      const total = end - start;
+      const elapsed = Math.max(0, now - start);
+      const ratio = Math.min(1, elapsed / total);
+
+      const elapsedDays = Math.max(0, Math.floor(elapsed / 86400000));
+      const remainingDays = Math.max(0, Math.ceil((end - now) / 86400000));
+
+      // Strip lives just under the road, in the grass band, lined up with
+      // the building. Width tracks the building so wide buildings get a
+      // wider clock — never narrower than 50 px so the text is legible.
+      const stripW = Math.max(50, b.baseWidth + 4);
+      const stripX = b.x - stripW / 2;
+      const stripY = roadY + roadHeight + 6;
+      const barH = 3;
+
+      // Bar background — translucent white plate.
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.fillRect(stripX, stripY, stripW, barH);
+
+      // Filled portion — green at low ratio, yellow at midpoint, red as
+      // the deadline approaches. Two-segment piecewise interpolation.
+      let r: number, g: number, blue: number;
+      if (ratio < 0.5) {
+        const t = ratio * 2;
+        r = Math.round(16 + (245 - 16) * t);
+        g = Math.round(185 + (158 - 185) * t);
+        blue = Math.round(129 + (11 - 129) * t);
+      } else {
+        const t = (ratio - 0.5) * 2;
+        r = Math.round(245 + (220 - 245) * t);
+        g = Math.round(158 + (38 - 158) * t);
+        blue = Math.round(11 + (38 - 11) * t);
+      }
+      ctx.fillStyle = `rgb(${r},${g},${blue})`;
+      ctx.fillRect(stripX, stripY, stripW * ratio, barH);
+
+      // Compact text below the bar: passed days | remaining days.
+      ctx.font = "bold 8px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = isNight ? "rgba(255,255,255,0.9)" : "rgba(28,27,46,0.85)";
+      ctx.fillText(`${elapsedDays}ي | ${remainingDays}ي`, b.x, stripY + barH + 9);
     }
 
     function tick(now: number) {

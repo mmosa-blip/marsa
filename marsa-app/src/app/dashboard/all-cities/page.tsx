@@ -19,6 +19,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Loader2, Building2 } from "lucide-react";
 import CityCanvas, { CityApiProject } from "@/components/city/CityCanvas";
+import CityStatsBar from "@/components/city/CityStatsBar";
 import { ROUTES } from "@/lib/routes";
 import { logger } from "@/lib/logger";
 
@@ -93,6 +94,10 @@ export default function AllCitiesPage() {
           );
         })()}
       </div>
+
+      {filteredProjects && filteredProjects.length > 0 && (
+        <CityStatsBar projects={filteredProjects} />
+      )}
 
       {!projects && (
         <div

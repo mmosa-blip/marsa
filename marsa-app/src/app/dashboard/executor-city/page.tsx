@@ -15,7 +15,8 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Loader2, Building2, Trophy } from "lucide-react";
 import MyTasksView from "@/components/MyTasksView";
-import CityCanvas, { CityApiProject } from "@/components/city/CityCanvas";
+import CityCanvas, { CityApiProject, isProjectComplete } from "@/components/city/CityCanvas";
+import CityStatsBar from "@/components/city/CityStatsBar";
 import { ROUTES } from "@/lib/routes";
 import { logger } from "@/lib/logger";
 
@@ -81,21 +82,12 @@ export default function ExecutorCityPage() {
       });
   }, []);
 
-  // A building is "complete" when every service of the project has all of
-  // its tasks done. Mirrors the canvas isComplete derivation so the badge
-  // count never drifts from what the user sees on screen.
+  // Tier badge counts only fully-complete projects. Routed through the
+  // shared isProjectComplete helper so the canvas, stats bar and badge
+  // never disagree on what counts as "done".
   const completedCount = useMemo(() => {
     if (!projects) return 0;
-    return projects.reduce((acc, p) => {
-      const services = p.services || [];
-      if (services.length === 0) return acc;
-      const allDone = services.every((s) => {
-        const total = s.tasks?.length || 0;
-        const done = s.tasks?.filter((t) => t.status === "DONE").length || 0;
-        return total > 0 && done >= total;
-      });
-      return acc + (allDone ? 1 : 0);
-    }, 0);
+    return projects.reduce((acc, p) => acc + (isProjectComplete(p) ? 1 : 0), 0);
   }, [projects]);
 
   const tier = getBuilderTier(completedCount);
@@ -134,6 +126,8 @@ export default function ExecutorCityPage() {
           مدينتي
         </h1>
       </div>
+
+      {projects && projects.length > 0 && <CityStatsBar projects={projects} />}
 
       {!projects && (
         <div
