@@ -691,48 +691,6 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
       ctx.restore();
     }
 
-    // Flashing red+blue rooftop emergency strobe. Phase flips every 500 ms
-    // so the colors swap predictably regardless of frame rate. Used for
-    // TASK_LATE (subtle cue) and COLLAPSED (severe cue).
-    function drawEmergencyRoofLights(
-      bx: number,
-      by: number,
-      bwidth: number,
-      time: number,
-      severe: boolean
-    ) {
-      const phase = Math.floor(time / 500) % 2 === 0;
-      const left = phase ? "#DC2626" : "#2563EB";
-      const right = phase ? "#2563EB" : "#DC2626";
-      const radius = severe ? 4 : 3;
-      const glowR = severe ? 11 : 7;
-      const glowAlpha = severe ? 0.55 : 0.35;
-      const lx = bx + 5;
-      const rx = bx + bwidth - 5;
-      const ly = by - 9;
-
-      const leftGlow = left === "#DC2626" ? "220,38,38" : "37,99,235";
-      const rightGlow = right === "#DC2626" ? "220,38,38" : "37,99,235";
-
-      ctx.fillStyle = `rgba(${leftGlow},${glowAlpha})`;
-      ctx.beginPath();
-      ctx.arc(lx, ly, glowR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = `rgba(${rightGlow},${glowAlpha})`;
-      ctx.beginPath();
-      ctx.arc(rx, ly, glowR, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = left;
-      ctx.beginPath();
-      ctx.arc(lx, ly, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = right;
-      ctx.beginPath();
-      ctx.arc(rx, ly, radius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
     function drawPoliceCar(cx: number, cy: number, time: number) {
       const w = 22;
       const h = 9;
@@ -1162,13 +1120,10 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         drawDoorSign(b.x, topY - 4, "⏸️", "متوقف");
       }
 
-      // Emergency rooftop strobe — COLLAPSED only. TASK_LATE used to share
-      // these tiny lights; they read like a "police HQ" rather than "this
-      // building is in trouble", so TASK_LATE now gets a full-body wash
-      // further down instead.
-      if (isCollapsed) {
-        drawEmergencyRoofLights(baseX, topY, b.baseWidth, time, isCollapsed);
-      }
+      // No rooftop emergency strobe — COLLAPSED already reads as a wreck
+      // (debris, smoke, ambulance + police car parked out front). Adding
+      // tiny lights on the rubble made it look like a working police HQ.
+      // TASK_LATE gets the full-body wash further down instead.
 
       // Crane: stays up while construction is active OR delayed-but-standing
       // (TASK_LATE / AT_RISK). Hidden once the building is COMPLETED, has
