@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
-import { getBuildingState, isProjectComplete, type BuildingState } from "@/lib/city-state";
+import {
+  getBuildingState,
+  isProjectComplete,
+  deriveProjectPaymentFrozen,
+  type BuildingState,
+} from "@/lib/city-state";
 
 // GET /api/admin/cities-leaderboard
 //
@@ -43,6 +48,9 @@ export async function GET() {
             dueDate: true,
             assigneeId: true,
             assignee: { select: { id: true, name: true } },
+            linkedInstallment: {
+              select: { isLocked: true, order: true, paymentStatus: true },
+            },
           },
         },
       },
@@ -80,29 +88,36 @@ export async function GET() {
         IN_PROGRESS: 0,
         TASK_LATE: 0,
         AT_RISK: 0,
+        ADMIN_PAUSED: 0,
+        PAYMENT_FROZEN: 0,
         COLLAPSED: 0,
       };
 
       for (const p of myProjects) {
         const isComplete = isProjectComplete(p);
-        const state = getBuildingState({ ...p, isComplete });
+        const paymentFrozen = deriveProjectPaymentFrozen(p.tasks);
+        const state = getBuildingState({ ...p, isComplete, paymentFrozen });
         counts[state]++;
       }
 
       const total = myProjects.length;
-      // Health score:
-      //   completed × 10 + inProgress × 5
-      //   − collapsed × 20 − atRisk × 10 − taskLate × 5
-      // Then averaged over total projects so executors with 5 projects
-      // aren't unfairly outranked by ones with 50.
-      // Result is clamped to [0, 100] for display sanity.
+      // Health score (per project, then averaged so a 5-project city isn't
+      // out-ranked by a 50-project one):
+      //   + completed × 10
+      //   + inProgress × 5
+      //   − collapsed × 20    (deadline blown — executor's fault)
+      //   − atRisk × 10
+      //   − taskLate × 5
+      //   − adminPaused × 2   (small penalty: not their fault, but not delivered either)
+      //   ± paymentFrozen × 0 (zero — purely on the client)
       const raw =
         total > 0
           ? (counts.COMPLETED * 10 +
               counts.IN_PROGRESS * 5 -
               counts.COLLAPSED * 20 -
               counts.AT_RISK * 10 -
-              counts.TASK_LATE * 5) /
+              counts.TASK_LATE * 5 -
+              counts.ADMIN_PAUSED * 2) /
             total
           : 0;
       // Map raw score (~ -20 .. +10 in practice) into a 0-100 band so the
@@ -116,6 +131,8 @@ export async function GET() {
         inProgressCount: counts.IN_PROGRESS,
         taskLateCount: counts.TASK_LATE,
         atRiskCount: counts.AT_RISK,
+        adminPausedCount: counts.ADMIN_PAUSED,
+        paymentFrozenCount: counts.PAYMENT_FROZEN,
         collapsedCount: counts.COLLAPSED,
         totalProjects: total,
         cityHealth,

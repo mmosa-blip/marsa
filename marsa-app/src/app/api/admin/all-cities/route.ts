@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { deriveProjectPaymentFrozen } from "@/lib/city-state";
 
 // GET /api/admin/all-cities
 //
@@ -32,6 +33,10 @@ export async function GET() {
             status: true,
             dueDate: true,
             assignee: { select: { id: true, name: true } },
+            // For deriveProjectPaymentFrozen — at most one installment per task.
+            linkedInstallment: {
+              select: { isLocked: true, order: true, paymentStatus: true },
+            },
           },
         },
         services: {
@@ -69,6 +74,9 @@ export async function GET() {
         dueDate: t.dueDate,
       }));
 
+      // Derive paymentFrozen on the server before stripping linkedInstallment.
+      const paymentFrozen = deriveProjectPaymentFrozen(p.tasks);
+
       return {
         ...p,
         tasks,
@@ -76,6 +84,7 @@ export async function GET() {
         totalTasks: total,
         completedTasks: done,
         executors,
+        paymentFrozen,
       };
     });
 

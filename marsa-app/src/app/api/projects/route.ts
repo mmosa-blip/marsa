@@ -70,7 +70,18 @@ export async function GET(request: Request) {
           client: { select: { id: true, name: true, email: true } },
           manager: { select: { id: true, name: true, email: true } },
           department: { select: { id: true, name: true, nameEn: true, color: true } },
-          tasks: { select: { id: true, status: true, dueDate: true } },
+          tasks: {
+            select: {
+              id: true,
+              status: true,
+              dueDate: true,
+              // linkedInstallment is needed to derive `paymentFrozen` for the
+              // city canvas. Cheap join: at most one installment per task.
+              linkedInstallment: {
+                select: { isLocked: true, order: true, paymentStatus: true },
+              },
+            },
+          },
           _count: { select: { services: true } },
           ...(withServices
             ? {
@@ -96,8 +107,30 @@ export async function GET(request: Request) {
     const projectsWithProgress = projects.map((p) => {
       const total = p.tasks.length;
       const done = p.tasks.filter((t) => t.status === "DONE").length;
+      // Derive paymentFrozen here so the city canvas doesn't need to
+      // re-walk the linkedInstallment relation client-side.
+      const paymentFrozen = p.tasks.some((t) => {
+        const inst = t.linkedInstallment;
+        return Boolean(
+          inst &&
+            inst.isLocked &&
+            inst.order > 0 &&
+            inst.paymentStatus !== "PAID" &&
+            t.status !== "DONE" &&
+            t.status !== "CANCELLED"
+        );
+      });
+      // Strip the linkedInstallment join from the wire response — no UI
+      // consumer needs the raw rows, only the derived flag.
+      const tasks = p.tasks.map((t) => ({
+        id: t.id,
+        status: t.status,
+        dueDate: t.dueDate,
+      }));
       return {
         ...p,
+        tasks,
+        paymentFrozen,
         progress: total > 0 ? Math.round((done / total) * 100) : 0,
         totalTasks: total,
         completedTasks: done,

@@ -35,6 +35,8 @@ export default function CityStatsBar({ projects }: { projects: CityApiProject[] 
       IN_PROGRESS: 0,
       TASK_LATE: 0,
       AT_RISK: 0,
+      ADMIN_PAUSED: 0,
+      PAYMENT_FROZEN: 0,
       COLLAPSED: 0,
     };
     let progressSum = 0;
@@ -85,6 +87,24 @@ export default function CityStatsBar({ projects }: { projects: CityApiProject[] 
         color: "#EA580C",
         bg: "rgba(234,88,12,0.10)",
         border: "rgba(234,88,12,0.32)",
+      },
+      {
+        key: "ADMIN_PAUSED",
+        label: "متوقف",
+        icon: "⏸️",
+        count: String(counts.ADMIN_PAUSED),
+        color: "#A16207",
+        bg: "rgba(250,204,21,0.12)",
+        border: "rgba(250,204,21,0.45)",
+      },
+      {
+        key: "PAYMENT_FROZEN",
+        label: "مجمّد",
+        icon: "❄️",
+        count: String(counts.PAYMENT_FROZEN),
+        color: "#A855F7",
+        bg: "rgba(168,85,247,0.10)",
+        border: "rgba(168,85,247,0.32)",
       },
       {
         key: "COLLAPSED",

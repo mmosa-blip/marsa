@@ -43,6 +43,11 @@ export interface CityApiProject {
   contractStartDate?: string | null;
   contractEndDate?: string | null;
   createdAt?: string | null;
+  isPaused?: boolean;
+  // Server-derived flag — set by /api/projects, /api/admin/all-cities and
+  // /api/admin/cities-leaderboard when the project has a locked unpaid
+  // non-first installment.
+  paymentFrozen?: boolean;
   progress: number;
   totalTasks: number;
   completedTasks: number;
@@ -361,7 +366,9 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
               ? "#B91C1C"
               : state === "AT_RISK"
                 ? "#7A7770" // weathered concrete drift toward gray
-                : ACTIVE_COLOR,
+                : state === "PAYMENT_FROZEN" || state === "ADMIN_PAUSED"
+                  ? ACTIVE_COLOR // building is intact, the overlay carries the cue
+                  : ACTIVE_COLOR,
         isComplete,
         state,
         executorLabel,
@@ -807,6 +814,117 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
       ctx.restore();
     }
 
+    // Lavender frost overlay + slowly drifting snowflakes for the
+    // PAYMENT_FROZEN state. Building stays structurally clean; the cue is
+    // pure mood — work is on ice until the bill is paid.
+    function drawFrostAndSnow(
+      bx: number,
+      by: number,
+      bwidth: number,
+      bheight: number,
+      time: number
+    ) {
+      // Translucent purple wash over the body.
+      ctx.fillStyle = "rgba(168, 85, 247, 0.20)";
+      ctx.fillRect(bx, by, bwidth, bheight);
+
+      // 6 snowflakes wrapping vertically through the building's bounding box.
+      // x-positions seeded from bx so the same building always snows the same.
+      ctx.fillStyle = "rgba(232, 220, 255, 0.85)";
+      for (let i = 0; i < 6; i++) {
+        const offsetX = ((bx * 17 + i * 53) % (bwidth - 4));
+        const sx = bx + 2 + offsetX + Math.sin(time / 1100 + i) * 3;
+        const sy = by + ((time / 32 + i * 47) % (bheight + 8));
+        ctx.beginPath();
+        ctx.arc(sx, sy, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Diagonal black/yellow caution tape stripes layered over the facade.
+    // We clip to the building rect so the stripes don't bleed onto the sky.
+    function drawCautionTape(
+      bx: number,
+      by: number,
+      bwidth: number,
+      bheight: number
+    ) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(bx, by, bwidth, bheight);
+      ctx.clip();
+
+      const stripe = 6;
+      const cycle = stripe * 2;
+      // Diagonal stripes — iterate offsets along the building diagonal.
+      const startD = -bheight;
+      const endD = bwidth + bheight;
+      for (let d = startD; d < endD; d += cycle) {
+        // Yellow band
+        ctx.fillStyle = "rgba(250, 204, 21, 0.65)";
+        ctx.beginPath();
+        ctx.moveTo(bx + d, by);
+        ctx.lineTo(bx + d + stripe, by);
+        ctx.lineTo(bx + d + stripe + bheight, by + bheight);
+        ctx.lineTo(bx + d + bheight, by + bheight);
+        ctx.closePath();
+        ctx.fill();
+        // Black band
+        ctx.fillStyle = "rgba(15, 15, 15, 0.65)";
+        ctx.beginPath();
+        ctx.moveTo(bx + d + stripe, by);
+        ctx.lineTo(bx + d + stripe * 2, by);
+        ctx.lineTo(bx + d + stripe * 2 + bheight, by + bheight);
+        ctx.lineTo(bx + d + stripe + bheight, by + bheight);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Small traffic cone planted on the road in front of an admin-paused
+    // building. Sits OUTSIDE the shake transform so it doesn't wobble.
+    function drawTrafficCone(cx: number, cy: number) {
+      ctx.fillStyle = "#F97316";
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 11);
+      ctx.lineTo(cx - 5, cy);
+      ctx.lineTo(cx + 5, cy);
+      ctx.closePath();
+      ctx.fill();
+      // White reflective stripe around the middle.
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.beginPath();
+      ctx.moveTo(cx - 3.2, cy - 5);
+      ctx.lineTo(cx + 3.2, cy - 5);
+      ctx.lineTo(cx + 3.7, cy - 3);
+      ctx.lineTo(cx - 3.7, cy - 3);
+      ctx.closePath();
+      ctx.fill();
+      // Base slab.
+      ctx.fillStyle = "#1F2937";
+      ctx.fillRect(cx - 6, cy, 12, 2);
+    }
+
+    // Door-mounted sign: pill background, emoji + label centered.
+    function drawDoorSign(cx: number, cy: number, emoji: string, label: string) {
+      ctx.font = "bold 9px sans-serif";
+      ctx.textAlign = "center";
+      const text = `${emoji} ${label}`;
+      const padX = 5;
+      const w = ctx.measureText(text).width + padX * 2;
+      const h = 14;
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.beginPath();
+      ctx.roundRect(cx - w / 2, cy - h, w, h, 4);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(28,27,46,0.4)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = "#1C1B2E";
+      ctx.fillText(text, cx, cy - 4);
+    }
+
     function drawBuilding(b: BuildingLayout, time: number) {
       const baseX = b.x - b.baseWidth / 2;
       const baseY = roadY - 4;
@@ -815,9 +933,11 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
       const isCollapsed = b.state === "COLLAPSED";
       const isAtRisk = b.state === "AT_RISK";
       const isTaskLate = b.state === "TASK_LATE";
+      const isPaymentFrozen = b.state === "PAYMENT_FROZEN";
+      const isAdminPaused = b.state === "ADMIN_PAUSED";
 
-      // Only the fully ruined (COLLAPSED) building shakes — TASK_LATE keeps
-      // its visual integrity, AT_RISK is decaying slowly without violence.
+      // Only the fully ruined (COLLAPSED) building shakes — TASK_LATE,
+      // AT_RISK, PAYMENT_FROZEN, ADMIN_PAUSED all keep visual integrity.
       const shakeX = isCollapsed ? Math.sin(time / 60 + b.x) * 1.5 : 0;
 
       ctx.save();
@@ -1025,15 +1145,27 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         ctx.fill();
       }
 
+      // PAYMENT_FROZEN — ice/frost overlay + slow snowflakes + "بانتظار الدفع".
+      if (isPaymentFrozen) {
+        drawFrostAndSnow(baseX, topY, b.baseWidth, b.baseHeight, time);
+        drawDoorSign(b.x, baseY, "💰", "بانتظار الدفع");
+      }
+
+      // ADMIN_PAUSED — caution tape across the body + ⏸️ on the roof.
+      if (isAdminPaused) {
+        drawCautionTape(baseX, topY, b.baseWidth, b.baseHeight);
+        drawDoorSign(b.x, topY - 4, "⏸️", "متوقف");
+      }
+
       // Emergency rooftop strobe — TASK_LATE (cue) and COLLAPSED (severe).
       if (isTaskLate || isCollapsed) {
         drawEmergencyRoofLights(baseX, topY, b.baseWidth, time, isCollapsed);
       }
 
       // Crane: stays up while construction is active OR delayed-but-standing
-      // (TASK_LATE / AT_RISK). Hidden once the building is COMPLETED or has
-      // COLLAPSED.
-      if (!b.isComplete && !isCollapsed) {
+      // (TASK_LATE / AT_RISK). Hidden once the building is COMPLETED, has
+      // COLLAPSED, or work is paused (PAYMENT_FROZEN / ADMIN_PAUSED).
+      if (!b.isComplete && !isCollapsed && !isPaymentFrozen && !isAdminPaused) {
         const mastX = baseX + b.baseWidth - 6;
         const craneTop = topY - 55;
         const armLen = b.baseWidth * 0.7 + 30;
@@ -1205,6 +1337,9 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
       } else if (isTaskLate) {
         // Single police cruiser to flag the slipping deadline.
         drawPoliceCar(b.x, carY, time);
+      } else if (isAdminPaused) {
+        // No siren — just a worksite cone planted on the curb.
+        drawTrafficCone(b.x, roadY - 1);
       }
 
       // Timeline strip — only for in-flight projects. A finished tower
@@ -1593,6 +1728,58 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
               <p className="text-xs mb-2" style={{ color: "#6B7280" }}>
                 القسم: {selected.department.name}
               </p>
+            )}
+            {/* State-driven reason banner — explains why the building is
+                frozen / paused / collapsed without burying it inside the
+                stat tiles. Only shown for non-happy states. */}
+            {selected.state && selected.state !== "COMPLETED" && selected.state !== "IN_PROGRESS" && (
+              <div
+                className="mb-3 px-3 py-2 rounded-lg text-xs"
+                style={{
+                  backgroundColor:
+                    selected.state === "COLLAPSED"
+                      ? "rgba(220,38,38,0.08)"
+                      : selected.state === "PAYMENT_FROZEN"
+                        ? "rgba(168,85,247,0.10)"
+                        : selected.state === "ADMIN_PAUSED"
+                          ? "rgba(250,204,21,0.10)"
+                          : selected.state === "AT_RISK"
+                            ? "rgba(234,88,12,0.10)"
+                            : "rgba(217,119,6,0.10)",
+                  border:
+                    selected.state === "COLLAPSED"
+                      ? "1px solid rgba(220,38,38,0.30)"
+                      : selected.state === "PAYMENT_FROZEN"
+                        ? "1px solid rgba(168,85,247,0.30)"
+                        : selected.state === "ADMIN_PAUSED"
+                          ? "1px solid rgba(250,204,21,0.40)"
+                          : selected.state === "AT_RISK"
+                            ? "1px solid rgba(234,88,12,0.30)"
+                            : "1px solid rgba(217,119,6,0.30)",
+                  color: "#1C1B2E",
+                }}
+              >
+                <span className="font-bold">
+                  {selected.state === "COLLAPSED"
+                    ? "💥 منهار: "
+                    : selected.state === "PAYMENT_FROZEN"
+                      ? "❄️ مجمّد: "
+                      : selected.state === "ADMIN_PAUSED"
+                        ? "⏸️ متوقف: "
+                        : selected.state === "AT_RISK"
+                          ? "⚠️ متهالك: "
+                          : "🚓 متأخر بمهمة: "}
+                </span>
+                {selected.state === "COLLAPSED"
+                  ? "تجاوز الموعد التعاقدي — يحتاج تدخّل فوري"
+                  : selected.state === "PAYMENT_FROZEN"
+                    ? "متوقف بسبب دفعة معلقة من العميل"
+                    : selected.state === "ADMIN_PAUSED"
+                      ? "موقوف من الإدارة"
+                      : selected.state === "AT_RISK"
+                        ? "تجاوز 80% من المدة بدون تسليم"
+                        : "توجد مهام تجاوزت موعد التسليم"}
+              </div>
             )}
             {selected.executors && selected.executors.length > 0 && (
               <div className="mb-4">

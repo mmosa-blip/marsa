@@ -25,6 +25,8 @@ interface LeaderboardRow {
   inProgressCount: number;
   taskLateCount: number;
   atRiskCount: number;
+  adminPausedCount: number;
+  paymentFrozenCount: number;
   collapsedCount: number;
   totalProjects: number;
   cityHealth: number;
@@ -178,11 +180,13 @@ export default function CitiesLeaderboardPage() {
                   </div>
 
                   {/* Stat tiles */}
-                  <div className="grid grid-cols-5 gap-1.5">
+                  <div className="grid grid-cols-7 gap-1">
                     <StatTile icon="✅" label="مكتمل" count={row.completedCount} color="#10B981" />
                     <StatTile icon="🏗️" label="جارٍ" count={row.inProgressCount} color="#2563EB" />
                     <StatTile icon="🚓" label="متأخر" count={row.taskLateCount} color="#D97706" />
                     <StatTile icon="⚠️" label="متهالك" count={row.atRiskCount} color="#EA580C" />
+                    <StatTile icon="⏸️" label="متوقف" count={row.adminPausedCount} color="#A16207" />
+                    <StatTile icon="❄️" label="مجمّد" count={row.paymentFrozenCount} color="#A855F7" />
                     <StatTile icon="💥" label="منهار" count={row.collapsedCount} color="#DC2626" />
                   </div>
                 </div>
