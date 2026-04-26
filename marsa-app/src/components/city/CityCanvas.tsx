@@ -87,7 +87,33 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const ACTIVE_COLOR = "#8B8D93";
-const COMPLETED_COLORS = ["#2563EB", "#059669", "#7C3AED", "#C9A84C", "#E11D48", "#0891B2", "#4F46E5", "#D97706"];
+// 12-color harmonious palette for COMPLETED buildings. Order is meaningful:
+// `pickCompletedColor` hashes the project.id and indexes into this array,
+// so the same project always lands on the same color across renders/sessions.
+const COMPLETED_COLORS = [
+  "#D4AF37", // ذهبي
+  "#B8B8B8", // فضي
+  "#CD7F32", // برونزي
+  "#06B6D4", // أزرق فيروزي
+  "#EC4899", // وردي
+  "#8B5CF6", // بنفسجي
+  "#10B981", // أخضر زمردي
+  "#4F46E5", // نيلي
+  "#FF6B6B", // أحمر مرجاني
+  "#F59E0B", // برتقالي ذهبي
+  "#2563EB", // أزرق ملكي
+  "#E8DCC4", // عاجي
+];
+
+// Deterministic color picker: same project.id → same color forever.
+// djb2-style hash keeps the math cheap and stable across V8/JSC.
+function pickCompletedColor(projectId: string): string {
+  let h = 5381;
+  for (let i = 0; i < projectId.length; i++) {
+    h = ((h << 5) + h + projectId.charCodeAt(i)) | 0;
+  }
+  return COMPLETED_COLORS[Math.abs(h) % COMPLETED_COLORS.length];
+}
 
 function shade(hex: string, amount: number) {
   if (hex.startsWith("rgb")) return hex;
@@ -235,7 +261,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
         floors: allFloors,
         visibleFloors,
         color: isComplete
-          ? COMPLETED_COLORS[idx % COMPLETED_COLORS.length]
+          ? pickCompletedColor(p.id)
           : isDelayed
             ? "#B91C1C"
             : ACTIVE_COLOR,
