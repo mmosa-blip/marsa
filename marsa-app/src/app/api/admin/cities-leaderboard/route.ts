@@ -34,6 +34,9 @@ export async function GET() {
     const projects = await prisma.project.findMany({
       where: { deletedAt: null },
       include: {
+        // Live contract.endDate so the leaderboard sees the same earliest
+        // deadline the canvas uses.
+        contract: { select: { endDate: true } },
         services: {
           where: { deletedAt: null },
           select: {

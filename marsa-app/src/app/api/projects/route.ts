@@ -70,6 +70,10 @@ export async function GET(request: Request) {
           client: { select: { id: true, name: true, email: true } },
           manager: { select: { id: true, name: true, email: true } },
           department: { select: { id: true, name: true, nameEn: true, color: true } },
+          // Pull the live contract.endDate so getEffectiveDeadline can
+          // pick the earliest of (project.endDate, project.contractEndDate,
+          // contract.endDate) when classifying overdue projects.
+          contract: { select: { endDate: true } },
           tasks: {
             select: {
               id: true,

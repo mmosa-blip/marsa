@@ -27,6 +27,8 @@ export async function GET() {
         client: { select: { id: true, name: true, email: true } },
         manager: { select: { id: true, name: true, email: true } },
         department: { select: { id: true, name: true, nameEn: true, color: true } },
+        // Live contract.endDate for getEffectiveDeadline (earliest-wins).
+        contract: { select: { endDate: true } },
         tasks: {
           select: {
             id: true,
