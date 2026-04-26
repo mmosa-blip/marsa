@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { countWorkingDays } from "@/lib/working-days";
+import { getEffectiveDeadline } from "@/lib/project-deadline";
 
 // Maximum active tasks before an executor is considered "fully loaded".
 // Used as the denominator for loadPercent.
@@ -120,18 +121,16 @@ export async function GET() {
           t.status !== "DONE" &&
           t.status !== "CANCELLED"
       ).length;
-      // Working-days left until the contract ends. null when the project
-      // has no contractEndDate, 0 or negative values get clamped to 0 so
-      // an overdue project surfaces as "0 يوم متبقي" rather than a
-      // confusing negative. late === lateTasks at the project level;
-      // surfaced both inside taskStats and at the top level for the
-      // dedicated badge in OperationsRoomClient.
-      // Prefer the project-level fields; fall back to the Contract
-      // relation when the project was created via a legacy path that
-      // didn't copy them.
+      // Working-days left until the effective deadline (earliest of
+      // project.endDate, project.contractEndDate, contract.endDate). null
+      // when the project has no deadline at all; 0 or negative values get
+      // clamped to 0 so an overdue project surfaces as "0 يوم متبقي".
+      // late === lateTasks at the project level; surfaced both inside
+      // taskStats and at the top level for the dedicated badge in
+      // OperationsRoomClient.
       const resolvedContractStart = p.contractStartDate || p.contract?.startDate || null;
       const resolvedContractEnd = p.contractEndDate || p.contract?.endDate || null;
-      const contractEnd = resolvedContractEnd ? new Date(resolvedContractEnd) : null;
+      const contractEnd = getEffectiveDeadline(p);
       let daysRemaining: number | null = null;
       if (contractEnd) {
         if (contractEnd <= now) {
