@@ -13,6 +13,18 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { X, Building2 } from "lucide-react";
+import {
+  getBuildingState as getBuildingStateImpl,
+  isProjectComplete as isProjectCompleteImpl,
+  STATE_ORDER as STATE_ORDER_IMPL,
+  type BuildingState as BuildingStateImpl,
+} from "@/lib/city-state";
+
+// Re-export so existing import sites (CityStatsBar, pages, leaderboard) keep
+// working unchanged. Single source of truth lives in @/lib/city-state.
+export type BuildingState = BuildingStateImpl;
+export const getBuildingState = getBuildingStateImpl;
+export const isProjectComplete = isProjectCompleteImpl;
 
 export interface CityApiService {
   id: string;
@@ -41,88 +53,7 @@ export interface CityApiProject {
   executors?: { id: string; name: string }[];
 }
 
-// Lifecycle state shown on the canvas. Worst-first priority for branching.
-export type BuildingState =
-  | "COMPLETED"
-  | "COLLAPSED"   // endDate passed (or ON_HOLD), not done — full ruin + ambulance + police
-  | "AT_RISK"     // ≥ 80% of duration elapsed, not done — mild cracks + falling gravel
-  | "TASK_LATE"   // any task past dueDate, not COLLAPSED/AT_RISK — police out front
-  | "IN_PROGRESS";
-
-// Single source of truth for "is every service of this project fully done?".
-// Both the canvas and external consumers (CityStatsBar, page-level badges)
-// must agree on completion or counts will drift.
-export function isProjectComplete(p: CityApiProject): boolean {
-  const services = p.services || [];
-  if (services.length === 0) return false;
-  return services.every((s) => {
-    const total = s.tasks?.length || 0;
-    const done = s.tasks?.filter((t) => t.status === "DONE").length || 0;
-    return total > 0 && done >= total;
-  });
-}
-
-// Stable sort weight, smaller = drawn first (= further left on the canvas).
-// Reading right-to-left in Arabic, the most urgent state shows up first.
-const STATE_ORDER: Record<BuildingState, number> = {
-  COMPLETED: 0,
-  IN_PROGRESS: 1,
-  TASK_LATE: 2,
-  AT_RISK: 3,
-  COLLAPSED: 4,
-};
-
-interface BuildingStateInput {
-  isComplete: boolean;
-  status: string;
-  startDate?: string | null;
-  contractStartDate?: string | null;
-  createdAt?: string | null;
-  endDate: string | null;
-  contractEndDate?: string | null;
-  tasks?: { status: string; dueDate: string | null }[];
-}
-
-// Decide which lifecycle bucket a project falls into. Order matters:
-// COLLAPSED beats AT_RISK beats TASK_LATE so the visualisation always
-// shows the most urgent signal.
-export function getBuildingState(p: BuildingStateInput): BuildingState {
-  if (p.isComplete) return "COMPLETED";
-
-  const now = Date.now();
-  const end =
-    (p.endDate && new Date(p.endDate).getTime()) ||
-    (p.contractEndDate && new Date(p.contractEndDate).getTime()) ||
-    null;
-
-  // Project deadline blown OR explicitly paused → ruin.
-  if (p.status === "ON_HOLD") return "COLLAPSED";
-  if (end && end < now) return "COLLAPSED";
-
-  // 80%+ of contracted duration consumed but project not delivered.
-  const start =
-    (p.startDate && new Date(p.startDate).getTime()) ||
-    (p.contractStartDate && new Date(p.contractStartDate).getTime()) ||
-    (p.createdAt && new Date(p.createdAt).getTime()) ||
-    null;
-  if (start && end && end > start) {
-    const elapsed = now - start;
-    const total = end - start;
-    if (total > 0 && elapsed / total >= 0.8) return "AT_RISK";
-  }
-
-  // Any individual task past its due date → flag without yet ruining.
-  const lateTasks = (p.tasks || []).filter(
-    (t) =>
-      t.dueDate &&
-      new Date(t.dueDate).getTime() < now &&
-      t.status !== "DONE" &&
-      t.status !== "CANCELLED"
-  ).length;
-  if (lateTasks > 0) return "TASK_LATE";
-
-  return "IN_PROGRESS";
-}
+const STATE_ORDER = STATE_ORDER_IMPL;
 
 interface FloorLayout {
   serviceId: string;
