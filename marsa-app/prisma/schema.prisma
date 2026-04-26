@@ -414,6 +414,10 @@ model User {
   resumedProjects       ProjectPause[]      @relation("ResumedProjects")
   revertedTasks         Task[]              @relation("RevertedTasks")
 
+  // Personal todo space — independent of project Tasks.
+  personalTasksOwned     PersonalTask[]    @relation("PersonalTaskOwner")
+  personalTasksRequested PersonalTask[]    @relation("PersonalTaskRequester")
+
   @@index([role, isActive, deletedAt])
   @@index([supervisorUserId, isActive])
   @@map("users")
@@ -2084,4 +2088,51 @@ model ProjectDocument {
   partner   ProjectPartner? @relation(fields: [partnerId], references: [id])
 
   @@map("project_documents")
+}
+
+// ===== Personal todo space =====
+// A lightweight per-user todo list (Microsoft To Do style) that is
+// completely independent of Task / Project. Each row is owned by one
+// user; an optional `requestedBy` records who asked for it (e.g. a
+// manager passing on an ad-hoc errand). Recurrence metadata is stored
+// here but the cron that materializes daily instances lives in
+// /api/cron/recurring-tasks.
+model PersonalTask {
+  id                 String    @id @default(cuid())
+  ownerId            String
+  owner              User      @relation("PersonalTaskOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  title              String
+  description        String?
+
+  // Scheduling — dueDate carries the calendar day; dueTime is "HH:mm"
+  // when the user wants a specific clock time, otherwise null.
+  dueDate            DateTime?
+  dueTime            String?
+
+  // Lifecycle — kept as String (not enum) to mirror the rest of the
+  // codebase's lightweight status fields and avoid an enum migration.
+  status             String    @default("PENDING") // PENDING | IN_PROGRESS | DONE
+  completedAt        DateTime?
+
+  // Optional "who asked for this" pointer.
+  requestedById      String?
+  requestedBy        User?     @relation("PersonalTaskRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  // Recurrence metadata — surface only; daily materialization is the
+  // cron's job.
+  isRecurring        Boolean   @default(false)
+  recurrencePattern  String?   // DAILY | WEEKLY | MONTHLY
+  recurrenceDays     String?   // JSON array, e.g. "[0,1,2,3,4]" for WEEKLY
+
+  priority           String    @default("NORMAL") // LOW | NORMAL | HIGH
+
+  notes              String?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([ownerId, status])
+  @@index([ownerId, dueDate])
+  @@map("personal_tasks")
 }
