@@ -90,6 +90,7 @@ const adminGroups: NavGroup[] = [
       { href: "/dashboard/approvals", label: "الموافقات", tKey: "approvals", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/user-preview", label: "شاشات المنفذين", tKey: "userPreview", roles: ["ADMIN"] },
       { href: "/dashboard/all-cities", label: "مدينة المنفذين", tKey: "allCities", roles: ["ADMIN", "MANAGER"] },
+      { href: "/dashboard/my-day", label: "مهامي اليوم", tKey: "myDay" },
       { href: "/dashboard", label: "الشاشة الرئيسية", tKey: "home" },
       { href: "/dashboard/opportunities", label: "الفرص", tKey: "opportunities", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
@@ -210,6 +211,7 @@ const executorGroups: NavGroup[] = [
       // مدينتي is the unified workspace — it carries the city view AND the
       // tasks list behind a toggle, replacing the standalone /my-tasks route.
       { href: "/dashboard/executor-city", label: "مدينتي", tKey: "myCity" },
+      { href: "/dashboard/my-day", label: "مهامي اليوم", tKey: "myDay" },
       { href: "/dashboard/opportunities", label: "الفرص", tKey: "opportunities" },
       { href: "/dashboard/clients", label: "العملاء", tKey: "clients" },
       { href: "/dashboard/task-transfers", label: "طلبات التحويل", tKey: "transfers" },
@@ -232,6 +234,7 @@ const branchManagerGroups: NavGroup[] = [
     children: [
       { href: "/dashboard/branch", label: "فريقي", tKey: "myTeam" },
       { href: "/dashboard/executor-city", label: "مدينتي", tKey: "myCity" },
+      { href: "/dashboard/my-day", label: "مهامي اليوم", tKey: "myDay" },
       { href: "/dashboard/my-projects", label: "مشاريعي", tKey: "myProjects" },
       { href: "/dashboard/my-health", label: "صحة مشاريعي", tKey: "myHealth" },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
@@ -247,6 +250,7 @@ const providerGroups: NavGroup[] = [
     icon: LayoutDashboard,
     children: [
       { href: "/dashboard/my-tasks", label: "مهامي", tKey: "myTasks" },
+      { href: "/dashboard/my-day", label: "مهامي اليوم", tKey: "myDay" },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
       { href: "/dashboard/policies", label: "اللوائح والإرشادات", tKey: "policies" },
     ],
@@ -263,6 +267,7 @@ const clientGroups: NavGroup[] = [
       { href: "/dashboard/my-projects", label: "مشاريعي", tKey: "myProjects" },
       { href: "/dashboard/my-services", label: "خدماتي", tKey: "myServices" },
       { href: "/dashboard/my-service-requests", label: "طلباتي", tKey: "myServiceRequests" },
+      { href: "/dashboard/my-day", label: "مهامي اليوم", tKey: "myDay" },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },
     ],
   },
