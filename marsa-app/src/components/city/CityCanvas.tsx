@@ -1162,8 +1162,11 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         drawDoorSign(b.x, topY - 4, "⏸️", "متوقف");
       }
 
-      // Emergency rooftop strobe — TASK_LATE (cue) and COLLAPSED (severe).
-      if (isTaskLate || isCollapsed) {
+      // Emergency rooftop strobe — COLLAPSED only. TASK_LATE used to share
+      // these tiny lights; they read like a "police HQ" rather than "this
+      // building is in trouble", so TASK_LATE now gets a full-body wash
+      // further down instead.
+      if (isCollapsed) {
         drawEmergencyRoofLights(baseX, topY, b.baseWidth, time, isCollapsed);
       }
 
@@ -1304,6 +1307,43 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         ctx.strokeStyle = "rgba(0,0,0,0.18)";
         ctx.lineWidth = 0.7;
         ctx.stroke();
+      }
+
+      // ── TASK_LATE: full-building police emergency wash ──
+      // Replaces the earlier rooftop pinpoint lights. The whole facade
+      // pulses red/blue at 2 Hz (matching the police-car strobe) on top
+      // of a slow ~3 Hz amplitude breath, and an outer radial glow turns
+      // the surrounding sky into a soft "plasma" of the same color so
+      // the building reads as actively flagged in the periphery — even
+      // when the user isn't looking at it. Crane and door stay visible
+      // through the translucent layers; the building stays structurally
+      // clean (no cracks).
+      if (isTaskLate) {
+        const flashPhase = Math.floor(time / 500) % 2; // 0 → red, 1 → blue
+        const breath = 0.25 + Math.sin(time / 200) * 0.1; // 0.15 .. 0.35
+        // The night sky already saturates the eye with darkness; tone the
+        // wash down so it doesn't over-bloom against the dark gradient.
+        const pulseAlpha = isNight ? breath * 0.7 : breath;
+        const rgb = flashPhase === 0 ? "220,38,38" : "37,99,235";
+        const cx = baseX + b.baseWidth / 2;
+        const cy = topY + b.baseHeight / 2;
+
+        // Outer plasma — radial gradient extending ~1.5x building width.
+        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, b.baseWidth * 1.5);
+        glow.addColorStop(0, `rgba(${rgb},${pulseAlpha * 0.6})`);
+        glow.addColorStop(0.5, `rgba(${rgb},${pulseAlpha * 0.3})`);
+        glow.addColorStop(1, `rgba(${rgb},0)`);
+        ctx.fillStyle = glow;
+        ctx.fillRect(
+          baseX - b.baseWidth,
+          topY - b.baseHeight / 2,
+          b.baseWidth * 3,
+          b.baseHeight * 2,
+        );
+
+        // Inner wash — translucent flat fill clipped to the building rect.
+        ctx.fillStyle = `rgba(${rgb},${pulseAlpha})`;
+        ctx.fillRect(baseX, topY, b.baseWidth, b.baseHeight);
       }
 
       if (hoveredId === b.id) {
