@@ -10,6 +10,8 @@
  * client.
  */
 
+import { getEffectiveDeadline } from "./project-deadline";
+
 export type BuildingState =
   | "COMPLETED"
   | "COLLAPSED"        // endDate truly blown — "guilty" (their fault)
@@ -35,6 +37,9 @@ export interface BuildingStateInput {
   createdAt?: string | Date | null;
   endDate?: string | Date | null;
   contractEndDate?: string | Date | null;
+  // Live contract relation — fed in by APIs that include it. Read by
+  // getEffectiveDeadline alongside the denormalised endDate fields.
+  contract?: { endDate?: string | Date | null } | null;
   tasks?: { status: string; dueDate?: string | Date | null }[];
 }
 
@@ -48,7 +53,12 @@ export function getBuildingState(p: BuildingStateInput): BuildingState {
   if (p.isComplete) return "COMPLETED";
 
   const now = Date.now();
-  const end = toMillis(p.endDate ?? null) ?? toMillis(p.contractEndDate ?? null);
+  // Earliest of (project.endDate, project.contractEndDate, contract.endDate).
+  // Earlier code used `endDate ?? contractEndDate`, which silently lost the
+  // contract deadline whenever the internal plan window was extended past
+  // the contracted end — see scripts/diagnose-collapsed.ts.
+  const deadline = getEffectiveDeadline(p);
+  const end = deadline ? deadline.getTime() : null;
 
   // Worst-first priority order:
   //   1. COLLAPSED       — actual deadline blown (project's fault)

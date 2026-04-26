@@ -19,6 +19,7 @@ import {
   STATE_ORDER as STATE_ORDER_IMPL,
   type BuildingState as BuildingStateImpl,
 } from "@/lib/city-state";
+import { getEffectiveDeadline } from "@/lib/project-deadline";
 
 // Re-export so existing import sites (CityStatsBar, pages, leaderboard) keep
 // working unchanged. Single source of truth lives in @/lib/city-state.
@@ -48,6 +49,10 @@ export interface CityApiProject {
   // /api/admin/cities-leaderboard when the project has a locked unpaid
   // non-first installment.
   paymentFrozen?: boolean;
+  // Live contract.endDate piped through by the same APIs. Read by
+  // getEffectiveDeadline so the canvas honors the earliest of the three
+  // deadline sources.
+  contract?: { endDate: string | null } | null;
   progress: number;
   totalTasks: number;
   completedTasks: number;
@@ -1355,10 +1360,11 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         (b.contractStartDate && new Date(b.contractStartDate).getTime()) ||
         (b.createdAt && new Date(b.createdAt).getTime()) ||
         null;
-      const end =
-        (b.endDate && new Date(b.endDate).getTime()) ||
-        (b.contractEndDate && new Date(b.contractEndDate).getTime()) ||
-        null;
+      // Earliest deadline across endDate, contractEndDate, contract.endDate
+      // — same source the COLLAPSED check uses, so the strip flips red the
+      // moment the building's state flips.
+      const deadline = getEffectiveDeadline(b);
+      const end = deadline ? deadline.getTime() : null;
       if (!start || !end || end <= start) return;
 
       const now = Date.now();
