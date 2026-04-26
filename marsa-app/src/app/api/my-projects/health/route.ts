@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { countWorkingDays } from "@/lib/working-days";
 import { logger } from "@/lib/logger";
+import { getEffectiveDeadline } from "@/lib/project-deadline";
 
 interface ProjectHealth {
   id: string;
@@ -102,6 +103,9 @@ export async function GET() {
       where: projectWhere,
       include: {
         client: { select: { name: true } },
+        // Live contract.endDate so getEffectiveDeadline picks the earliest
+        // of (project.endDate, project.contractEndDate, contract.endDate).
+        contract: { select: { endDate: true } },
         tasks: {
           where: { status: { not: "CANCELLED" } },
           select: { id: true, status: true, dueDate: true },
@@ -134,9 +138,12 @@ export async function GET() {
 
       const taskProgress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-      // SLA time calculation
+      // SLA time calculation. The deadline is the earliest of all three
+      // sources via getEffectiveDeadline so health agrees with the city
+      // canvas — no more "city says منهار, health says مرتاح".
       const startDate = project.contractStartDate || project.startDate;
-      const endDate = project.contractEndDate || project.endDate;
+      const effectiveDeadline = getEffectiveDeadline(project);
+      const endDate = effectiveDeadline ?? project.contractEndDate ?? project.endDate;
       const durationDays = project.contractDurationDays;
 
       let daysElapsed = 0;
@@ -147,9 +154,8 @@ export async function GET() {
         daysElapsed = countWorkingDays(new Date(startDate), now);
       }
 
-      if (endDate) {
-        const dl = new Date(endDate);
-        daysRemaining = dl > now ? countWorkingDays(now, dl) : 0;
+      if (effectiveDeadline) {
+        daysRemaining = effectiveDeadline > now ? countWorkingDays(now, effectiveDeadline) : 0;
       }
 
       const totalDays = durationDays || (startDate && endDate
@@ -239,7 +245,9 @@ export async function GET() {
         notStartedTasks,
         overdueTasks,
         contractStartDate: (project.contractStartDate || project.startDate)?.toISOString() || null,
-        contractEndDate: (project.contractEndDate || project.endDate)?.toISOString() || null,
+        // Wire the effective (earliest) deadline so the UI's "متبقي X يوم"
+        // banner matches what the city canvas thinks of the same project.
+        contractEndDate: effectiveDeadline?.toISOString() || null,
         contractDurationDays: totalDays || null,
         daysElapsed,
         daysRemaining,

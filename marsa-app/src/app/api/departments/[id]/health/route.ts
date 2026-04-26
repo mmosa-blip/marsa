@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { countWorkingDays } from "@/lib/working-days";
+import { getEffectiveDeadline } from "@/lib/project-deadline";
 
 export async function GET(
   _request: Request,
@@ -31,6 +32,7 @@ export async function GET(
       status: string;
       endDate: Date | null;
       contractEndDate: Date | null;
+      contract: { endDate: Date | null } | null;
       createdAt: Date;
       client: { id: string; name: string } | null;
       tasks: { id: string; status: string; dueDate: Date | null }[];
@@ -44,6 +46,7 @@ export async function GET(
         where: { departmentId: id, deletedAt: null },
         include: {
           client: { select: { id: true, name: true } },
+          contract: { select: { endDate: true } },
           tasks: { select: { id: true, status: true, dueDate: true } },
           paymentSchedule: { select: { amount: true, status: true } },
           services: { select: { id: true, status: true } },
@@ -81,18 +84,17 @@ export async function GET(
       // Health = weighted average: tasks 40%, on-time 30%, payments 30%
       const health = Math.round(taskRate * 0.4 + overdueRate * 0.3 + paymentRate * 0.3);
 
-      // Prefer contractEndDate (SLA deadline) over the project's
-      // calculated endDate. Use working-days so the number matches
-      // the Saudi work-week calendar the rest of the system uses.
-      const deadlineDate = p.contractEndDate || p.endDate;
+      // Earliest of (project.endDate, project.contractEndDate, contract.endDate)
+      // — the contract is binding so the helper picks whichever expires
+      // first. Working-days while in the future, calendar-days when overdue
+      // for urgency.
+      const deadlineDate = getEffectiveDeadline(p);
       let daysRemaining: number | null = null;
       if (deadlineDate) {
-        const dl = new Date(deadlineDate);
-        if (dl <= now) {
-          // Past deadline — show negative as calendar days for urgency
-          daysRemaining = -Math.ceil((now.getTime() - dl.getTime()) / (1000 * 60 * 60 * 24));
+        if (deadlineDate <= now) {
+          daysRemaining = -Math.ceil((now.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24));
         } else {
-          daysRemaining = countWorkingDays(now, dl);
+          daysRemaining = countWorkingDays(now, deadlineDate);
         }
       }
 
