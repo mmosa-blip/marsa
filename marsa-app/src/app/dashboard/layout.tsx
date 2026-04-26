@@ -89,7 +89,7 @@ const adminGroups: NavGroup[] = [
       { href: "/dashboard/operations-room", label: "إدارة العمليات", tKey: "operationsRoom", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/approvals", label: "الموافقات", tKey: "approvals", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/user-preview", label: "شاشات المنفذين", tKey: "userPreview", roles: ["ADMIN"] },
-      { href: "/dashboard/admin-cities", label: "مدن المنفذين", tKey: "adminCities", roles: ["ADMIN", "MANAGER"] },
+      { href: "/dashboard/all-cities", label: "مدينة المنفذين", tKey: "allCities", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard", label: "الشاشة الرئيسية", tKey: "home" },
       { href: "/dashboard/opportunities", label: "الفرص", tKey: "opportunities", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/chat", label: "المحادثات", tKey: "chat" },

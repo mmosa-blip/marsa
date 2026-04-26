@@ -1,0 +1,88 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
+
+// GET /api/admin/all-cities
+//
+// Sister endpoint to /api/projects?withServices=true but without the
+// per-role assignee filter. Returns every non-deleted project with its
+// services + tasks (the same shape executor-city expects) so the admin
+// "unified city" page can render every executor's buildings on one
+// canvas.
+//
+// Each project additionally carries a distinct list of executors
+// (assignees of its tasks) so the canvas can label towers and the
+// header dropdown can filter by person.
+//
+// Auth: ADMIN / MANAGER only.
+export async function GET() {
+  try {
+    await requireRole(["ADMIN", "MANAGER"]);
+
+    const projects = await prisma.project.findMany({
+      where: { deletedAt: null },
+      include: {
+        client: { select: { id: true, name: true, email: true } },
+        manager: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true, nameEn: true, color: true } },
+        tasks: {
+          select: {
+            id: true,
+            status: true,
+            dueDate: true,
+            assignee: { select: { id: true, name: true } },
+          },
+        },
+        services: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            tasks: { select: { id: true, status: true, dueDate: true } },
+          },
+          orderBy: { serviceOrder: "asc" },
+          where: { deletedAt: null },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const enriched = projects.map((p) => {
+      const total = p.tasks.length;
+      const done = p.tasks.filter((t) => t.status === "DONE").length;
+
+      // Distinct executors derived from task.assignee. Order: by name.
+      const map = new Map<string, string>();
+      for (const t of p.tasks) {
+        if (t.assignee?.id) map.set(t.assignee.id, t.assignee.name);
+      }
+      const executors = Array.from(map.entries())
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name, "ar"));
+
+      // Strip assignee from each task before sending — the canvas only
+      // needs id/status/dueDate, and we already aggregated executors.
+      const tasks = p.tasks.map((t) => ({
+        id: t.id,
+        status: t.status,
+        dueDate: t.dueDate,
+      }));
+
+      return {
+        ...p,
+        tasks,
+        progress: total > 0 ? Math.round((done / total) * 100) : 0,
+        totalTasks: total,
+        completedTasks: done,
+        executors,
+      };
+    });
+
+    return NextResponse.json({ projects: enriched });
+  } catch (e) {
+    if (e instanceof Response) return e;
+    logger.error("admin/all-cities error", e);
+    return NextResponse.json({ error: "فشل تحميل بيانات المدن" }, { status: 500 });
+  }
+}
