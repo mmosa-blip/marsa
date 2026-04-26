@@ -6,9 +6,12 @@ import Link from "next/link";
 import {
   Users2, Search, Filter, UserPlus, ShieldCheck, UserCog, Users,
   Briefcase, Handshake, Edit3, Ban, CheckCircle, Trash2, Loader2, Download,
+  ChevronRight, ChevronLeft,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import { exportToExcel } from "@/lib/export-utils";
+
+const PAGE_SIZE = 50;
 
 interface User {
   id: string;
@@ -48,6 +51,11 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // Pagination state — page is 1-based; total + pages mirror the
+  // X-Total-Count / X-Pages headers the API attaches via withPaginationHeaders.
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const { data: session } = useSession();
 
   // Edit modal state
@@ -58,26 +66,59 @@ export default function UsersPage() {
 
   useEffect(() => { document.title = "إدارة المستخدمين | مرسى"; }, []);
 
-  const fetchUsers = () => {
+  const fetchUsers = async () => {
     setLoading(true);
     const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("take", String(PAGE_SIZE));
     if (roleFilter) params.set("role", roleFilter);
     if (search) params.set("search", search);
     if (statusFilter) params.set("isActive", statusFilter);
 
-    fetch(`/api/users?${params}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d)) setUsers(d);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    try {
+      const res = await fetch(`/api/users?${params}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setUsers(data);
+        const total = parseInt(res.headers.get("X-Total-Count") || "0", 10);
+        const pages = parseInt(res.headers.get("X-Pages") || "1", 10);
+        setTotalCount(Number.isFinite(total) ? total : 0);
+        setTotalPages(Number.isFinite(pages) && pages > 0 ? pages : 1);
+        // If a delete or filter shrunk the result set so much that the
+        // current page is now beyond the end, snap back to the last
+        // valid page. The setPage will retrigger fetch automatically.
+        if (page > 1 && data.length === 0 && pages > 0 && page > pages) {
+          setPage(pages);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Re-fetch on page change OR filter change. Search gets a 300 ms debounce
+  // so we don't hammer the API on every keystroke.
   useEffect(() => {
     const timer = setTimeout(fetchUsers, search ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [roleFilter, statusFilter, search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, roleFilter, statusFilter, search]);
+
+  // Any filter change resets the cursor to page 1 — otherwise narrowing
+  // results while on page 3 would drop the user onto an empty view.
+  // Inline in the change handlers below to batch with the filter update.
+  const onRoleChange = (v: string) => {
+    if (page !== 1) setPage(1);
+    setRoleFilter(v);
+  };
+  const onStatusChange = (v: string) => {
+    if (page !== 1) setPage(1);
+    setStatusFilter(v);
+  };
+  const onSearchChange = (v: string) => {
+    if (page !== 1) setPage(1);
+    setSearch(v);
+  };
 
   const totalUsers = users.length;
   const adminsManagers = users.filter((u) => u.role === "ADMIN" || u.role === "MANAGER").length;
@@ -247,7 +288,7 @@ export default function UsersPage() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => onSearchChange(e.target.value)}
             placeholder="ابحث بالاسم أو البريد الإلكتروني..."
             className="flex-1 py-2 text-sm outline-none"
             style={{ color: "#2D3748", backgroundColor: "transparent" }}
@@ -256,7 +297,7 @@ export default function UsersPage() {
         <Filter size={16} style={{ color: "#94A3B8" }} />
         <select
           value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
+          onChange={(e) => onRoleChange(e.target.value)}
           className="px-3 py-2.5 rounded-xl text-sm outline-none bg-white cursor-pointer"
           style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
         >
@@ -269,7 +310,7 @@ export default function UsersPage() {
         </select>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => onStatusChange(e.target.value)}
           className="px-3 py-2.5 rounded-xl text-sm outline-none bg-white cursor-pointer"
           style={{ border: "1px solid #E2E0D8", color: "#2D3748" }}
         >
@@ -432,6 +473,82 @@ export default function UsersPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Pagination — only show when there's more than one page. RTL puts
+          "السابق" on the right (toward the older page) and "التالي" on
+          the left, matching how Arabic readers traverse the list. */}
+      {!loading && users.length > 0 && totalPages > 1 && (
+        <div
+          className="mt-4 bg-white rounded-2xl px-4 py-3 flex items-center justify-between gap-3 flex-wrap"
+          style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
+        >
+          <p className="text-xs" style={{ color: "#2D3748", opacity: 0.7 }}>
+            عرض{" "}
+            <span className="font-bold" style={{ color: "#1C1B2E" }}>
+              {((page - 1) * PAGE_SIZE + 1).toLocaleString("en-US")}
+            </span>
+            {"–"}
+            <span className="font-bold" style={{ color: "#1C1B2E" }}>
+              {Math.min(page * PAGE_SIZE, totalCount).toLocaleString("en-US")}
+            </span>{" "}
+            من{" "}
+            <span className="font-bold" style={{ color: "#5E5495" }}>
+              {totalCount.toLocaleString("en-US")}
+            </span>{" "}
+            مستخدم
+          </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1 || loading}
+              className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:not-disabled:shadow-sm"
+              style={{
+                backgroundColor: page <= 1 ? "#F4F3EE" : "rgba(94,84,149,0.08)",
+                color: "#5E5495",
+                border: "1px solid rgba(94,84,149,0.25)",
+              }}
+            >
+              <ChevronRight size={14} />
+              السابق
+            </button>
+
+            <span
+              className="px-3 py-2 rounded-xl text-xs font-bold"
+              style={{
+                backgroundColor: "rgba(201,168,76,0.12)",
+                color: "#C9A84C",
+                border: "1px solid rgba(201,168,76,0.35)",
+              }}
+            >
+              صفحة{" "}
+              <span style={{ color: "#1C1B2E" }}>
+                {page.toLocaleString("en-US")}
+              </span>{" "}
+              من{" "}
+              <span style={{ color: "#1C1B2E" }}>
+                {totalPages.toLocaleString("en-US")}
+              </span>
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages || loading}
+              className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:not-disabled:shadow-sm"
+              style={{
+                backgroundColor: page >= totalPages ? "#F4F3EE" : "rgba(94,84,149,0.08)",
+                color: "#5E5495",
+                border: "1px solid rgba(94,84,149,0.25)",
+              }}
+            >
+              التالي
+              <ChevronLeft size={14} />
+            </button>
           </div>
         </div>
       )}
