@@ -10,7 +10,7 @@
  * /dashboard/my-tasks redirects here.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Loader2, Building2, Trophy } from "lucide-react";
@@ -19,6 +19,7 @@ import CityCanvas, { CityApiProject, isProjectComplete } from "@/components/city
 import CityStatsBar from "@/components/city/CityStatsBar";
 import { ROUTES } from "@/lib/routes";
 import { logger } from "@/lib/logger";
+import { pusherClient } from "@/lib/pusher-client";
 
 interface BuilderTier {
   name: string;
@@ -49,17 +50,21 @@ export default function ExecutorCityPage() {
   // Project picker — null until the first fetch resolves; a project is always
   // selected after that so the embedded tasks view stays focused.
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  // Auto-select runs once on the very first response. Real-time refetches
+  // update `projects` without ever stomping on the user's current pick.
+  const initialSelectDoneRef = useRef(false);
+  // Celebration token — incrementing key + projectId is read by CityCanvas
+  // to play a one-shot ring animation on the building of the completed task.
+  const [celebrate, setCelebrate] = useState<{ key: number; projectId: string } | null>(null);
 
-  // Fetch projects with services for the city. After loading, auto-select
-  // the most delayed project so the executor lands on highest-priority work.
-  useEffect(() => {
+  const refetch = useCallback(() => {
     fetch("/api/projects?withServices=true")
       .then((r) => r.json())
       .then((d) => {
         const list: CityApiProject[] = Array.isArray(d) ? d : [];
         setProjects(list);
 
-        if (list.length > 0) {
+        if (!initialSelectDoneRef.current && list.length > 0) {
           const now = Date.now();
           const sorted = [...list].sort((a, b) => {
             const aLate = (a.tasks || []).filter(
@@ -74,6 +79,7 @@ export default function ExecutorCityPage() {
             return aEnd - bEnd;
           });
           setPickedProjectId(sorted[0].id);
+          initialSelectDoneRef.current = true;
         }
       })
       .catch((err) => {
@@ -81,6 +87,38 @@ export default function ExecutorCityPage() {
         setProjects([]);
       });
   }, []);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  // ── Pusher real-time wiring ──
+  // Public channel "task-updates": the server can broadcast lightweight
+  // signals here whenever a task moves status. We coalesce bursts behind
+  // a 500ms trailing debounce so a "all-tasks-done" cascade triggers one
+  // refetch, not N. `task-completed` additionally fires a celebration on
+  // its building so the user sees the immediate effect.
+  useEffect(() => {
+    if (!pusherClient) return;
+    let timer: number | undefined;
+    const debouncedRefetch = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => refetch(), 500);
+    };
+    const channel = pusherClient.subscribe("task-updates");
+    channel.bind("status-changed", debouncedRefetch);
+    channel.bind("task-completed", (payload: { projectId?: string }) => {
+      debouncedRefetch();
+      if (payload?.projectId) {
+        setCelebrate({ key: Date.now(), projectId: payload.projectId });
+      }
+    });
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      channel.unbind_all();
+      pusherClient.unsubscribe("task-updates");
+    };
+  }, [refetch]);
 
   // Tier badge counts only fully-complete projects. Routed through the
   // shared isProjectComplete helper so the canvas, stats bar and badge
@@ -149,7 +187,12 @@ export default function ExecutorCityPage() {
       )}
 
       {projects && projects.length > 0 && (
-        <CityCanvas projects={projects} viewMode="executor" topRightBadge={tierBadge} />
+        <CityCanvas
+          projects={projects}
+          viewMode="executor"
+          topRightBadge={tierBadge}
+          celebrate={celebrate}
+        />
       )}
 
       {projects && projects.length > 0 && (

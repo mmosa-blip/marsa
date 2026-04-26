@@ -14,7 +14,7 @@
  * untouched — both pages coexist, executors keep their personal city.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Loader2, Building2 } from "lucide-react";
@@ -22,12 +22,15 @@ import CityCanvas, { CityApiProject } from "@/components/city/CityCanvas";
 import CityStatsBar from "@/components/city/CityStatsBar";
 import { ROUTES } from "@/lib/routes";
 import { logger } from "@/lib/logger";
+import { pusherClient } from "@/lib/pusher-client";
 
 export default function AllCitiesPage() {
   const { data: session, status } = useSession();
   const [projects, setProjects] = useState<CityApiProject[] | null>(null);
   // Optional filter — show only one executor's buildings. null = all.
   const [executorFilter, setExecutorFilter] = useState<string | null>(null);
+  // Celebration token for Pusher 'task-completed' → CityCanvas glow.
+  const [celebrate, setCelebrate] = useState<{ key: number; projectId: string } | null>(null);
 
   // Hard role gate. Middleware already blocks /api/admin/* for non-staff,
   // but the page itself is reachable by any signed-in user, so we redirect
@@ -40,7 +43,7 @@ export default function AllCitiesPage() {
     }
   }, [status, session]);
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     fetch("/api/admin/all-cities")
       .then((r) => r.json())
       .then((d) => {
@@ -52,6 +55,35 @@ export default function AllCitiesPage() {
         setProjects([]);
       });
   }, []);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  // Pusher real-time wiring — same channel/events as executor-city. The
+  // admin view sees every executor's task changes, so a single subscription
+  // covers the whole org.
+  useEffect(() => {
+    if (!pusherClient) return;
+    let timer: number | undefined;
+    const debouncedRefetch = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => refetch(), 500);
+    };
+    const channel = pusherClient.subscribe("task-updates");
+    channel.bind("status-changed", debouncedRefetch);
+    channel.bind("task-completed", (payload: { projectId?: string }) => {
+      debouncedRefetch();
+      if (payload?.projectId) {
+        setCelebrate({ key: Date.now(), projectId: payload.projectId });
+      }
+    });
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      channel.unbind_all();
+      pusherClient.unsubscribe("task-updates");
+    };
+  }, [refetch]);
 
   if (status === "loading") return null;
   if (!session) redirect(ROUTES.LOGIN);
@@ -119,7 +151,11 @@ export default function AllCitiesPage() {
       )}
 
       {filteredProjects && filteredProjects.length > 0 && (
-        <CityCanvas projects={filteredProjects} viewMode="admin" />
+        <CityCanvas
+          projects={filteredProjects}
+          viewMode="admin"
+          celebrate={celebrate}
+        />
       )}
 
       {projects && projects.length > 0 && (

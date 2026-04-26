@@ -219,9 +219,12 @@ export interface CityCanvasProps {
   // city frame. Used by executor-city for the builder-tier badge; null in
   // all-cities. Renders inside the same wrapper, so it follows fullscreen.
   topRightBadge?: ReactNode;
+  // One-shot celebration trigger — incrementing `key` plays a brief glow
+  // ring around the project's building. Wired via Pusher 'task-completed'.
+  celebrate?: { key: number; projectId: string } | null;
 }
 
-export default function CityCanvas({ projects, viewMode, onBuildingClick, topRightBadge }: CityCanvasProps) {
+export default function CityCanvas({ projects, viewMode, onBuildingClick, topRightBadge, celebrate }: CityCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [selected, setSelected] = useState<BuildingLayout | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -229,10 +232,86 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
     w: typeof window !== "undefined" ? window.innerWidth : 1280,
     h: typeof window !== "undefined" ? window.innerHeight : 720,
   });
-  const [fullscreen, setFullscreen] = useState(false);
+  // Fullscreen state hydrates from localStorage so the user's last choice
+  // sticks across reloads. Per-viewMode key keeps executor and admin views
+  // independent.
+  const [fullscreen, setFullscreen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem(`city-fullscreen-${viewMode}`) === "true";
+    } catch {
+      return false;
+    }
+  });
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef({ moved: 0 });
   const [containerWidth, setContainerWidth] = useState(0);
+
+  // Celebration ring queue. Pushed when `celebrate.key` changes; drained
+  // by the animation loop. Lives in a ref so adding a celebration doesn't
+  // trigger a React re-render or restart the RAF loop.
+  const celebrationsRef = useRef<Array<{ projectId: string; startTime: number }>>([]);
+  const lastCelebrateKeyRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!celebrate || celebrate.key === lastCelebrateKeyRef.current) return;
+    lastCelebrateKeyRef.current = celebrate.key;
+    celebrationsRef.current.push({
+      projectId: celebrate.projectId,
+      startTime: performance.now(),
+    });
+  }, [celebrate]);
+
+  // Persist fullscreen toggle.
+  useEffect(() => {
+    try {
+      localStorage.setItem(`city-fullscreen-${viewMode}`, fullscreen ? "true" : "false");
+    } catch {
+      /* localStorage unavailable (SSR / privacy mode) — silent no-op */
+    }
+  }, [fullscreen, viewMode]);
+
+  // Restore + persist horizontal scroll position. Restores once on first
+  // layout settle; persists with a 250ms trailing debounce so we don't
+  // hammer localStorage during a drag.
+  const restoredScrollRef = useRef(false);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !containerWidth) return;
+    const key = `city-scroll-${viewMode}`;
+
+    if (!restoredScrollRef.current) {
+      try {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const n = parseInt(saved, 10);
+          if (!isNaN(n) && n >= 0) el.scrollLeft = n;
+        }
+      } catch {
+        /* ignore */
+      }
+      restoredScrollRef.current = true;
+    }
+
+    let writeTimer: number | undefined;
+    const onScroll = () => {
+      if (writeTimer) window.clearTimeout(writeTimer);
+      writeTimer = window.setTimeout(() => {
+        try {
+          if (containerRef.current) {
+            localStorage.setItem(key, String(containerRef.current.scrollLeft));
+          }
+        } catch {
+          /* ignore */
+        }
+      }, 250);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (writeTimer) window.clearTimeout(writeTimer);
+    };
+  }, [viewMode, containerWidth]);
 
   useEffect(() => {
     function onResize() {
@@ -1300,11 +1379,75 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
       for (const tree of trees) drawStreetTree(tree, time);
       for (const f of flowers) drawFlower(f);
 
+      // ── Celebration rings (Pusher task-completed) ──
+      // Drawn last so they sit above buildings/trees. Each celebration
+      // expands a soft ring + a faint window-glow boost over its target
+      // building for ~1500 ms then prunes itself.
+      const queue = celebrationsRef.current;
+      if (queue.length > 0) {
+        const nowAbs = performance.now();
+        const stillActive: typeof queue = [];
+        for (const c of queue) {
+          const elapsed = nowAbs - c.startTime;
+          if (elapsed > 1500) continue;
+          const target = layout!.buildings.find((b) => b.id === c.projectId);
+          if (!target) continue;
+          const t = elapsed / 1500;
+          const baseX = target.x;
+          const baseY = layout!.sky + 30 - 4 - target.baseHeight / 2;
+          const radius = 18 + 70 * t;
+          const alpha = (1 - t) * 0.55;
+
+          ctx.strokeStyle = `rgba(255,235,120,${alpha})`;
+          ctx.lineWidth = 2.5 * (1 - t * 0.6);
+          ctx.beginPath();
+          ctx.arc(baseX, baseY, radius, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Inner softer ring for depth.
+          ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.6})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(baseX, baseY, radius * 0.7, 0, Math.PI * 2);
+          ctx.stroke();
+
+          stillActive.push(c);
+        }
+        celebrationsRef.current = stillActive;
+      }
+
       raf = requestAnimationFrame(tick);
     }
 
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    // ── Visibility-aware RAF ──
+    // Pause the loop the moment the tab goes hidden so the city stops
+    // burning CPU/battery in the background. On return, resume where we
+    // left off — RAF time keeps advancing from `t0`, so animations don't
+    // jump.
+    let paused = false;
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (!paused) {
+          paused = true;
+          cancelAnimationFrame(raf);
+        }
+      } else if (paused) {
+        paused = false;
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    if (document.hidden) {
+      paused = true;
+    } else {
+      raf = requestAnimationFrame(tick);
+    }
+
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [layout, hoveredId]);
 
   function pointToBuilding(clientX: number, clientY: number): BuildingLayout | null {
