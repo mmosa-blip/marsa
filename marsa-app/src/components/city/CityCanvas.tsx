@@ -26,8 +26,11 @@ export interface CityApiProject {
   name: string;
   projectCode: string | null;
   status: string;
+  startDate?: string | null;
   endDate: string | null;
+  contractStartDate?: string | null;
   contractEndDate?: string | null;
+  createdAt?: string | null;
   progress: number;
   totalTasks: number;
   completedTasks: number;
@@ -36,6 +39,66 @@ export interface CityApiProject {
   tasks?: { id: string; status: string; dueDate: string | null }[];
   // Distinct executors (admin all-cities mode only).
   executors?: { id: string; name: string }[];
+}
+
+// Lifecycle state shown on the canvas. Worst-first priority for branching.
+export type BuildingState =
+  | "COMPLETED"
+  | "COLLAPSED"   // endDate passed (or ON_HOLD), not done — full ruin + ambulance + police
+  | "AT_RISK"     // ≥ 80% of duration elapsed, not done — mild cracks + falling gravel
+  | "TASK_LATE"   // any task past dueDate, not COLLAPSED/AT_RISK — police out front
+  | "IN_PROGRESS";
+
+interface BuildingStateInput {
+  isComplete: boolean;
+  status: string;
+  startDate?: string | null;
+  contractStartDate?: string | null;
+  createdAt?: string | null;
+  endDate: string | null;
+  contractEndDate?: string | null;
+  tasks?: { status: string; dueDate: string | null }[];
+}
+
+// Decide which lifecycle bucket a project falls into. Order matters:
+// COLLAPSED beats AT_RISK beats TASK_LATE so the visualisation always
+// shows the most urgent signal.
+export function getBuildingState(p: BuildingStateInput): BuildingState {
+  if (p.isComplete) return "COMPLETED";
+
+  const now = Date.now();
+  const end =
+    (p.endDate && new Date(p.endDate).getTime()) ||
+    (p.contractEndDate && new Date(p.contractEndDate).getTime()) ||
+    null;
+
+  // Project deadline blown OR explicitly paused → ruin.
+  if (p.status === "ON_HOLD") return "COLLAPSED";
+  if (end && end < now) return "COLLAPSED";
+
+  // 80%+ of contracted duration consumed but project not delivered.
+  const start =
+    (p.startDate && new Date(p.startDate).getTime()) ||
+    (p.contractStartDate && new Date(p.contractStartDate).getTime()) ||
+    (p.createdAt && new Date(p.createdAt).getTime()) ||
+    null;
+  if (start && end && end > start) {
+    const elapsed = now - start;
+    const total = end - start;
+    if (total > 0 && elapsed / total >= 0.8) return "AT_RISK";
+  }
+
+  // Any individual task past its due date → flag without yet ruining.
+  const lateTasks = (p.tasks || []).filter(
+    (t) =>
+      t.dueDate &&
+      new Date(t.dueDate).getTime() < now &&
+      t.status !== "DONE" &&
+      t.status !== "CANCELLED"
+  ).length;
+  if (lateTasks > 0) return "TASK_LATE";
+
+  return "IN_PROGRESS";
 }
 
 interface FloorLayout {
@@ -56,7 +119,7 @@ export interface BuildingLayout extends CityApiProject {
   visibleFloors: FloorLayout[];
   color: string;
   isComplete: boolean;
-  isDelayed: boolean;
+  state: BuildingState;
   executorLabel: string;
 }
 
@@ -225,22 +288,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
       const baseHeight = floorsHeight + DOOR_H + 4;
 
       const isComplete = allFloors.length > 0 && allFloors.every((f) => f.isComplete);
-      const now = Date.now();
-
-      const lateTasks = (p.tasks || []).filter(
-        (t) =>
-          t.dueDate &&
-          new Date(t.dueDate).getTime() < now &&
-          t.status !== "DONE" &&
-          t.status !== "CANCELLED"
-      ).length;
-
-      const isDelayed =
-        !isComplete &&
-        (lateTasks > 0 ||
-          (p.endDate && new Date(p.endDate).getTime() < now) ||
-          (p.contractEndDate && new Date(p.contractEndDate).getTime() < now) ||
-          p.status === "ON_HOLD");
+      const state = getBuildingState({ ...p, isComplete });
 
       const execList = p.executors || [];
       let executorLabel = "";
@@ -260,13 +308,16 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
         cols,
         floors: allFloors,
         visibleFloors,
-        color: isComplete
-          ? pickCompletedColor(p.id)
-          : isDelayed
-            ? "#B91C1C"
-            : ACTIVE_COLOR,
+        color:
+          state === "COMPLETED"
+            ? pickCompletedColor(p.id)
+            : state === "COLLAPSED"
+              ? "#B91C1C"
+              : state === "AT_RISK"
+                ? "#7A7770" // weathered concrete drift toward gray
+                : ACTIVE_COLOR,
         isComplete,
-        isDelayed: !!isDelayed,
+        state,
         executorLabel,
       };
     });
@@ -516,20 +567,151 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
       ctx.restore();
     }
 
+    // Flashing red+blue rooftop emergency strobe. Phase flips every 500 ms
+    // so the colors swap predictably regardless of frame rate. Used for
+    // TASK_LATE (subtle cue) and COLLAPSED (severe cue).
+    function drawEmergencyRoofLights(
+      bx: number,
+      by: number,
+      bwidth: number,
+      time: number,
+      severe: boolean
+    ) {
+      const phase = Math.floor(time / 500) % 2 === 0;
+      const left = phase ? "#DC2626" : "#2563EB";
+      const right = phase ? "#2563EB" : "#DC2626";
+      const radius = severe ? 4 : 3;
+      const glowR = severe ? 11 : 7;
+      const glowAlpha = severe ? 0.55 : 0.35;
+      const lx = bx + 5;
+      const rx = bx + bwidth - 5;
+      const ly = by - 9;
+
+      const leftGlow = left === "#DC2626" ? "220,38,38" : "37,99,235";
+      const rightGlow = right === "#DC2626" ? "220,38,38" : "37,99,235";
+
+      ctx.fillStyle = `rgba(${leftGlow},${glowAlpha})`;
+      ctx.beginPath();
+      ctx.arc(lx, ly, glowR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(${rightGlow},${glowAlpha})`;
+      ctx.beginPath();
+      ctx.arc(rx, ly, glowR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = left;
+      ctx.beginPath();
+      ctx.arc(lx, ly, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = right;
+      ctx.beginPath();
+      ctx.arc(rx, ly, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawPoliceCar(cx: number, cy: number, time: number) {
+      const w = 22;
+      const h = 9;
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      // Body — white with black middle stripe
+      ctx.fillStyle = "#FFFFFF";
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, -h / 2, w, h, 2);
+      ctx.fill();
+      ctx.fillStyle = "#1F2937";
+      ctx.fillRect(-w / 2, -1, w, 2);
+      // Cabin
+      ctx.fillStyle = "#FFFFFF";
+      ctx.beginPath();
+      ctx.roundRect(-w / 2 + 4, -h / 2 - 5, w - 8, 5, 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(147,197,253,0.7)";
+      ctx.fillRect(-w / 2 + 5, -h / 2 - 4, w - 10, 3);
+      // Wheels
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.arc(-w / 2 + 5, h / 2 + 1, 2.5, 0, Math.PI * 2);
+      ctx.arc(w / 2 - 5, h / 2 + 1, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Flashing strobe on top — red+blue alternating every 500 ms.
+      const phase = Math.floor(time / 500) % 2 === 0;
+      const leftColor = phase ? "#DC2626" : "#2563EB";
+      const rightColor = phase ? "#2563EB" : "#DC2626";
+      ctx.fillStyle = `rgba(${leftColor === "#DC2626" ? "220,38,38" : "37,99,235"},0.4)`;
+      ctx.beginPath();
+      ctx.arc(-3, -h / 2 - 7, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(${rightColor === "#DC2626" ? "220,38,38" : "37,99,235"},0.4)`;
+      ctx.beginPath();
+      ctx.arc(3, -h / 2 - 7, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = leftColor;
+      ctx.fillRect(-4, -h / 2 - 8, 3, 3);
+      ctx.fillStyle = rightColor;
+      ctx.fillRect(1, -h / 2 - 8, 3, 3);
+
+      ctx.restore();
+    }
+
+    function drawAmbulance(cx: number, cy: number, time: number) {
+      const w = 24;
+      const h = 12;
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      // Body — white box
+      ctx.fillStyle = "#FFFFFF";
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, -h / 2, w, h, 2);
+      ctx.fill();
+      // Front cab window
+      ctx.fillStyle = "rgba(147,197,253,0.75)";
+      ctx.fillRect(-w / 2 + 1, -h / 2 + 1, 7, 5);
+      // Side window slit
+      ctx.fillRect(-w / 2 + 9, -h / 2 + 1, 3, 4);
+      // Red cross
+      ctx.fillStyle = "#DC2626";
+      ctx.fillRect(2, -3, 3, 9);
+      ctx.fillRect(-1, 0, 9, 3);
+      // Wheels
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.arc(-w / 2 + 5, h / 2 + 1, 2.5, 0, Math.PI * 2);
+      ctx.arc(w / 2 - 5, h / 2 + 1, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Flashing red light on top.
+      const phase = Math.floor(time / 500) % 2 === 0;
+      ctx.fillStyle = phase ? "rgba(220,38,38,0.5)" : "rgba(127,29,29,0.25)";
+      ctx.beginPath();
+      ctx.arc(0, -h / 2 - 5, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = phase ? "#DC2626" : "#7F1D1D";
+      ctx.fillRect(-3, -h / 2 - 6, 6, 3);
+
+      ctx.restore();
+    }
+
     function drawBuilding(b: BuildingLayout, time: number) {
       const baseX = b.x - b.baseWidth / 2;
       const baseY = roadY - 4;
       const topY = baseY - b.baseHeight;
 
-      let shakeX = 0;
-      if (b.isDelayed) {
-        shakeX = Math.sin(time / 60 + b.x) * 1.5;
-      }
+      const isCollapsed = b.state === "COLLAPSED";
+      const isAtRisk = b.state === "AT_RISK";
+      const isTaskLate = b.state === "TASK_LATE";
+
+      // Only the fully ruined (COLLAPSED) building shakes — TASK_LATE keeps
+      // its visual integrity, AT_RISK is decaying slowly without violence.
+      const shakeX = isCollapsed ? Math.sin(time / 60 + b.x) * 1.5 : 0;
 
       ctx.save();
       ctx.translate(shakeX, 0);
 
-      const baseColor = b.isDelayed ? "#B91C1C" : b.color;
+      const baseColor = b.color;
       const bodyGrad = ctx.createLinearGradient(baseX, topY, baseX + b.baseWidth, topY);
       bodyGrad.addColorStop(0, baseColor);
       bodyGrad.addColorStop(0.5, shade(baseColor, 12));
@@ -588,7 +770,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
       ctx.fillStyle = shade(baseColor, -35);
       ctx.fillRect(b.x - doorW / 2, baseY - DOOR_H, doorW, DOOR_H);
 
-      if (b.isDelayed) {
+      if (isCollapsed) {
         ctx.fillStyle = "rgba(30,20,10,0.18)";
         ctx.fillRect(baseX, topY, b.baseWidth, b.baseHeight);
 
@@ -683,7 +865,54 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
         ctx.fillText("!", b.x, topY - 16);
       }
 
-      if (!b.isComplete && !b.isDelayed) {
+      if (isAtRisk) {
+        // ── Mid-stage decay: building cracking but still standing ──
+
+        // 3-5 light hairline cracks scattered across the facade. Positions
+        // are derived from b.x so the same building always cracks the same
+        // way (no flicker between frames).
+        ctx.strokeStyle = "rgba(0,0,0,0.4)";
+        ctx.lineWidth = 1.1;
+        const seed = (Math.abs(Math.floor(b.x * 13)) % 5) + 3; // 3..7 cracks
+        for (let i = 0; i < seed; i++) {
+          const cx0 = baseX + 4 + ((i * 19) % (b.baseWidth - 8));
+          const cy0 = topY + 12 + ((i * 31) % Math.max(20, b.baseHeight - 30));
+          ctx.beginPath();
+          ctx.moveTo(cx0, cy0);
+          ctx.lineTo(cx0 + 3, cy0 + 7);
+          ctx.lineTo(cx0 - 1, cy0 + 13);
+          ctx.lineTo(cx0 + 4, cy0 + 20);
+          ctx.stroke();
+        }
+
+        // Falling gravel — a few small particles drift downward through
+        // the building's bounding box. Each particle has its own offset so
+        // they don't fall in a perfect column.
+        ctx.fillStyle = "rgba(120,113,108,0.7)";
+        const fallH = b.baseHeight + 6;
+        for (let g = 0; g < 5; g++) {
+          const seedX = (g * 37 + b.x) % (b.baseWidth - 6);
+          const gx = baseX + 3 + ((seedX + g * 7) % (b.baseWidth - 6));
+          const gy = topY + ((g * 53 + time / 28) % fallH);
+          ctx.fillRect(gx, gy, 2, 2);
+        }
+
+        // Faint dust haze near the rooftop where rubble dislodges.
+        ctx.fillStyle = "rgba(120,113,108,0.18)";
+        ctx.beginPath();
+        ctx.arc(baseX + b.baseWidth * 0.5 + Math.sin(time / 800) * 4, topY - 4, 9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Emergency rooftop strobe — TASK_LATE (cue) and COLLAPSED (severe).
+      if (isTaskLate || isCollapsed) {
+        drawEmergencyRoofLights(baseX, topY, b.baseWidth, time, isCollapsed);
+      }
+
+      // Crane: stays up while construction is active OR delayed-but-standing
+      // (TASK_LATE / AT_RISK). Hidden once the building is COMPLETED or has
+      // COLLAPSED.
+      if (!b.isComplete && !isCollapsed) {
         const mastX = baseX + b.baseWidth - 6;
         const craneTop = topY - 55;
         const armLen = b.baseWidth * 0.7 + 30;
@@ -814,6 +1043,19 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
       }
 
       ctx.restore();
+
+      // Emergency vehicles park on the road in front of the building. They
+      // ride OUTSIDE the shake transform so a violently shaking COLLAPSED
+      // building doesn't drag the responders along with it.
+      const carY = roadY + roadHeight / 2;
+      if (isCollapsed) {
+        // Severe scene: police on the left, ambulance on the right.
+        drawPoliceCar(b.x - 16, carY, time);
+        drawAmbulance(b.x + 16, carY, time);
+      } else if (isTaskLate) {
+        // Single police cruiser to flag the slipping deadline.
+        drawPoliceCar(b.x, carY, time);
+      }
     }
 
     function tick(now: number) {
