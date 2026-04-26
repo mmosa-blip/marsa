@@ -11,7 +11,7 @@
  * come from each service's tasks (lit = done, dark = remaining).
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { X, Building2 } from "lucide-react";
 
 export interface CityApiService {
@@ -192,9 +192,13 @@ export interface CityCanvasProps {
   viewMode: "executor" | "admin";
   // Optional override — if provided, replaces the default popup behavior.
   onBuildingClick?: (b: BuildingLayout) => void;
+  // Optional content rendered absolutely in the top-right corner of the
+  // city frame. Used by executor-city for the builder-tier badge; null in
+  // all-cities. Renders inside the same wrapper, so it follows fullscreen.
+  topRightBadge?: ReactNode;
 }
 
-export default function CityCanvas({ projects, viewMode, onBuildingClick }: CityCanvasProps) {
+export default function CityCanvas({ projects, viewMode, onBuildingClick, topRightBadge }: CityCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [selected, setSelected] = useState<BuildingLayout | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -383,16 +387,82 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
       color: ["#EF4444", "#F59E0B", "#EC4899", "#FBBF24", "#A855F7"][i % 5],
     }));
 
+    // Stars for night mode — positions cached on init, twinkle per frame.
+    type Star = { x: number; y: number; r: number; phase: number };
+    const stars: Star[] = Array.from({ length: Math.max(40, Math.ceil(WORLD_W / 25)) }, () => ({
+      x: Math.random() * WORLD_W,
+      y: Math.random() * (layout!.sky * 0.85),
+      r: 0.5 + Math.random() * 1.2,
+      phase: Math.random() * Math.PI * 2,
+    }));
+
     let raf = 0;
     const t0 = performance.now();
+    // Closure flag set fresh at the top of every tick from the wall clock.
+    // Drawing helpers branch on it to swap sun↔moon, day↔night sky, and to
+    // boost lit-window glow after dark.
+    let isNight = false;
 
     function drawSky() {
       const grd = ctx.createLinearGradient(0, 0, 0, layout!.sky);
-      grd.addColorStop(0, "#7CC4F0");
-      grd.addColorStop(0.6, "#B8E1F5");
-      grd.addColorStop(1, "#E0F2FE");
+      if (isNight) {
+        grd.addColorStop(0, "#0A1330");   // deep navy at the top
+        grd.addColorStop(0.5, "#1F1645"); // dark purple
+        grd.addColorStop(1, "#3A2754");   // muted plum near the horizon
+      } else {
+        grd.addColorStop(0, "#7CC4F0");
+        grd.addColorStop(0.6, "#B8E1F5");
+        grd.addColorStop(1, "#E0F2FE");
+      }
       ctx.fillStyle = grd;
       ctx.fillRect(0, 0, VW, layout!.sky);
+    }
+
+    function drawStars(time: number) {
+      ctx.fillStyle = "#FFFFFF";
+      for (const s of stars) {
+        const twinkle = 0.55 + 0.45 * Math.sin(time / 700 + s.phase);
+        ctx.globalAlpha = 0.5 + twinkle * 0.5;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawMoon(time: number) {
+      const cx = 120;
+      const cy = 90;
+      const pulse = 1 + Math.sin(time / 2200) * 0.03;
+
+      // Soft outer glow halo.
+      const glow = ctx.createRadialGradient(cx, cy, 8, cx, cy, 60);
+      glow.addColorStop(0, "rgba(255,250,210,0.55)");
+      glow.addColorStop(1, "rgba(255,250,210,0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 56 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Moon body — pale ivory disk.
+      ctx.fillStyle = "#F4EFD0";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 28 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Subtle terminator on the right side gives a 3D feel.
+      ctx.fillStyle = "rgba(120,110,80,0.16)";
+      ctx.beginPath();
+      ctx.arc(cx + 7, cy - 2, 24 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tiny craters.
+      ctx.fillStyle = "rgba(180,170,120,0.45)";
+      ctx.beginPath();
+      ctx.arc(cx - 9, cy - 6, 3, 0, Math.PI * 2);
+      ctx.arc(cx + 4, cy + 9, 4, 0, Math.PI * 2);
+      ctx.arc(cx - 5, cy + 7, 2, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     function drawSun(time: number) {
@@ -752,8 +822,17 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
             const wy = startY + r * ROW_H;
             const lit = drawn < floor.doneTasks;
             if (lit) {
-              ctx.fillStyle = "rgba(255,235,120,0.35)";
-              ctx.fillRect(wx - 1, wy - 1, WIN_W + 2, WIN_H + 2);
+              // Stronger, wider halo at night so the city visibly glows
+              // even against a dark sky / dark facade.
+              if (isNight) {
+                ctx.fillStyle = "rgba(255,225,100,0.55)";
+                ctx.fillRect(wx - 2, wy - 2, WIN_W + 4, WIN_H + 4);
+                ctx.fillStyle = "rgba(255,235,120,0.35)";
+                ctx.fillRect(wx - 1, wy - 1, WIN_W + 2, WIN_H + 2);
+              } else {
+                ctx.fillStyle = "rgba(255,235,120,0.35)";
+                ctx.fillRect(wx - 1, wy - 1, WIN_W + 2, WIN_H + 2);
+              }
               ctx.fillStyle = "#FFE680";
             } else {
               ctx.fillStyle = floor.isCurrent ? "#0F172A" : "#1E293B";
@@ -998,25 +1077,54 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
       }
 
       if (b.isComplete) {
-        ctx.fillStyle = "#C9A84C";
+        // ── Waving flag (replaces the old star) ──
+        // The flag flies from a small wooden pole and ripples via a sine
+        // wave whose amplitude scales with horizontal distance from the
+        // pole, so the attached edge stays flush while the far edge
+        // billows. Color matches the building so each tower's flag is
+        // unique and harmonizes with the body.
+        const poleH = 26;
+        const poleY0 = topY - poleH;
+        const flagW = 14;
+        const flagH = 9;
+        const flagY = poleY0 + 2;
+
+        // Pole
+        ctx.strokeStyle = "#8B6F47";
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.moveTo(b.x, topY - 24);
-        ctx.lineTo(b.x - 4, topY - 6);
-        ctx.lineTo(b.x + 4, topY - 6);
-        ctx.closePath();
-        ctx.fill();
+        ctx.moveTo(b.x, poleY0);
+        ctx.lineTo(b.x, topY - 2);
+        ctx.stroke();
+        // Pole finial — small gold ball
         ctx.fillStyle = "#FBBF24";
         ctx.beginPath();
-        for (let i = 0; i < 10; i++) {
-          const angle = (Math.PI / 5) * i - Math.PI / 2;
-          const radius = i % 2 === 0 ? 6 : 3;
-          const x = b.x + Math.cos(angle) * radius;
-          const y = topY - 30 + Math.sin(angle) * radius;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+        ctx.arc(b.x, poleY0, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Waving flag canvas — sample top + bottom edges at `segs` points,
+        // each offset by a sine wave whose amplitude grows with t.
+        const segs = 10;
+        const baseFlagColor = b.color;
+        ctx.fillStyle = baseFlagColor;
+        ctx.beginPath();
+        ctx.moveTo(b.x, flagY);
+        for (let i = 0; i <= segs; i++) {
+          const t = i / segs;
+          const wave = Math.sin(time / 180 + t * Math.PI * 2.3 + b.x / 40) * 1.7 * t;
+          ctx.lineTo(b.x + t * flagW, flagY + wave);
+        }
+        for (let i = segs; i >= 0; i--) {
+          const t = i / segs;
+          const wave = Math.sin(time / 180 + t * Math.PI * 2.3 + b.x / 40) * 1.7 * t;
+          ctx.lineTo(b.x + t * flagW, flagY + flagH + wave);
         }
         ctx.closePath();
         ctx.fill();
+        // Subtle outline so light flag colors (ivory/silver) stay readable.
+        ctx.strokeStyle = "rgba(0,0,0,0.18)";
+        ctx.lineWidth = 0.7;
+        ctx.stroke();
       }
 
       if (hoveredId === b.id) {
@@ -1060,10 +1168,21 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
 
     function tick(now: number) {
       const time = now - t0;
+      // Refresh night flag every frame from the wall clock — the cost is
+      // a single Date allocation, and it lets the scene transition without
+      // any timer/interval scaffolding.
+      const hr = new Date().getHours();
+      isNight = hr >= 18 || hr < 6;
+
       ctx.clearRect(0, 0, VW, VH);
 
       drawSky();
-      drawSun(time);
+      if (isNight) {
+        drawStars(time);
+        drawMoon(time);
+      } else {
+        drawSun(time);
+      }
 
       for (const c of clouds) {
         c.x -= c.speed;
@@ -1213,6 +1332,18 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick }: City
             style={{ display: "block" }}
           />
         </div>
+
+        {topRightBadge && (
+          <div
+            className={
+              fullscreen
+                ? "fixed top-3 right-3 z-[60]"
+                : "absolute top-3 right-3 z-10"
+            }
+          >
+            {topRightBadge}
+          </div>
+        )}
 
         {!fullscreen ? (
           <button

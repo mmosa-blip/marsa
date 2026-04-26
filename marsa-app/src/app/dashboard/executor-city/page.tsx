@@ -10,14 +10,37 @@
  * /dashboard/my-tasks redirects here.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Loader2, Building2 } from "lucide-react";
+import { Loader2, Building2, Trophy } from "lucide-react";
 import MyTasksView from "@/components/MyTasksView";
 import CityCanvas, { CityApiProject } from "@/components/city/CityCanvas";
 import { ROUTES } from "@/lib/routes";
 import { logger } from "@/lib/logger";
+
+interface BuilderTier {
+  name: string;
+  color: string;
+  bg: string;
+  border: string;
+}
+
+// Three tiers awarded purely on count of fully-completed buildings the
+// executor has. Below 3 we show no badge so the early-state UI stays
+// uncluttered.
+function getBuilderTier(completedCount: number): BuilderTier | null {
+  if (completedCount >= 15) {
+    return { name: "بنّاء ذهبي", color: "#C9A84C", bg: "rgba(201,168,76,0.14)", border: "rgba(201,168,76,0.45)" };
+  }
+  if (completedCount >= 7) {
+    return { name: "بنّاء فضي", color: "#94A3B8", bg: "rgba(148,163,184,0.16)", border: "rgba(148,163,184,0.45)" };
+  }
+  if (completedCount >= 3) {
+    return { name: "بنّاء برونزي", color: "#CD7F32", bg: "rgba(205,127,50,0.14)", border: "rgba(205,127,50,0.45)" };
+  }
+  return null;
+}
 
 export default function ExecutorCityPage() {
   const { data: session, status } = useSession();
@@ -58,6 +81,48 @@ export default function ExecutorCityPage() {
       });
   }, []);
 
+  // A building is "complete" when every service of the project has all of
+  // its tasks done. Mirrors the canvas isComplete derivation so the badge
+  // count never drifts from what the user sees on screen.
+  const completedCount = useMemo(() => {
+    if (!projects) return 0;
+    return projects.reduce((acc, p) => {
+      const services = p.services || [];
+      if (services.length === 0) return acc;
+      const allDone = services.every((s) => {
+        const total = s.tasks?.length || 0;
+        const done = s.tasks?.filter((t) => t.status === "DONE").length || 0;
+        return total > 0 && done >= total;
+      });
+      return acc + (allDone ? 1 : 0);
+    }, 0);
+  }, [projects]);
+
+  const tier = getBuilderTier(completedCount);
+  const tierBadge = tier ? (
+    <div
+      className="flex items-center gap-2 px-3 py-1.5 rounded-full"
+      style={{
+        backgroundColor: tier.bg,
+        border: `1px solid ${tier.border}`,
+        backdropFilter: "blur(8px)",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.10)",
+      }}
+      title={`${tier.name} — ${completedCount} مبنى مكتمل`}
+    >
+      <Trophy size={16} style={{ color: tier.color }} />
+      <span className="text-xs font-bold" style={{ color: tier.color }}>
+        {tier.name}
+      </span>
+      <span
+        className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
+        style={{ backgroundColor: "rgba(255,255,255,0.7)", color: tier.color }}
+      >
+        {completedCount}
+      </span>
+    </div>
+  ) : null;
+
   if (status === "loading") return null;
   if (!session) redirect(ROUTES.LOGIN);
 
@@ -90,7 +155,7 @@ export default function ExecutorCityPage() {
       )}
 
       {projects && projects.length > 0 && (
-        <CityCanvas projects={projects} viewMode="executor" />
+        <CityCanvas projects={projects} viewMode="executor" topRightBadge={tierBadge} />
       )}
 
       {projects && projects.length > 0 && (
