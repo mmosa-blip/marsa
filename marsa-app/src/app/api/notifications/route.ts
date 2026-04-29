@@ -16,10 +16,26 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20")));
     const unreadOnly = searchParams.get("unread") === "true";
+    // Filter knobs used by `PendingAcknowledgeModal`:
+    //   ?requiresAck=true   → only blocking-modal notifications
+    //   ?acknowledged=false → only those still awaiting the user's click
+    // Combined, those two surface the exact queue the modal walks through.
+    const requiresAckParam = searchParams.get("requiresAck");
+    const acknowledgedParam = searchParams.get("acknowledged");
 
     const where: Record<string, unknown> = { userId };
     if (unreadOnly) {
       where.isRead = false;
+    }
+    if (requiresAckParam === "true") {
+      where.requiresAck = true;
+    } else if (requiresAckParam === "false") {
+      where.requiresAck = false;
+    }
+    if (acknowledgedParam === "false") {
+      where.acknowledgedAt = null;
+    } else if (acknowledgedParam === "true") {
+      where.acknowledgedAt = { not: null };
     }
 
     const [notifications, total, unreadCount] = await Promise.all([
