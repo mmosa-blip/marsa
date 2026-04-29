@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/api-auth";
-import { createNotifications } from "@/lib/notifications";
-import { projectAssignedMessage } from "@/lib/project-tips";
-import { logger } from "@/lib/logger";
+import { notifyProjectAssignment } from "@/lib/notifications";
 
 /**
  * NOTE: This file deliberately avoids `prisma.$transaction`. The runtime
@@ -246,52 +244,16 @@ export async function POST(request: NextRequest) {
         totalLinked += r.totalLinked;
       }
 
-      // Rich PROJECT_ASSIGNED notification — one per recipient. Best-effort:
-      // a notification failure must never roll back the assignment itself.
-      try {
-        const proj = await prisma.project.findUnique({
-          where: { id: project.id },
-          select: {
-            name: true,
-            projectCode: true,
-            startDate: true,
-            contractEndDate: true,
-            endDate: true,
-            client: { select: { name: true } },
-          },
+      // Rich PROJECT_ASSIGNED notification — one per *newly added* executor.
+      // Best-effort: a notification failure must never roll back the
+      // assignment itself. Re-assigning someone who was already in the
+      // project's executor pool does not re-trigger the welcome message.
+      const newToProject = userIds.filter((uid) => !baseExecutors.includes(uid));
+      if (newToProject.length > 0) {
+        await notifyProjectAssignment({
+          projectId: project.id,
+          userIds: newToProject,
         });
-        if (proj) {
-          // Per-user task count: tasks now owned by that executor in this project.
-          const taskCounts = await prisma.task.groupBy({
-            by: ["assigneeId"],
-            where: {
-              service: { projectId: project.id, deletedAt: null },
-              assigneeId: { in: userIds },
-              deletedAt: null,
-            },
-            _count: { _all: true },
-          });
-          const countByUser = Object.fromEntries(
-            taskCounts.map((g) => [g.assigneeId ?? "", g._count._all])
-          );
-          await createNotifications(
-            userIds.map((uid) => ({
-              userId: uid,
-              type: "NEW_TASK" as const,
-              message: projectAssignedMessage({
-                projectName: proj.name,
-                projectCode: proj.projectCode,
-                clientName: proj.client?.name ?? null,
-                startDate: proj.startDate,
-                endDate: proj.contractEndDate ?? proj.endDate,
-                taskCount: countByUser[uid] ?? 0,
-              }),
-              link: `/dashboard/projects/${project.id}`,
-            }))
-          );
-        }
-      } catch (e) {
-        logger.warn("project-assigned notification failed", { e: String(e) });
       }
 
       return NextResponse.json({
@@ -329,6 +291,20 @@ export async function POST(request: NextRequest) {
         new Date(),
         projectExecutorIds
       );
+
+      // PROJECT_ASSIGNED: only notify users who were NOT already in the
+      // project's executor pool — a service-level reassign that shuffles
+      // existing executors should not spam them with a fresh "new project"
+      // notification.
+      if (service.projectId) {
+        const newToProject = userIds.filter((uid) => !baseExecutors.includes(uid));
+        if (newToProject.length > 0) {
+          await notifyProjectAssignment({
+            projectId: service.projectId,
+            userIds: newToProject,
+          });
+        }
+      }
 
       return NextResponse.json({ assigned: { type, targetId, userIds, ...summary } });
     }

@@ -11,6 +11,7 @@ import { generateProjectCode } from "@/lib/project-code";
 import { addWorkingDays } from "@/lib/working-days";
 import { computeProjectDuration } from "@/lib/service-duration";
 import { parsePagination, paginationMeta, withPaginationHeaders } from "@/lib/pagination";
+import { notifyProjectAssignment } from "@/lib/notifications";
 
 export async function GET(request: Request) {
   try {
@@ -780,6 +781,31 @@ export async function POST(request: Request) {
         },
       });
 
+      // PROJECT_ASSIGNED notification — recipients are every distinct user
+      // who ended up owning a task plus the resolved manager. The creator
+      // (often an admin acting on someone else's behalf) is excluded so
+      // they don't get notified about a project they themselves just made.
+      const taskAssignees = await prisma.task.findMany({
+        where: { projectId: result.id, assigneeId: { not: null }, deletedAt: null },
+        select: { assigneeId: true },
+        distinct: ["assigneeId"],
+      });
+      const projectAfter = await prisma.project.findUnique({
+        where: { id: result.id },
+        select: { managerId: true },
+      });
+      const recipients = Array.from(
+        new Set([
+          ...(projectAfter?.managerId ? [projectAfter.managerId] : []),
+          ...taskAssignees.map((t) => t.assigneeId).filter((x): x is string => !!x),
+        ])
+      );
+      await notifyProjectAssignment({
+        projectId: result.id,
+        userIds: recipients,
+        excludeUserId: session.user.id,
+      });
+
       return NextResponse.json(fullProject, { status: 201 });
     }
 
@@ -881,6 +907,16 @@ export async function POST(request: Request) {
         manager: { select: { id: true, name: true } },
       },
     });
+
+    // PROJECT_ASSIGNED notification — only the manager exists on the legacy
+    // path (no services/tasks created yet).
+    if (legacyProject?.manager?.id) {
+      await notifyProjectAssignment({
+        projectId: legacyResult.id,
+        userIds: [legacyProject.manager.id],
+        excludeUserId: session.user.id,
+      });
+    }
 
     return NextResponse.json(legacyProject, { status: 201 });
   } catch (error) {

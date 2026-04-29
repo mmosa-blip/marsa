@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { pickInvestmentAssignee, isInvestmentDepartment } from "@/lib/investment-assign";
 import { addWorkingDays } from "@/lib/working-days";
 import { computeProjectDuration } from "@/lib/service-duration";
+import { notifyProjectAssignment } from "@/lib/notifications";
 
 export async function POST(request: Request) {
   try {
@@ -363,6 +364,26 @@ export async function POST(request: Request) {
           },
         },
       },
+    });
+
+    // PROJECT_ASSIGNED notification — manager + every distinct task assignee.
+    // The session creator is excluded so they don't get pinged about their
+    // own action.
+    const taskAssignees = await prisma.task.findMany({
+      where: { projectId: project.id, assigneeId: { not: null }, deletedAt: null },
+      select: { assigneeId: true },
+      distinct: ["assigneeId"],
+    });
+    const recipients = Array.from(
+      new Set([
+        resolvedManagerId,
+        ...taskAssignees.map((t) => t.assigneeId).filter((x): x is string => !!x),
+      ])
+    );
+    await notifyProjectAssignment({
+      projectId: project.id,
+      userIds: recipients,
+      excludeUserId: session.user.id,
     });
 
     return NextResponse.json(fullProject, { status: 201 });

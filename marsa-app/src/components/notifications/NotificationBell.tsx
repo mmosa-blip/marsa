@@ -16,6 +16,7 @@ import {
   FileWarning,
   MessageSquare,
   CreditCard,
+  Target,
 } from "lucide-react";
 import Link from "next/link";
 import { pusherClient } from "@/lib/pusher-client";
@@ -31,7 +32,7 @@ interface Notification {
 
 const NOTIFICATION_TYPE_CONFIG: Record<
   string,
-  { icon: React.ElementType; color: string }
+  { icon: React.ElementType; color: string; gradient?: string }
 > = {
   NEW_TASK: { icon: ClipboardList, color: "#2563EB" },
   TASK_UPDATE: { icon: RefreshCw, color: "#22C55E" },
@@ -42,6 +43,14 @@ const NOTIFICATION_TYPE_CONFIG: Record<
   DOCUMENT_EXPIRING: { icon: FileWarning, color: "#DC2626" },
   NEW_MESSAGE: { icon: MessageSquare, color: "#2563EB" },
   PAYMENT_REQUEST_UPDATE: { icon: CreditCard, color: "#C9A84C" },
+  // Rich onboarding notification — gold/violet gradient distinguishes it
+  // from routine "new task" pings so the recipient notices the welcome.
+  PROJECT_ASSIGNED: {
+    icon: Target,
+    color: "#C9A84C",
+    gradient:
+      "linear-gradient(135deg, rgba(201,168,76,0.10) 0%, rgba(139,92,246,0.10) 100%)",
+  },
 };
 
 function timeAgo(date: string): string {
@@ -334,9 +343,11 @@ export default function NotificationBell() {
                     onClick={() => handleNotificationClick(notification)}
                     className="flex items-start gap-3 w-full px-5 py-3.5 text-right transition-colors duration-150 hover:bg-gray-50"
                     style={{
-                      backgroundColor: !notification.isRead
-                        ? "rgba(201,168,76,0.04)"
-                        : "transparent",
+                      background: config.gradient
+                        ? config.gradient
+                        : !notification.isRead
+                          ? "rgba(201,168,76,0.04)"
+                          : "transparent",
                       borderRight: !notification.isRead
                         ? "3px solid #C9A84C"
                         : "3px solid transparent",

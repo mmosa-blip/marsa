@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole } from "@/lib/api-auth";
+import { notifyProjectAssignment } from "@/lib/notifications";
 
 export async function GET(
   _request: Request,
@@ -89,15 +90,35 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
 
     const { id } = await params;
     const body = await request.json();
+
+    // Snapshot the manager BEFORE the update so we can detect whether the
+    // manager actually changed and only notify in that case.
+    const before = await prisma.project.findUnique({
+      where: { id },
+      select: { managerId: true },
+    });
 
     const project = await prisma.project.update({
       where: { id },
       data: body,
     });
+
+    // PROJECT_ASSIGNED notification — only when the manager has actually
+    // changed to a different user. Best-effort, never blocks the response.
+    if (
+      project.managerId &&
+      project.managerId !== before?.managerId
+    ) {
+      await notifyProjectAssignment({
+        projectId: project.id,
+        userIds: [project.managerId],
+        excludeUserId: session.user.id,
+      });
+    }
 
     return NextResponse.json(project);
   } catch (error) {
