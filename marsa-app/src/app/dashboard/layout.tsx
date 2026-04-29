@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { ROUTES } from "@/lib/routes";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import PendingAcknowledgeModal from "@/components/PendingAcknowledgeModal";
 import { ToastProvider } from "@/components/Toast";
 import GlobalSearch from "@/components/GlobalSearch";
 import { useLang } from "@/contexts/LanguageContext";
@@ -805,6 +806,10 @@ function DashboardLayoutInner({
         </div>
         {children}
       </main>
+
+      {/* Mandatory-acknowledgement modal — sits above everything else and
+          self-hides when there is nothing in the recipient's queue. */}
+      <PendingAcknowledgeModal />
 
       {/* ═══ Mobile bottom navigation ═══ */}
       <div
