@@ -23,30 +23,46 @@ type NotifType =
   | "PROJECT_ASSIGNED";
 
 /**
- * Create a notification for a user
+ * Create a notification for a user.
+ *
+ * `requiresAck` flips the notification into "blocking modal" mode — the
+ * dashboard layout reads these and surfaces them through
+ * `PendingAcknowledgeModal` until the recipient clicks "استلمت". Defaults
+ * to false so every existing call site stays bell-only.
  */
 export async function createNotification({
   userId,
   type,
   message,
   link,
+  requiresAck = false,
 }: {
   userId: string;
   type: NotifType;
   message: string;
   link: string;
+  requiresAck?: boolean;
 }) {
   const notification = await prisma.notification.create({
-    data: { userId, type, message, link },
+    data: { userId, type, message, link, requiresAck },
   });
 
-  // Trigger real-time notification via Pusher
+  // Trigger real-time notification via Pusher. The "requires-ack" event is
+  // an additional channel for the modal to listen on so it can pop up
+  // immediately even if the user is already on the dashboard.
   try {
     await pusherServer.trigger(
       `private-user-${userId}`,
       "new-notification",
       notification
     );
+    if (requiresAck) {
+      await pusherServer.trigger(
+        `private-user-${userId}`,
+        "requires-ack",
+        notification
+      );
+    }
   } catch (error) {
     console.error("Pusher trigger error (createNotification):", error);
   }
@@ -55,7 +71,9 @@ export async function createNotification({
 }
 
 /**
- * Create notifications for multiple users
+ * Create notifications for multiple users. Each item may opt into
+ * `requiresAck` independently — callers building a mixed batch can flag
+ * only the entries that should block the recipient on a modal.
  */
 export async function createNotifications(
   notifications: {
@@ -63,11 +81,18 @@ export async function createNotifications(
     type: NotifType;
     message: string;
     link: string;
+    requiresAck?: boolean;
   }[]
 ) {
   // Use createMany for bulk insert
   await prisma.notification.createMany({
-    data: notifications,
+    data: notifications.map((n) => ({
+      userId: n.userId,
+      type: n.type,
+      message: n.message,
+      link: n.link,
+      requiresAck: n.requiresAck ?? false,
+    })),
   });
 
   // Trigger real-time notifications for each unique user
@@ -83,11 +108,26 @@ export async function createNotifications(
             type: userNotification.type,
             message: userNotification.message,
             link: userNotification.link,
+            requiresAck: userNotification.requiresAck ?? false,
             userId,
             createdAt: new Date().toISOString(),
             isRead: false,
           }
         );
+        if (userNotification.requiresAck) {
+          await pusherServer.trigger(
+            `private-user-${userId}`,
+            "requires-ack",
+            {
+              type: userNotification.type,
+              message: userNotification.message,
+              link: userNotification.link,
+              userId,
+              createdAt: new Date().toISOString(),
+              isRead: false,
+            }
+          );
+        }
       } catch (error) {
         console.error("Pusher trigger error (createNotifications):", error);
       }
@@ -170,6 +210,9 @@ export async function notifyProjectAssignment(args: {
           taskCount: countByUser[uid] ?? 0,
         }),
         link: `/dashboard/projects/${project.id}`,
+        // Mandatory acknowledgement: the recipient must dismiss this from
+        // the blocking modal before the rest of the dashboard is usable.
+        requiresAck: true,
       }))
     );
   } catch (e) {

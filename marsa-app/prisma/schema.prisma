@@ -1180,11 +1180,22 @@ model Notification {
   isRead    Boolean          @default(false)
   createdAt DateTime         @default(now())
 
+  // Mandatory-acknowledgement notifications (e.g. PROJECT_ASSIGNED) are
+  // surfaced as a blocking modal until the recipient confirms. The bell-
+  // dropdown path is unaffected — these flags are an additive overlay.
+  //   requiresAck     — set at creation time when the modal is required
+  //   acknowledgedAt  — stamped when the recipient clicks "استلمت"
+  requiresAck    Boolean   @default(false)
+  acknowledgedAt DateTime?
+
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+  // Hot path used by the modal mount: which notifications still need a
+  // user's acknowledgement, newest first.
+  @@index([userId, requiresAck, acknowledgedAt])
   @@map("notifications")
 }
 
