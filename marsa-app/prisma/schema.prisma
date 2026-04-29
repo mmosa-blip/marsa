@@ -419,6 +419,16 @@ model User {
   personalTasksOwned     PersonalTask[]    @relation("PersonalTaskOwner")
   personalTasksRequested PersonalTask[]    @relation("PersonalTaskRequester")
 
+  // Project-record back-relations
+  recordItemsUploaded         ProjectRecordItem[]   @relation("RecordItemUploader")
+  recordItemsReviewed         ProjectRecordItem[]   @relation("RecordItemReviewer")
+  recordItemComments          RecordItemComment[]   @relation("RecordItemCommenter")
+  recordItemAuditLogs         RecordItemAuditLog[]  @relation("RecordItemAuditor")
+  platformAccountsOwned       PlatformAccount[]     @relation("PlatformAccountOwner")
+  platformAccountsLastViewed  PlatformAccount[]     @relation("PlatformAccountLastViewer")
+  issuesReported              ProjectIssue[]        @relation("IssueReporter")
+  issuesAssigned              ProjectIssue[]        @relation("IssueAssignee")
+
   @@index([role, isActive, deletedAt])
   @@index([supervisorUserId, isActive])
   @@map("users")
@@ -484,6 +494,7 @@ model Service {
   projectMilestones  ProjectMilestone[]
   executors          UserService[]  @relation("ServiceExecutors")
   deptPayments       DepartmentPayment[] @relation("ServiceDeptPayments")
+  recordItems        ProjectRecordItem[]
 
   @@index([projectId, deletedAt])
   @@map("services")
@@ -554,6 +565,7 @@ model Project {
   documents          ProjectDocument[]
   partners           ProjectPartner[]
   pauses             ProjectPause[]
+  recordItems        ProjectRecordItem[]
 
   // Formal pause/resume system — isPaused is the fast boolean the
   // operations room and executor views gate on, while the ProjectPause
@@ -587,12 +599,32 @@ model ProjectPartner {
   id        String   @id @default(cuid())
   projectId String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name      String
+  // Display name — kept for back-compat; record items capture the
+  // structured identity below. Optional now that partners can be
+  // pre-allocated as numbered placeholders before any data is filled.
+  name      String?
   order     Int      @default(0)
-  createdAt DateTime @default(now())
-  documents ProjectDocument[]
+  // ── Project-record extensions ───────────────────────────────────────
+  // Sequential 1-based index inside the project, used as the placeholder
+  // label ("الشريك 1", "الشريك 2") until structured data lands.
+  partnerNumber       Int          @default(1)
+  nationalId          String?
+  passportNumber      String?
+  nationality         String?
+  ownershipPercentage Float?
+  role                PartnerRole  @default(PARTNER)
+  createdAt           DateTime     @default(now())
+  documents           ProjectDocument[]
+  recordItems         ProjectRecordItem[]
 
+  @@unique([projectId, partnerNumber])
   @@map("project_partners")
+}
+
+enum PartnerRole {
+  PARTNER
+  OWNER
+  AUTHORIZED_SIGNATORY
 }
 
 enum PaymentScheduleStatus {
@@ -680,6 +712,7 @@ model Task {
   governmentHolds    TaskGovernmentHold[]
 
   requirementValues  TaskRequirementValue[]
+  requirementLinks   TaskRequirementLink[]
 
   // Task-level grace period — executor requests extra days when overdue
   taskGraceDays      Int?
@@ -975,6 +1008,7 @@ model ServiceTemplate {
   serviceInstances   Service[]  @relation("ServiceInstances")
   projectTemplateServices ProjectTemplateService[]
   providerMappings   ServiceProviderMapping[]
+  recordRequirements ServiceTemplateRequirement[]
 
   @@unique([name, categoryId])
   @@map("service_templates")
@@ -2037,6 +2071,10 @@ model DocType {
   whoCanUpload   DocUploader   @default(BOTH)
   whoCanView     DocVisibility @default(EXECUTORS_AND_ADMIN)
   isRequired     Boolean       @default(false)
+  // When true, every project that uses a service template carrying a
+  // requirement of this DocType spawns one record item PER partner. The
+  // project record UI surfaces these under the partner that owns them.
+  isPerPartner   Boolean       @default(false)
   displayOrder   Int           @default(0)
   isActive       Boolean       @default(true)
   createdAt      DateTime      @default(now())
@@ -2048,7 +2086,9 @@ model DocType {
   groupId String?
   group   DocumentGroup? @relation(fields: [groupId], references: [id])
 
-  projectDocuments ProjectDocument[]
+  projectDocuments     ProjectDocument[]
+  recordItems          ProjectRecordItem[]
+  templateRequirements ServiceTemplateRequirement[]
 
   @@map("document_types")
 }
@@ -2147,4 +2187,323 @@ model PersonalTask {
   @@index([ownerId, status])
   @@index([ownerId, dueDate])
   @@map("personal_tasks")
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Unified Project Record System
+//
+// One row per artefact attached to a project — documents, platform
+// accounts, sensitive data, free-form notes, ad-hoc issues, and bare
+// platform links — all share the same envelope (`ProjectRecordItem`)
+// while their kind-specific payload lives in a sibling table linked 1-1.
+// This replaces the three parallel document tables (Document /
+// ProjectDocument / ClientDocument) and unifies the requirement and
+// document worlds: a task's required documents are surfaced through
+// `TaskRequirementLink` against the same record items the rest of the
+// project sees.
+// ═══════════════════════════════════════════════════════════════════════
+
+enum RecordItemKind {
+  DOCUMENT          // file payload (PDF/image/word) — the legacy "document"
+  PLATFORM_ACCOUNT  // username + encrypted password for a 3rd-party portal
+  SENSITIVE_DATA    // encrypted free-form payload (national IDs, secrets)
+  NOTE              // plain text note pinned to the project
+  ISSUE             // a problem raised by the team — admin-modal worthy
+  PLATFORM_LINK     // a bare URL to a 3rd-party platform, no creds
+}
+
+enum RecordItemScope {
+  PROJECT           // belongs to one project
+  COMPLIANCE        // company-level compliance (CR, GOSI, …)
+  CLIENT            // attached to a client across all their projects
+  TASK              // surfaced as a task-completion requirement
+}
+
+enum RecordItemStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  // Spawned from a template requirement but the executor/client has not
+  // uploaded anything yet. The UI surfaces these as outstanding "to do".
+  MISSING
+  EXPIRED
+  // Soft-archived (was real but no longer current — kept for audit).
+  ARCHIVED
+}
+
+enum IssueSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IssueStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model ProjectRecordItem {
+  id          String           @id @default(cuid())
+  kind        RecordItemKind
+  scope       RecordItemScope  @default(PROJECT)
+  status      RecordItemStatus @default(DRAFT)
+
+  title       String
+  description String?          @db.Text
+
+  // ── Inline payload — varies by kind ─────────────────────────────────
+  // DOCUMENT: fileUrl set; PLATFORM_LINK/PLATFORM_ACCOUNT: see sibling
+  // tables; SENSITIVE_DATA: encryptedPayload set; NOTE: textData set.
+  fileUrl          String?    @db.Text
+  textData         String?    @db.Text
+  encryptedPayload String?    @db.Text
+
+  // ── Document workflow (only meaningful for kind=DOCUMENT) ───────────
+  expiryDate       DateTime?
+  reminderDays     Int?
+  rejectionReason  String?    @db.Text
+  reviewedAt       DateTime?
+  uploadedOnBehalfOfClient Boolean @default(false)
+
+  // ── Versioning — one row per version, linked into a chain ───────────
+  // `supersededById` points to the row that replaced this one. Walking
+  // the chain forwards yields the full version history; `supersededById
+  // IS NULL` is the head of the chain (the current version).
+  supersededById String?           @unique
+  supersedes     ProjectRecordItem? @relation("RecordItemVersion", fields: [supersededById], references: [id])
+  supersededBy   ProjectRecordItem? @relation("RecordItemVersion")
+
+  // ── Template sync (for items spawned from a service template) ───────
+  sourceTemplateRequirementId String?
+  sourceTemplateRequirement   ServiceTemplateRequirement? @relation(fields: [sourceTemplateRequirementId], references: [id], onDelete: SetNull)
+  // Set true when the source requirement was deleted from the template
+  // AFTER the item was already populated. The UI shows these in an
+  // archive band; new uploads are blocked.
+  isObsolete   Boolean   @default(false)
+  obsoletedAt  DateTime?
+
+  // ── Visibility / sharing ────────────────────────────────────────────
+  visibility         DocVisibility @default(EXECUTORS_AND_ADMIN)
+  isSharedWithClient Boolean       @default(false)
+
+  // ── Owners / location ───────────────────────────────────────────────
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  partnerId String?
+  partner   ProjectPartner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  documentTypeId String?
+  documentType   DocType? @relation(fields: [documentTypeId], references: [id])
+
+  uploadedById String?
+  uploadedBy   User?    @relation("RecordItemUploader", fields: [uploadedById], references: [id])
+
+  reviewedById String?
+  reviewedBy   User?    @relation("RecordItemReviewer", fields: [reviewedById], references: [id])
+
+  // ── Sibling 1-1 payloads — at most one is set per kind ──────────────
+  platformAccount PlatformAccount?
+  platformLink    PlatformLink?
+  issue           ProjectIssue?
+
+  comments     RecordItemComment[]
+  auditEntries RecordItemAuditLog[]
+  taskLinks    TaskRequirementLink[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([projectId, kind, status])
+  @@index([projectId, partnerId])
+  @@index([projectId, serviceId])
+  @@index([projectId, deletedAt])
+  @@index([sourceTemplateRequirementId])
+  @@map("project_record_items")
+}
+
+// Credentials for a 3rd-party platform account. Password is stored
+// AES-256-GCM-encrypted at rest; only the helpers in src/lib/secrets.ts
+// (or equivalent) should ever touch the encrypted columns directly.
+// `lastViewedAt` / `lastViewedById` are stamped every time a user
+// reveals the cleartext password through the UI — used by the audit
+// trail and the "credential overdue" report.
+model PlatformAccount {
+  id           String  @id @default(cuid())
+  recordItemId String  @unique
+  recordItem   ProjectRecordItem @relation(fields: [recordItemId], references: [id], onDelete: Cascade)
+
+  platformName String
+  platformUrl  String? @db.Text
+  username     String
+  encryptedPassword          String   @db.Text
+  twoFactorMethod            String?    // "TOTP" | "SMS" | "EMAIL" | "NONE"
+  twoFactorRecoveryEncrypted String?  @db.Text
+
+  notes        String? @db.Text
+
+  ownedById    String?
+  ownedBy      User?   @relation("PlatformAccountOwner", fields: [ownedById], references: [id])
+  handedOverAt DateTime?
+
+  lastViewedAt   DateTime?
+  lastViewedById String?
+  lastViewedBy   User?     @relation("PlatformAccountLastViewer", fields: [lastViewedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_accounts")
+}
+
+// A bare link to a 3rd-party platform — no credentials. Distinct from
+// `PlatformAccount` because the most common use-case is "open the
+// portal where this task is performed", not "log in".
+model PlatformLink {
+  id           String @id @default(cuid())
+  recordItemId String @unique
+  recordItem   ProjectRecordItem @relation(fields: [recordItemId], references: [id], onDelete: Cascade)
+
+  platformName  String
+  url           String  @db.Text
+  // When true, an "Open platform" button appears on every linked task.
+  openInTaskPage Boolean @default(true)
+
+  lastOpenedAt DateTime?
+  openCount    Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_links")
+}
+
+// An ad-hoc problem raised by anyone working on the project. ISSUE
+// items pop the mandatory admin acknowledge modal so they can never
+// be missed.
+model ProjectIssue {
+  id           String        @id @default(cuid())
+  recordItemId String        @unique
+  recordItem   ProjectRecordItem @relation(fields: [recordItemId], references: [id], onDelete: Cascade)
+
+  severity   IssueSeverity @default(MEDIUM)
+  status     IssueStatus   @default(OPEN)
+
+  reportedById String
+  reportedBy   User    @relation("IssueReporter", fields: [reportedById], references: [id])
+
+  assignedToId String?
+  assignedTo   User?   @relation("IssueAssignee", fields: [assignedToId], references: [id])
+
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  resolution     String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, severity])
+  @@map("project_issues")
+}
+
+model RecordItemComment {
+  id           String @id @default(cuid())
+  recordItemId String
+  recordItem   ProjectRecordItem @relation(fields: [recordItemId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation("RecordItemCommenter", fields: [authorId], references: [id])
+
+  body String @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([recordItemId, createdAt])
+  @@map("record_item_comments")
+}
+
+// Per-item audit trail. Every CRUD/workflow event lands here so the
+// detail page can render a chronological history without having to mine
+// the global AuditLog. Sensitive operations (credential reveal) MUST
+// always log here even when the rest of the action is silent.
+model RecordItemAuditLog {
+  id           String @id @default(cuid())
+  recordItemId String
+  recordItem   ProjectRecordItem @relation(fields: [recordItemId], references: [id], onDelete: Cascade)
+
+  // Free-form to keep the schema flexible: CREATED, UPDATED, DELETED,
+  // RESTORED, APPROVED, REJECTED, OBSOLETED, VIEWED_CREDENTIALS,
+  // PLATFORM_OPENED, ISSUE_ACKNOWLEDGED, etc.
+  action      String
+  beforeJson  String? @db.Text
+  afterJson   String? @db.Text
+
+  actorId String?
+  actor   User?   @relation("RecordItemAuditor", fields: [actorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([recordItemId, createdAt])
+  @@map("record_item_audit_logs")
+}
+
+// Bridge between a Task and one or more record items needed to
+// complete it. Replaces the ad-hoc `TaskRequirementValue.fileUrl`
+// (free-form URL) with a real foreign key so the task's "required
+// documents" pull from the same source of truth as everything else.
+model TaskRequirementLink {
+  id           String @id @default(cuid())
+  taskId       String
+  task         Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  recordItemId String
+  recordItem   ProjectRecordItem @relation(fields: [recordItemId], references: [id], onDelete: Cascade)
+
+  // When true, the task cannot be completed until the linked item
+  // reaches APPROVED.
+  isRequired Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, recordItemId])
+  @@index([recordItemId])
+  @@map("task_requirement_links")
+}
+
+// Definition of a record-item that a service template expects. When
+// admins edit this list, the changes propagate to every active project
+// using the template (Tier 5 — the live-sync layer).
+model ServiceTemplateRequirement {
+  id                String          @id @default(cuid())
+  serviceTemplateId String
+  serviceTemplate   ServiceTemplate @relation(fields: [serviceTemplateId], references: [id], onDelete: Cascade)
+
+  documentTypeId String?
+  documentType   DocType? @relation(fields: [documentTypeId], references: [id], onDelete: SetNull)
+
+  kind         RecordItemKind @default(DOCUMENT)
+  label        String
+  description  String?        @db.Text
+  isRequired   Boolean        @default(true)
+  // When true, the template engine spawns one record item PER partner
+  // on the project (instead of a single project-wide item).
+  isPerPartner Boolean        @default(false)
+  order        Int            @default(0)
+
+  recordItems ProjectRecordItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([serviceTemplateId, order])
+  @@map("service_template_requirements")
 }
