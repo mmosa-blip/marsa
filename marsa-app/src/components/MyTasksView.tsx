@@ -25,6 +25,7 @@ import {
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 import TaskCompletionRequirementsModal from "@/components/TaskCompletionRequirementsModal";
+import TaskRecordLinksModal from "@/components/record/TaskRecordLinksModal";
 import { useSession } from "next-auth/react";
 import { useLang } from "@/contexts/LanguageContext";
 import { useSidebarCounts } from "@/contexts/SidebarCountsContext";
@@ -181,6 +182,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [completionModal, setCompletionModal] = useState<{ taskId: string; title: string } | null>(null);
+  const [recordLinksModal, setRecordLinksModal] = useState<{ taskId: string; title: string } | null>(null);
   // Partial-payment-request modal — opened from the inline "في انتظار دفعة"
   // row on a payment-blocked task. The executor enters the amount they
   // want the admin to accept as a partial payment, and we POST to the
@@ -465,7 +467,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
       .catch(() => {});
   }, [actionLoading, bulkLoading, projectId]);
 
-  const handleStatusChange = async (taskId: string, newStatus: string) => {
+  const handleStatusChange = async (taskId: string, newStatus: string, taskTitle?: string) => {
     if (actionLoading) return;
     setActionLoading(taskId);
     try {
@@ -478,8 +480,14 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
         fetchTasks();
         refreshCounts();
       } else {
-        const err = await res.json().catch(() => ({}));
-        alert((err as { error?: string }).error || `فشل تحديث الحالة (HTTP ${res.status})`);
+        const err = await res.json().catch(() => ({})) as { error?: string; blockingRecordItems?: unknown[] };
+        // When trying to mark DONE, the server may return blocking record items —
+        // show the upload modal instead of a plain alert so the executor can act.
+        if (newStatus === "DONE" && err.blockingRecordItems?.length) {
+          setRecordLinksModal({ taskId, title: taskTitle ?? "" });
+          return;
+        }
+        alert(err.error || `فشل تحديث الحالة (HTTP ${res.status})`);
         fetchTasks();
       }
     } catch (e) {
@@ -634,16 +642,16 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
         const data = await res.json();
         const reqs = (data?.requirements || []) as unknown[];
         if (reqs.length === 0) {
-          await handleStatusChange(taskId, "DONE");
+          await handleStatusChange(taskId, "DONE", title);
           return;
         }
         setCompletionModal({ taskId, title });
       } else {
         // Fallback: if the fetch fails, fall through to the normal flow
-        await handleStatusChange(taskId, "DONE");
+        await handleStatusChange(taskId, "DONE", title);
       }
     } catch {
-      await handleStatusChange(taskId, "DONE");
+      await handleStatusChange(taskId, "DONE", title);
     } finally {
       setActionLoading(null);
     }
@@ -2179,6 +2187,21 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
             setCompletionModal(null);
             fetchTasks();
             refreshCounts();
+          }}
+        />
+      )}
+
+      {recordLinksModal && (
+        <TaskRecordLinksModal
+          taskId={recordLinksModal.taskId}
+          taskTitle={recordLinksModal.title}
+          onClose={() => setRecordLinksModal(null)}
+          onAllResolved={() => {
+            // All blocking items are now APPROVED — attempt DONE again.
+            // The second call will succeed because the guard is clear.
+            handleStatusChange(recordLinksModal.taskId, "DONE", recordLinksModal.title).then(() => {
+              setRecordLinksModal(null);
+            });
           }}
         />
       )}

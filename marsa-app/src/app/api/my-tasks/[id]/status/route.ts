@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog, AuditModule } from "@/lib/audit";
+import { getBlockingTaskRecordLinks } from "@/lib/record-spawn";
 
 export async function POST(
   request: NextRequest,
@@ -34,6 +35,22 @@ export async function POST(
     });
     if (!isAssigned && !hasAssignment) {
       return NextResponse.json({ error: "غير مصرح" }, { status: 403 });
+    }
+
+    // Guard: block DONE while required record items aren't APPROVED.
+    // Returns 400 + blockingRecordItems so the UI can open the
+    // TaskRecordLinksModal instead of a plain alert.
+    if (status === "DONE" && task.status !== "DONE") {
+      const blocking = await getBlockingTaskRecordLinks(id);
+      if (blocking.length > 0) {
+        return NextResponse.json(
+          {
+            error: "توجد متطلبات سجل ناقصة — ارفع المستندات المطلوبة أولاً",
+            blockingRecordItems: blocking,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // BUG 3: If starting task, check if another executor already started it
