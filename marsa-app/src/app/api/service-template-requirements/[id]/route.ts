@@ -64,6 +64,23 @@ export async function PATCH(
     if ("order" in body && typeof body.order === "number") {
       data.order = Math.trunc(body.order);
     }
+    if ("taskTemplateId" in body) {
+      const rawId = body.taskTemplateId ? String(body.taskTemplateId) : null;
+      if (rawId) {
+        // Validate the task template belongs to the same service template.
+        const tt = await prisma.taskTemplate.findFirst({
+          where: { id: rawId, serviceTemplateId: existing.serviceTemplateId },
+          select: { id: true },
+        });
+        if (!tt) {
+          return NextResponse.json(
+            { error: "المهمة المحددة لا تنتمي لنفس قالب الخدمة" },
+            { status: 400 }
+          );
+        }
+      }
+      data.taskTemplateId = rawId;
+    }
 
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "لا يوجد تعديل" }, { status: 400 });
@@ -75,6 +92,9 @@ export async function PATCH(
       include: {
         documentType: {
           select: { id: true, name: true, kind: true, isPerPartner: true },
+        },
+        taskTemplate: {
+          select: { id: true, name: true, sortOrder: true },
         },
       },
     });

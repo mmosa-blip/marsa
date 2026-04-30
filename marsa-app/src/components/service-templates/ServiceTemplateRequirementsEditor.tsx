@@ -41,20 +41,31 @@ interface DocTypeLite {
   isPerPartner: boolean;
 }
 
+interface TaskTemplateLite {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
 interface Requirement {
   id: string;
   label: string;
   description: string | null;
   kind: Kind;
   documentTypeId: string | null;
+  taskTemplateId: string | null;
   isRequired: boolean;
   isPerPartner: boolean;
   order: number;
   documentType: { id: string; name: string; kind: string; isPerPartner: boolean } | null;
+  taskTemplate: { id: string; name: string; sortOrder: number } | null;
 }
 
 interface Props {
   serviceTemplateId: string;
+  /** Pass the template's task-templates list from the parent page so the
+   *  "ربط بمهمة" dropdown is populated without an extra fetch. */
+  taskTemplates?: TaskTemplateLite[];
 }
 
 type IconCmp = React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
@@ -73,6 +84,7 @@ interface FormState {
   description: string;
   kind: Kind;
   documentTypeId: string;
+  taskTemplateId: string;
   isRequired: boolean;
   isPerPartner: boolean;
 }
@@ -82,12 +94,14 @@ const DEFAULT_FORM: FormState = {
   description: "",
   kind: "DOCUMENT",
   documentTypeId: "",
+  taskTemplateId: "",
   isRequired: true,
   isPerPartner: false,
 };
 
 export default function ServiceTemplateRequirementsEditor({
   serviceTemplateId,
+  taskTemplates = [],
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [requirements, setRequirements] = useState<Requirement[]>([]);
@@ -131,6 +145,7 @@ export default function ServiceTemplateRequirementsEditor({
       description: r.description ?? "",
       kind: r.kind,
       documentTypeId: r.documentTypeId ?? "",
+      taskTemplateId: r.taskTemplateId ?? "",
       isRequired: r.isRequired,
       isPerPartner: r.isPerPartner,
     });
@@ -155,6 +170,7 @@ export default function ServiceTemplateRequirementsEditor({
           form.kind === "DOCUMENT" && form.documentTypeId
             ? form.documentTypeId
             : null,
+        taskTemplateId: form.taskTemplateId || null,
         isRequired: form.isRequired,
         isPerPartner: form.isPerPartner,
       };
@@ -409,6 +425,19 @@ export default function ServiceTemplateRequirementsEditor({
                               لكل شريك
                             </span>
                           )}
+                          {r.taskTemplate && (
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5 font-semibold"
+                              style={{
+                                backgroundColor: "rgba(14,165,233,0.12)",
+                                color: "#0EA5E9",
+                                border: "1px solid rgba(14,165,233,0.25)",
+                              }}
+                              title="مرتبط بمهمة محددة"
+                            >
+                              ⚙ {r.taskTemplate.name}
+                            </span>
+                          )}
                         </div>
                         {r.description && (
                           <p
@@ -534,6 +563,42 @@ export default function ServiceTemplateRequirementsEditor({
                   })}
                 </div>
               </div>
+
+              {/* Task binding — always shown, regardless of kind */}
+              {taskTemplates.length > 0 && (
+                <div>
+                  <label
+                    className="block text-xs font-semibold mb-1"
+                    style={{ color: "#374151" }}
+                  >
+                    ربط بمهمة محددة
+                    <span className="text-[10px] font-normal ms-1" style={{ color: "#9CA3AF" }}>
+                      (اختياري — إذا تركت فارغاً يصبح متطلباً على مستوى الخدمة)
+                    </span>
+                  </label>
+                  <select
+                    value={form.taskTemplateId}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, taskTemplateId: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none"
+                  >
+                    <option value="">— مستوى الخدمة (بدون مهمة محددة) —</option>
+                    {[...taskTemplates]
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map((tt) => (
+                        <option key={tt.id} value={tt.id}>
+                          {tt.name}
+                        </option>
+                      ))}
+                  </select>
+                  {form.taskTemplateId && (
+                    <p className="text-[11px] mt-1" style={{ color: "#0EA5E9" }}>
+                      المنفذ لن يقدر يُكمل هذه المهمة حتى يُرفع هذا المتطلب.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {form.kind === "DOCUMENT" && (
                 <div>

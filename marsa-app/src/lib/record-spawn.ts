@@ -73,8 +73,6 @@ export async function spawnRecordItemsForProject(
       const partnerIds = isPerPartner
         ? project.partners.map((p) => p.id)
         : [null];
-      // Per-partner with no partners yet: nothing to do today; the
-      // partner-add flow will fill these in.
       if (isPerPartner && partnerIds.length === 0) {
         skipped++;
         continue;
@@ -88,9 +86,11 @@ export async function spawnRecordItemsForProject(
           partnerId,
           requirementId: req.id,
           documentTypeId: req.documentTypeId,
+          taskTemplateId: req.taskTemplateId ?? null,
           kind: req.kind,
           label: req.label,
           description: req.description,
+          isRequired: req.isRequired,
         });
         if (created === "spawned") spawned++;
         else if (created === "reused") reused++;
@@ -144,9 +144,11 @@ export async function spawnRecordItemsForPartner(
         partnerId,
         requirementId: req.id,
         documentTypeId: req.documentTypeId,
+        taskTemplateId: req.taskTemplateId ?? null,
         kind: req.kind,
         label: req.label,
         description: req.description,
+        isRequired: req.isRequired,
       });
       if (created === "spawned") spawned++;
       else if (created === "reused") reused++;
@@ -163,6 +165,11 @@ interface SpawnOneArgs {
   partnerId: string | null;
   requirementId: string;
   documentTypeId: string | null;
+  // When set, links the spawned item to the instantiated Task that was
+  // created from this TaskTemplate. Creates a TaskRequirementLink so
+  // the executor sees it inside the task's completion modal.
+  taskTemplateId: string | null;
+  isRequired: boolean;
   kind: "DOCUMENT" | "PLATFORM_ACCOUNT" | "SENSITIVE_DATA" | "NOTE" | "ISSUE" | "PLATFORM_LINK";
   label: string;
   description: string | null;
@@ -171,8 +178,8 @@ interface SpawnOneArgs {
 async function spawnOneIfMissing(
   args: SpawnOneArgs
 ): Promise<"spawned" | "reused" | "skipped"> {
-  // Already-spawned guard. We pin via sourceTemplateRequirementId +
-  // serviceId + partnerId so re-running the spawner is safe.
+  // Already-spawned guard — pinned by sourceTemplateRequirementId +
+  // serviceId + partnerId. Re-running is always safe.
   const existing = await prisma.projectRecordItem.findFirst({
     where: {
       projectId: args.projectId,
@@ -183,11 +190,16 @@ async function spawnOneIfMissing(
     },
     select: { id: true },
   });
-  if (existing) return "skipped";
+  if (existing) {
+    // Even on skip, make sure the TaskRequirementLink exists (idempotent).
+    if (args.taskTemplateId) {
+      await upsertTaskLink(existing.id, args);
+    }
+    return "skipped";
+  }
 
   // Reuse: a CLIENT-scoped APPROVED row for this DocType on any of the
-  // client's projects means the document is already in hand and we
-  // shouldn't spawn another MISSING placeholder.
+  // client's projects means the document is already in hand.
   if (args.documentTypeId) {
     const reuse = await prisma.projectRecordItem.findFirst({
       where: {
@@ -202,7 +214,7 @@ async function spawnOneIfMissing(
     if (reuse) return "reused";
   }
 
-  await prisma.projectRecordItem.create({
+  const item = await prisma.projectRecordItem.create({
     data: {
       kind: args.kind,
       scope: "PROJECT",
@@ -216,8 +228,41 @@ async function spawnOneIfMissing(
       sourceTemplateRequirementId: args.requirementId,
       visibility: "EXECUTORS_AND_ADMIN",
     },
+    select: { id: true },
   });
+
+  // If this requirement is pinned to a TaskTemplate, find the matching
+  // instantiated Task (same service, same taskTemplateId) and create a
+  // TaskRequirementLink so the completion guard can see it.
+  if (args.taskTemplateId) {
+    await upsertTaskLink(item.id, args);
+  }
+
   return "spawned";
+}
+
+/** Find the instantiated Task for (serviceId, taskTemplateId) and upsert
+ *  a TaskRequirementLink → record item. Idempotent, fails silently. */
+async function upsertTaskLink(
+  recordItemId: string,
+  args: Pick<SpawnOneArgs, "projectId" | "serviceId" | "taskTemplateId" | "isRequired">
+): Promise<void> {
+  if (!args.taskTemplateId) return;
+  const task = await prisma.task.findFirst({
+    where: {
+      projectId: args.projectId,
+      serviceId: args.serviceId,
+      taskTemplateId: args.taskTemplateId,
+      status: { not: "CANCELLED" },
+    },
+    select: { id: true },
+  });
+  if (!task) return;
+  await prisma.taskRequirementLink.upsert({
+    where: { taskId_recordItemId: { taskId: task.id, recordItemId } },
+    create: { taskId: task.id, recordItemId, isRequired: args.isRequired },
+    update: { isRequired: args.isRequired },
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────

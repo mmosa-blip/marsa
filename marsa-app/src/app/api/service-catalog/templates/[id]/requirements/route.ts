@@ -48,6 +48,9 @@ export async function GET(
         documentType: {
           select: { id: true, name: true, kind: true, isPerPartner: true },
         },
+        taskTemplate: {
+          select: { id: true, name: true, sortOrder: true },
+        },
       },
       orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     });
@@ -94,6 +97,23 @@ export async function POST(
         ? String(body.documentTypeId)
         : null;
 
+    // Validate that taskTemplateId, when provided, belongs to this template.
+    const rawTaskTemplateId = body.taskTemplateId
+      ? String(body.taskTemplateId)
+      : null;
+    if (rawTaskTemplateId) {
+      const tt = await prisma.taskTemplate.findFirst({
+        where: { id: rawTaskTemplateId, serviceTemplateId },
+        select: { id: true },
+      });
+      if (!tt) {
+        return NextResponse.json(
+          { error: "المهمة المحددة لا تنتمي لهذا القالب" },
+          { status: 400 }
+        );
+      }
+    }
+
     const order =
       typeof body.order === "number" && Number.isFinite(body.order)
         ? Math.trunc(body.order)
@@ -106,6 +126,7 @@ export async function POST(
         label,
         description: body.description?.toString().trim() || null,
         documentTypeId,
+        taskTemplateId: rawTaskTemplateId,
         isRequired: body.isRequired !== false,
         isPerPartner: !!body.isPerPartner,
         order,
@@ -113,6 +134,9 @@ export async function POST(
       include: {
         documentType: {
           select: { id: true, name: true, kind: true, isPerPartner: true },
+        },
+        taskTemplate: {
+          select: { id: true, name: true, sortOrder: true },
         },
       },
     });

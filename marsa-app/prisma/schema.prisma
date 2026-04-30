@@ -1035,6 +1035,9 @@ model TaskTemplate {
   instantiatedTasks Task[]
 
   requirements   TaskRequirement[]
+  // Optional record-system requirements anchored to this specific
+  // TaskTemplate. NULL on the requirement means "service-level".
+  serviceRequirements ServiceTemplateRequirement[]
 
   @@map("task_templates")
 }
@@ -2490,6 +2493,14 @@ model ServiceTemplateRequirement {
   documentTypeId String?
   documentType   DocType? @relation(fields: [documentTypeId], references: [id], onDelete: SetNull)
 
+  // Optional anchor to a specific TaskTemplate within the service. When
+  // set, the spawn helper produces a record item AND a TaskRequirementLink
+  // against the corresponding instantiated Task, so the executor sees
+  // it inside the task's completion modal. NULL means the requirement
+  // is service-level (any task in the service can satisfy it).
+  taskTemplateId String?
+  taskTemplate   TaskTemplate? @relation(fields: [taskTemplateId], references: [id], onDelete: SetNull)
+
   kind         RecordItemKind @default(DOCUMENT)
   label        String
   description  String?        @db.Text
@@ -2505,5 +2516,6 @@ model ServiceTemplateRequirement {
   updatedAt DateTime @updatedAt
 
   @@index([serviceTemplateId, order])
+  @@index([taskTemplateId])
   @@map("service_template_requirements")
 }

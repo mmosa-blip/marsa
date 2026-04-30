@@ -299,7 +299,14 @@ export default function ServiceTemplateDetailPage() {
 
       {/* Service-template record requirements — spawned into every project that uses this service. */}
       <div className="mb-6">
-        <ServiceTemplateRequirementsEditor serviceTemplateId={template.id} />
+        <ServiceTemplateRequirementsEditor
+          serviceTemplateId={template.id}
+          taskTemplates={template.taskTemplates.map((t) => ({
+            id: t.id,
+            name: t.name,
+            sortOrder: t.sortOrder,
+          }))}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
