@@ -89,7 +89,7 @@ const DEFAULT_FORM: FormState = {
 export default function ServiceTemplateRequirementsEditor({
   serviceTemplateId,
 }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [docTypes, setDocTypes] = useState<DocTypeLite[]>([]);
   const [loading, setLoading] = useState(false);
@@ -242,27 +242,67 @@ export default function ServiceTemplateRequirementsEditor({
 
   return (
     <div
-      className="rounded-2xl border border-gray-100 bg-white overflow-hidden"
+      className="rounded-2xl overflow-hidden shadow-sm"
+      style={{ border: "1px solid rgba(94,84,149,0.25)" }}
       dir="rtl"
     >
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+        aria-expanded={expanded}
+        className="w-full flex items-center justify-between p-4 cursor-pointer transition-all hover:brightness-105 active:brightness-95"
+        style={{
+          background: expanded
+            ? "linear-gradient(135deg, rgba(94,84,149,0.10), rgba(201,168,76,0.06))"
+            : "linear-gradient(135deg, rgba(94,84,149,0.16), rgba(201,168,76,0.10))",
+        }}
       >
-        <div className="flex items-center gap-2">
-          <FileText size={18} style={{ color: "#5E5495" }} />
-          <span className="font-bold text-sm" style={{ color: "#1C1B2E" }}>
-            متطلبات السجل (مستندات / حسابات / منصات)
-          </span>
-          <span
-            className="text-[10px] px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}
+        <div className="flex items-center gap-3">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{ backgroundColor: "rgba(94,84,149,0.15)" }}
           >
-            {requirements.length}
-          </span>
+            <FileText size={18} style={{ color: "#5E5495" }} />
+          </div>
+          <div className="text-right">
+            <div className="flex items-center gap-2">
+              <span
+                className="font-bold text-base"
+                style={{ color: "#1C1B2E" }}
+              >
+                متطلبات السجل
+              </span>
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: "rgba(94,84,149,0.18)",
+                  color: "#5E5495",
+                }}
+              >
+                {requirements.length}
+              </span>
+            </div>
+            <p
+              className="text-[11px] mt-0.5"
+              style={{ color: "#6B7280" }}
+            >
+              مستندات / حسابات / روابط منصات تُولَّد لكل مشروع جديد
+            </p>
+          </div>
         </div>
-        {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        <div
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full shrink-0"
+          style={{
+            backgroundColor: "white",
+            border: "1px solid rgba(94,84,149,0.2)",
+            color: "#5E5495",
+          }}
+        >
+          <span className="text-[11px] font-semibold">
+            {expanded ? "إخفاء" : "اضغط للعرض"}
+          </span>
+          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </div>
       </button>
 
       {expanded && (
