@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { mirrorDocumentCreate } from "@/lib/record-dual-write";
 
 export async function GET() {
   try {
@@ -62,6 +63,19 @@ export async function POST(request: Request) {
       include: {
         company: { select: { name: true } },
       },
+    });
+
+    // Phase B — dual-write to record system. Best-effort, never throws.
+    // Anchored to the owner's most recent project; skipped if none.
+    void mirrorDocumentCreate({
+      id: document.id,
+      title: document.title,
+      fileUrl: document.fileUrl,
+      ownerId: document.ownerId,
+      expiryDate: document.expiryDate,
+      reminderDays: document.reminderDays,
+      status: document.status,
+      notes: document.notes,
     });
 
     return NextResponse.json(document, { status: 201 });

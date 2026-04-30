@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
 import { getBlockingTaskRecordLinks } from "@/lib/record-spawn";
+import { mirrorTaskRequirementValueUpsert } from "@/lib/record-dual-write";
 
 interface IncomingValue {
   requirementId: string;
@@ -62,6 +63,13 @@ export async function POST(
     const byId = new Map(requirements.map((r) => [r.id, r]));
 
     // Persist submitted values (only those pointing at known requirements of this template)
+    // Need projectId / serviceId / assigneeId for the dual-write mirror,
+    // so re-load the task once with the join.
+    const taskMeta = await prisma.task.findUnique({
+      where: { id: task.id },
+      select: { projectId: true, serviceId: true, assigneeId: true },
+    });
+
     for (const v of incoming) {
       const r = byId.get(v.requirementId);
       if (!r) continue;
@@ -72,7 +80,7 @@ export async function POST(
         selectedOption: v.selectedOption ?? null,
       };
 
-      await prisma.taskRequirementValue.upsert({
+      const upserted = await prisma.taskRequirementValue.upsert({
         where: {
           requirementId_taskId: {
             requirementId: r.id,
@@ -86,6 +94,22 @@ export async function POST(
         },
         update: data,
       });
+
+      // Phase B — dual-write to record system. Best-effort, never throws.
+      // Only file uploads have a meaningful mirror; text/select skipped.
+      if (upserted.fileUrl && taskMeta) {
+        void mirrorTaskRequirementValueUpsert({
+          id: upserted.id,
+          taskId: upserted.taskId,
+          fileUrl: upserted.fileUrl,
+          requirement: { label: r.label, isRequired: r.isRequired },
+          task: {
+            projectId: taskMeta.projectId,
+            serviceId: taskMeta.serviceId,
+            assigneeId: taskMeta.assigneeId,
+          },
+        });
+      }
     }
 
     // Re-read the stored values for completeness check

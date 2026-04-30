@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can, PERMISSIONS } from "@/lib/permissions";
+import { mirrorClientDocumentCreate } from "@/lib/record-dual-write";
 
 export async function GET(
   _request: NextRequest,
@@ -70,6 +71,15 @@ export async function POST(
       include: {
         uploadedBy: { select: { id: true, name: true } },
       },
+    });
+
+    // Phase B — dual-write to record system. Best-effort, never throws.
+    void mirrorClientDocumentCreate({
+      id: document.id,
+      clientId: document.clientId,
+      title: document.title,
+      fileUrl: document.fileUrl,
+      uploadedById: document.uploadedById,
     });
 
     // Notify the client

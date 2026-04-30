@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
 import { requireAuth, requireRole } from "@/lib/api-auth";
+import {
+  mirrorProjectDocumentUpdate,
+  mirrorProjectDocumentDelete,
+} from "@/lib/record-dual-write";
 
 // GET — single document
 export async function GET(
@@ -117,6 +121,26 @@ export async function PATCH(
       where: { id: docId },
       data,
     });
+
+    // Phase B — dual-write to record system. Best-effort, never throws.
+    void mirrorProjectDocumentUpdate(docId, {
+      status: typeof data.status === "string" ? data.status : undefined,
+      rejectionReason:
+        "rejectionReason" in data
+          ? (data.rejectionReason as string | null)
+          : undefined,
+      reviewedById:
+        "reviewedById" in data
+          ? (data.reviewedById as string | null)
+          : undefined,
+      reviewedAt:
+        "reviewedAt" in data ? (data.reviewedAt as Date | null) : undefined,
+      isSharedWithClient:
+        "isSharedWithClient" in data
+          ? (data.isSharedWithClient as boolean)
+          : undefined,
+    });
+
     return NextResponse.json(updated);
   } catch (error) {
     if (error instanceof Response) return error;
@@ -134,6 +158,10 @@ export async function DELETE(
     await requireRole(["ADMIN", "MANAGER"]);
     const { docId } = await params;
     await prisma.projectDocument.delete({ where: { id: docId } });
+
+    // Phase B — soft-delete the mirror row. Best-effort.
+    void mirrorProjectDocumentDelete(docId);
+
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can, PERMISSIONS } from "@/lib/permissions";
+import { mirrorClientDocumentDelete } from "@/lib/record-dual-write";
 
 export async function DELETE(
   _request: NextRequest,
@@ -26,6 +27,9 @@ export async function DELETE(
     }
 
     await prisma.clientDocument.delete({ where: { id: docId } });
+
+    // Phase B — soft-delete the mirror row. Best-effort.
+    void mirrorClientDocumentDelete(docId);
 
     return NextResponse.json({ message: "تم حذف الوثيقة بنجاح" });
   } catch (error) {

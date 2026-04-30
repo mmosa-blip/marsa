@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { mirrorProjectDocumentCreate } from "@/lib/record-dual-write";
 
 // GET — list project documents with visibility filter based on user role
 export async function GET(
@@ -120,6 +121,24 @@ export async function POST(
         version,
         uploadedById: session.user.id,
       },
+    });
+
+    // Phase B — dual-write to record system. Best-effort, never throws.
+    void mirrorProjectDocumentCreate({
+      id: doc.id,
+      projectId: doc.projectId,
+      documentTypeId: doc.documentTypeId,
+      fileUrl: doc.fileUrl,
+      textData: doc.textData,
+      uploadedById: doc.uploadedById,
+      reviewedById: doc.reviewedById,
+      reviewedAt: doc.reviewedAt,
+      rejectionReason: doc.rejectionReason,
+      uploadedOnBehalfOfClient: doc.uploadedOnBehalfOfClient,
+      isSharedWithClient: doc.isSharedWithClient,
+      partnerId: doc.partnerId,
+      status: doc.status,
+      version: doc.version,
     });
 
     return NextResponse.json(doc, { status: 201 });
