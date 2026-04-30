@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { mirrorProjectDocumentCreate } from "@/lib/record-dual-write";
+import { recordItemToProjectDocument } from "@/lib/record-shape-adapter";
+import { logger } from "@/lib/logger";
 
 // GET — list project documents with visibility filter based on user role
 export async function GET(
@@ -46,6 +48,50 @@ export async function GET(
       });
     }
 
+    // ─── Phase C — read from the new record system ───────────────────
+    // Reads ProjectRecordItem rows tagged [PD:...] (mirrored from
+    // ProjectDocument by Phase B), adapts to the legacy shape, returns.
+    // Falls back to legacy if the new system has no tagged rows for
+    // this project (defensive — covers any edge case where the mirror
+    // didn't run, e.g. dual-write deployed mid-flight).
+    const recordItems = await prisma.projectRecordItem.findMany({
+      where: {
+        projectId: id,
+        deletedAt: null,
+        title: { contains: "[PD:" },
+      },
+      include: {
+        documentType: {
+          include: { group: { select: { id: true, name: true, displayOrder: true } } },
+        },
+        uploadedBy: { select: { id: true, name: true } },
+        reviewedBy: { select: { id: true, name: true } },
+        partner: { select: { id: true, name: true, order: true } },
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+
+    if (recordItems.length > 0) {
+      const adapted = recordItems
+        .map((it) => recordItemToProjectDocument(it))
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+
+      // Apply the role-based visibility filter on the adapted side. The
+      // record-system row already has its own visibility metadata, but
+      // the legacy shape is what callers gate on, so we re-apply here
+      // to keep behavior identical to the old query.
+      const filtered = adapted.filter((d) => {
+        if (role === "ADMIN" || role === "MANAGER") return true;
+        if (isClient) return !!d.isSharedWithClient;
+        const dt = (d.documentType as { whoCanView?: string } | null) ?? null;
+        const v = dt?.whoCanView;
+        return v === "ALL" || v === "EXECUTORS_AND_ADMIN";
+      });
+      return NextResponse.json(filtered);
+    }
+
+    // Fallback path — legacy table only.
+    logger.warn("projects/[id]/documents: no record-system rows, falling back to legacy", { projectId: id });
     const documents = await prisma.projectDocument.findMany({
       where: {
         projectId: id,

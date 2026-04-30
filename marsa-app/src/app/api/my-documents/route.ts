@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { mirrorDocumentCreate } from "@/lib/record-dual-write";
+import { recordItemToDocument } from "@/lib/record-shape-adapter";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -16,6 +18,29 @@ export async function GET() {
 
     const userId = session.user.id;
 
+    // ─── Phase C — read from the new record system ───────────────────
+    // Reads ProjectRecordItem rows tagged [DOC:...] uploaded by this
+    // user, adapts to the legacy Document shape. Falls back to legacy
+    // if no tagged rows are present.
+    const recordItems = await prisma.projectRecordItem.findMany({
+      where: {
+        uploadedById: userId,
+        scope: "COMPLIANCE",
+        deletedAt: null,
+        title: { contains: "[DOC:" },
+      },
+      orderBy: [{ expiryDate: "asc" }],
+    });
+
+    if (recordItems.length > 0) {
+      const adapted = recordItems
+        .map((it) => recordItemToDocument(it))
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+      return NextResponse.json(adapted);
+    }
+
+    // Fallback path — legacy table only.
+    logger.warn("my-documents: no record-system rows, falling back to legacy", { userId });
     const documents = await prisma.document.findMany({
       where: { ownerId: userId },
       include: {

@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can, PERMISSIONS } from "@/lib/permissions";
 import { mirrorClientDocumentCreate } from "@/lib/record-dual-write";
+import { recordItemToClientDocument } from "@/lib/record-shape-adapter";
+import { logger } from "@/lib/logger";
 
 export async function GET(
   _request: NextRequest,
@@ -23,6 +25,32 @@ export async function GET(
       return NextResponse.json({ error: "ليس لديك صلاحية" }, { status: 403 });
     }
 
+    // ─── Phase C — read from the new record system ───────────────────
+    // Reads ProjectRecordItem rows tagged [CD:...] for projects owned
+    // by this client. Adapts to legacy ClientDocument shape.
+    const recordItems = await prisma.projectRecordItem.findMany({
+      where: {
+        scope: "CLIENT",
+        deletedAt: null,
+        title: { contains: "[CD:" },
+        project: { clientId: id },
+      },
+      include: {
+        uploadedBy: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, clientId: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (recordItems.length > 0) {
+      const adapted = recordItems
+        .map((it) => recordItemToClientDocument(it))
+        .filter((x): x is NonNullable<typeof x> => x !== null);
+      return NextResponse.json(adapted);
+    }
+
+    // Fallback path — legacy table only.
+    logger.warn("clients/[id]/documents: no record-system rows, falling back to legacy", { clientId: id });
     const documents = await prisma.clientDocument.findMany({
       where: { clientId: id },
       include: {
