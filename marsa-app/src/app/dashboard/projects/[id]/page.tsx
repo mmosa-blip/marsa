@@ -29,6 +29,7 @@ import {
   FolderOpen,
   Pencil,
   Check,
+  Layers,
 } from "lucide-react";
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -455,6 +456,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               href={`/dashboard/projects/${id}/documents`}
             >
               📁 متطلبات المشروع
+            </MarsaButton>
+            <MarsaButton
+              variant="primary"
+              icon={<Layers size={16} />}
+              href={`/dashboard/projects/${id}/record`}
+            >
+              السجل الموحد
             </MarsaButton>
             {isAdmin && (
               <MarsaButton variant="secondary" icon={<Save size={16} />}
