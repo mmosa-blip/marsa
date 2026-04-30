@@ -21,6 +21,7 @@ import {
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import TaskRequirementsEditor from "@/components/TaskRequirementsEditor";
+import ServiceTemplateRequirementsEditor from "@/components/service-templates/ServiceTemplateRequirementsEditor";
 import { computeServiceDuration } from "@/lib/service-duration";
 
 type TaskExecutionMode = "SEQUENTIAL" | "PARALLEL" | "INDEPENDENT";
@@ -294,6 +295,11 @@ export default function ServiceTemplateDetailPage() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Service-template record requirements — spawned into every project that uses this service. */}
+      <div className="mb-6">
+        <ServiceTemplateRequirementsEditor serviceTemplateId={template.id} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
