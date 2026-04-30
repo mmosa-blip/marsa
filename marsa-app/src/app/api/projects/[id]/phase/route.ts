@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/api-auth";
+import { getMissingProjectRecordItems } from "@/lib/record-spawn";
 
 const PHASE_ORDER = ["CONTRACT", "PAYMENTS", "CONTRACT_APPROVAL", "SERVICES", "PROVIDERS", "MANAGER", "EXECUTION", "COMPLETED"];
 
@@ -65,6 +66,21 @@ export async function PATCH(
     // Gate: EXECUTION requires at least one service
     if (targetPhase === "EXECUTION" && project.services.length === 0) {
       return NextResponse.json({ error: "يجب إضافة خدمة واحدة على الأقل" }, { status: 400 });
+    }
+
+    // Tier 4 — guard COMPLETED phase. Block while any required record
+    // item is still missing/pending/rejected.
+    if (targetPhase === "COMPLETED") {
+      const missing = await getMissingProjectRecordItems(id);
+      if (missing.length > 0) {
+        return NextResponse.json(
+          {
+            error: "لا يمكن إغلاق المشروع — توجد متطلبات سجل ناقصة",
+            missingItems: missing,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Update phase and status

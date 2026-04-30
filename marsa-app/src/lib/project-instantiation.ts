@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { addWorkingDays } from "@/lib/working-days";
+import { spawnRecordItemsForProject } from "@/lib/record-spawn";
 
 interface InstantiateOptions {
   templateId: string;
@@ -237,6 +238,15 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
         },
       });
     }
+  }
+
+  // Tier 4 — spawn MISSING record items for every service-template
+  // requirement so the team has a punch list. Best-effort: never block
+  // project creation if this fails.
+  try {
+    await spawnRecordItemsForProject(project.id);
+  } catch (err) {
+    console.error("spawnRecordItemsForProject failed", err);
   }
 
   return project.id;

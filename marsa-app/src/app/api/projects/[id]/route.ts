@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole } from "@/lib/api-auth";
 import { notifyProjectAssignment } from "@/lib/notifications";
+import { getMissingProjectRecordItems } from "@/lib/record-spawn";
 
 export async function GET(
   _request: Request,
@@ -101,6 +102,21 @@ export async function PATCH(
       where: { id },
       select: { managerId: true },
     });
+
+    // Tier 4 — guard project close. Block COMPLETED transitions while
+    // any required record item is still missing/pending/rejected.
+    if (body.status === "COMPLETED" || body.closedAt) {
+      const missing = await getMissingProjectRecordItems(id);
+      if (missing.length > 0) {
+        return NextResponse.json(
+          {
+            error: "لا يمكن إغلاق المشروع — توجد متطلبات سجل ناقصة",
+            missingItems: missing,
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     const project = await prisma.project.update({
       where: { id },

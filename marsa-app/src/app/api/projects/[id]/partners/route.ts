@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole } from "@/lib/api-auth";
+import { spawnRecordItemsForPartner } from "@/lib/record-spawn";
 
 const ALLOWED_ROLES = ["PARTNER", "OWNER", "AUTHORIZED_SIGNATORY"] as const;
 
@@ -117,6 +118,14 @@ export async function POST(
         nextNumber++;
         created.push(p);
       }
+      // Tier 4 — spawn per-partner record items for each new partner.
+      for (const p of created) {
+        try {
+          await spawnRecordItemsForPartner(projectId, p.id);
+        } catch (err) {
+          console.error("spawnRecordItemsForPartner failed", err);
+        }
+      }
       return NextResponse.json(created, { status: 201 });
     }
 
@@ -149,6 +158,13 @@ export async function POST(
         nextNumber++;
         created.push(row);
       }
+      for (const p of created) {
+        try {
+          await spawnRecordItemsForPartner(projectId, p.id);
+        } catch (err) {
+          console.error("spawnRecordItemsForPartner failed", err);
+        }
+      }
       return NextResponse.json(created, { status: 201 });
     }
 
@@ -172,6 +188,11 @@ export async function POST(
         order: nextNumber,
       },
     });
+    try {
+      await spawnRecordItemsForPartner(projectId, partner.id);
+    } catch (err) {
+      console.error("spawnRecordItemsForPartner failed", err);
+    }
     return NextResponse.json(partner, { status: 201 });
   } catch (e) {
     if (e instanceof Response) return e;

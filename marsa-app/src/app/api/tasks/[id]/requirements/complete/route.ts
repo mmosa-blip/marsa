@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/api-auth";
+import { getBlockingTaskRecordLinks } from "@/lib/record-spawn";
 
 interface IncomingValue {
   requirementId: string;
@@ -111,6 +112,18 @@ export async function POST(
     if (missing.length > 0) {
       return NextResponse.json(
         { error: "يوجد متطلبات ناقصة", missing },
+        { status: 400 }
+      );
+    }
+
+    // Tier 4 — also block on linked record items that aren't APPROVED.
+    const blockingRecordItems = await getBlockingTaskRecordLinks(task.id);
+    if (blockingRecordItems.length > 0) {
+      return NextResponse.json(
+        {
+          error: "لا يمكن إنهاء المهمة — توجد متطلبات سجل ناقصة",
+          blockingRecordItems,
+        },
         { status: 400 }
       );
     }

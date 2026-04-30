@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, requireRole } from "@/lib/api-auth";
 import { pusherServer } from "@/lib/pusher";
 import { logger } from "@/lib/logger";
+import { getBlockingTaskRecordLinks } from "@/lib/record-spawn";
 
 export async function PATCH(
   request: Request,
@@ -54,6 +55,20 @@ export async function PATCH(
       }
       prevStatus = existingTask?.status ?? null;
       prevProjectId = existingTask?.projectId ?? null;
+
+      // Tier 4 — block DONE while any linked record item isn't APPROVED.
+      if (body.status === "DONE" && prevStatus !== "DONE") {
+        const blocking = await getBlockingTaskRecordLinks(id);
+        if (blocking.length > 0) {
+          return NextResponse.json(
+            {
+              error: "لا يمكن إنهاء المهمة — توجد متطلبات سجل ناقصة",
+              blockingRecordItems: blocking,
+            },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     // If assigneeId is being set manually, also create TaskAssignment record
