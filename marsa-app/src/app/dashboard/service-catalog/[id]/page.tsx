@@ -297,18 +297,6 @@ export default function ServiceTemplateDetailPage() {
         </div>
       </div>
 
-      {/* Service-template record requirements — spawned into every project that uses this service. */}
-      <div className="mb-6">
-        <ServiceTemplateRequirementsEditor
-          serviceTemplateId={template.id}
-          taskTemplates={template.taskTemplates.map((t) => ({
-            id: t.id,
-            name: t.name,
-            sortOrder: t.sortOrder,
-          }))}
-        />
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Tasks Section - 2/3 */}
         <div className="lg:col-span-2">
@@ -405,8 +393,24 @@ export default function ServiceTemplateDetailPage() {
                       </div>
                      </div>
                      <TaskRequirementsEditor taskTemplateId={task.id} />
+                     {/* Record-system requirements for this specific task */}
+                     <ServiceTemplateRequirementsEditor
+                       serviceTemplateId={template.id}
+                       mode="TASK"
+                       taskTemplateId={task.id}
+                     />
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Service-level record requirements (rare — not tied to any task) */}
+              {template.taskTemplates.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <ServiceTemplateRequirementsEditor
+                    serviceTemplateId={template.id}
+                    mode="SERVICE"
+                  />
                 </div>
               )}
 
