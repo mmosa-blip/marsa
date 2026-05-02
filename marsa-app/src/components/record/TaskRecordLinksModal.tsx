@@ -13,6 +13,8 @@ import {
   Link as LinkIcon,
   Upload,
   RefreshCw,
+  Users,
+  Building2,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import { UploadButton } from "@/lib/uploadthing";
@@ -158,6 +160,195 @@ export default function TaskRecordLinksModal({
   );
   const allResolved = links.length > 0 && blocking.length === 0;
 
+  // ─── Group by partner ────────────────────────────────────────────
+  // Company-level (no partner) renders first, then each partner in
+  // partnerNumber order. The header makes the per-partner repetition
+  // legible — "متطلبات الشريك 1" vs "متطلبات الشريك 2" — instead of
+  // forcing the executor to read each card's small partner badge.
+  interface PartnerGroup {
+    key: string;
+    label: string;
+    icon: "company" | "partner";
+    links: RecordLink[];
+  }
+
+  const grouped: Record<string, PartnerGroup> = {};
+  for (const l of links) {
+    const p = l.recordItem.partner;
+    const key = p?.id ?? "_company";
+    if (!grouped[key]) {
+      grouped[key] = {
+        key,
+        label: p
+          ? p.name
+            ? `${p.name} (الشريك ${p.partnerNumber})`
+            : `الشريك ${p.partnerNumber}`
+          : "متطلبات الشركة / المشروع",
+        icon: p ? "partner" : "company",
+        links: [],
+      };
+    }
+    grouped[key].links.push(l);
+  }
+  const groups = Object.values(grouped).sort((a, b) => {
+    // Company group always first.
+    if (a.key === "_company") return -1;
+    if (b.key === "_company") return 1;
+    const an = a.links[0].recordItem.partner?.partnerNumber ?? 0;
+    const bn = b.links[0].recordItem.partner?.partnerNumber ?? 0;
+    return an - bn;
+  });
+
+  // ─── Single-card renderer (closes over state) ────────────────────
+  function renderLink(link: RecordLink) {
+    const it = link.recordItem;
+    const kind = KIND_META[it.kind];
+    const status = STATUS_META[it.status];
+    const Icon = kind.icon;
+    const isBlocking = link.isRequired && it.status !== "APPROVED";
+    return (
+      <div
+        key={link.id}
+        className="p-3 rounded-xl border"
+        style={{
+          borderColor: isBlocking ? "#FECACA" : "#E5E7EB",
+          backgroundColor: isBlocking ? "rgba(220,38,38,0.03)" : "white",
+        }}
+      >
+        <div className="flex items-start gap-2 mb-2">
+          <Icon size={16} style={{ color: kind.color }} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+              {it.title}
+            </p>
+            {it.description && (
+              <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "#6B7280" }}>
+                {it.description}
+              </p>
+            )}
+          </div>
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
+            style={{ backgroundColor: `${status.color}15`, color: status.color }}
+          >
+            {status.label}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap mb-2">
+          {it.service && (
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full"
+              style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}
+            >
+              {it.service.name}
+            </span>
+          )}
+          {!link.isRequired && (
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full"
+              style={{ backgroundColor: "rgba(148,163,184,0.15)", color: "#64748B" }}
+            >
+              اختياري
+            </span>
+          )}
+        </div>
+        {it.kind === "DOCUMENT" &&
+          ["MISSING", "DRAFT", "REJECTED", "EXPIRED"].includes(it.status) && (
+            <div className="mt-2">
+              {(() => {
+                const pct = progress[it.id];
+                if (pct !== undefined && pct < 100) {
+                  return (
+                    <div className="p-2 rounded-lg" style={{ backgroundColor: "#F8F8F4" }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs flex items-center gap-1" style={{ color: "#5E5495" }}>
+                          <Upload size={12} />
+                          جاري رفع الملف…
+                        </span>
+                        <span className="text-xs font-bold" style={{ color: "#5E5495" }}>
+                          {pct}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#E5E7EB" }}>
+                        <div
+                          className="h-full transition-all duration-200 ease-out"
+                          style={{ width: `${pct}%`, backgroundColor: "#5E5495" }}
+                        />
+                      </div>
+                    </div>
+                  );
+                }
+                if (busyId === it.id) {
+                  return (
+                    <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: "#F8F8F4" }}>
+                      <Loader2 size={14} className="animate-spin" style={{ color: "#C9A84C" }} />
+                      <span className="text-xs" style={{ color: "#6B7280" }}>
+                        جاري الحفظ…
+                      </span>
+                    </div>
+                  );
+                }
+                return (
+                  <UploadButton
+                    endpoint="documentUploader"
+                    onUploadProgress={(p) =>
+                      setProgress((prev) => ({ ...prev, [it.id]: p }))
+                    }
+                    onClientUploadComplete={(res) => {
+                      const url = res?.[0]?.url;
+                      setProgress((prev) => {
+                        const { [it.id]: _drop, ...rest } = prev;
+                        void _drop;
+                        return rest;
+                      });
+                      if (url) uploadDocument(it, url);
+                    }}
+                    onUploadError={(e) => {
+                      setProgress((prev) => {
+                        const { [it.id]: _drop, ...rest } = prev;
+                        void _drop;
+                        return rest;
+                      });
+                      setError(e.message);
+                    }}
+                    appearance={{
+                      button: {
+                        backgroundColor: "#5E5495",
+                        color: "white",
+                        fontSize: "12px",
+                        borderRadius: "8px",
+                      },
+                      container: { width: "100%" },
+                    }}
+                    content={{
+                      button: (
+                        <span className="flex items-center gap-1">
+                          <Upload size={12} />
+                          رفع ملف
+                        </span>
+                      ),
+                    }}
+                  />
+                );
+              })()}
+            </div>
+          )}
+        {it.kind === "DOCUMENT" && it.fileUrl && (
+          <a
+            href={it.fileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] mt-1"
+            style={{ color: "#5E5495" }}
+          >
+            <FileText size={12} />
+            عرض الملف الحالي
+          </a>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -248,186 +439,53 @@ export default function TaskRecordLinksModal({
                   </div>
                 </div>
               )}
-              {links.map((link) => {
-                const it = link.recordItem;
-                const kind = KIND_META[it.kind];
-                const status = STATUS_META[it.status];
-                const Icon = kind.icon;
-                const isBlocking = link.isRequired && it.status !== "APPROVED";
+              {groups.map((g) => {
+                const groupBlocking = g.links.filter(
+                  (l) => l.isRequired && l.recordItem.status !== "APPROVED"
+                ).length;
+                const isCompany = g.icon === "company";
                 return (
-                  <div
-                    key={link.id}
-                    className="p-3 rounded-xl border"
-                    style={{
-                      borderColor: isBlocking ? "#FECACA" : "#E5E7EB",
-                      backgroundColor: isBlocking ? "rgba(220,38,38,0.03)" : "white",
-                    }}
-                  >
-                    <div className="flex items-start gap-2 mb-2">
-                      <Icon size={16} style={{ color: kind.color }} />
-                      <div className="flex-1 min-w-0">
-                        <p
-                          className="text-sm font-bold"
-                          style={{ color: "#1C1B2E" }}
-                        >
-                          {it.title}
-                        </p>
-                        {it.description && (
-                          <p
-                            className="text-xs mt-0.5 line-clamp-2"
-                            style={{ color: "#6B7280" }}
-                          >
-                            {it.description}
-                          </p>
-                        )}
-                      </div>
+                  <div key={g.key} className="space-y-2">
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                      style={{
+                        backgroundColor: isCompany
+                          ? "rgba(94,84,149,0.07)"
+                          : "rgba(201,168,76,0.10)",
+                        border: isCompany
+                          ? "1px solid rgba(94,84,149,0.18)"
+                          : "1px solid rgba(201,168,76,0.25)",
+                      }}
+                    >
+                      {isCompany ? (
+                        <Building2 size={15} style={{ color: "#5E5495" }} />
+                      ) : (
+                        <Users size={15} style={{ color: "#B45309" }} />
+                      )}
                       <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
+                        className="text-xs font-bold flex-1"
+                        style={{ color: isCompany ? "#5E5495" : "#92400E" }}
+                      >
+                        {g.label}
+                      </span>
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
                         style={{
-                          backgroundColor: `${status.color}15`,
-                          color: status.color,
+                          backgroundColor:
+                            groupBlocking > 0
+                              ? "rgba(220,38,38,0.12)"
+                              : "rgba(34,197,94,0.12)",
+                          color: groupBlocking > 0 ? "#DC2626" : "#16A34A",
                         }}
                       >
-                        {status.label}
+                        {groupBlocking > 0
+                          ? `${groupBlocking} ناقص`
+                          : `${g.links.length} ✓`}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                      {it.partner && (
-                        <span
-                          className="text-[10px] px-1.5 py-0.5 rounded-full"
-                          style={{
-                            backgroundColor: "rgba(201,168,76,0.12)",
-                            color: "#C9A84C",
-                          }}
-                        >
-                          {it.partner.name || `الشريك ${it.partner.partnerNumber}`}
-                        </span>
-                      )}
-                      {it.service && (
-                        <span
-                          className="text-[10px] px-1.5 py-0.5 rounded-full"
-                          style={{
-                            backgroundColor: "rgba(94,84,149,0.1)",
-                            color: "#5E5495",
-                          }}
-                        >
-                          {it.service.name}
-                        </span>
-                      )}
-                      {!link.isRequired && (
-                        <span
-                          className="text-[10px] px-1.5 py-0.5 rounded-full"
-                          style={{
-                            backgroundColor: "rgba(148,163,184,0.15)",
-                            color: "#64748B",
-                          }}
-                        >
-                          اختياري
-                        </span>
-                      )}
+                    <div className="space-y-2 ps-2">
+                      {g.links.map((link) => renderLink(link))}
                     </div>
-                    {/* Inline upload for DOCUMENT items that are still missing/draft */}
-                    {it.kind === "DOCUMENT" &&
-                      ["MISSING", "DRAFT", "REJECTED", "EXPIRED"].includes(it.status) && (
-                        <div className="mt-2">
-                          {(() => {
-                            const pct = progress[it.id];
-                            // Three states: uploading (pct < 100), saving (busyId set,
-                            // pct undefined or 100), idle (show button).
-                            if (pct !== undefined && pct < 100) {
-                              return (
-                                <div
-                                  className="p-2 rounded-lg"
-                                  style={{ backgroundColor: "#F8F8F4" }}
-                                >
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs flex items-center gap-1" style={{ color: "#5E5495" }}>
-                                      <Upload size={12} />
-                                      جاري رفع الملف…
-                                    </span>
-                                    <span className="text-xs font-bold" style={{ color: "#5E5495" }}>
-                                      {pct}%
-                                    </span>
-                                  </div>
-                                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#E5E7EB" }}>
-                                    <div
-                                      className="h-full transition-all duration-200 ease-out"
-                                      style={{ width: `${pct}%`, backgroundColor: "#5E5495" }}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            }
-                            if (busyId === it.id) {
-                              return (
-                                <div
-                                  className="flex items-center gap-2 p-2 rounded-lg"
-                                  style={{ backgroundColor: "#F8F8F4" }}
-                                >
-                                  <Loader2 size={14} className="animate-spin" style={{ color: "#C9A84C" }} />
-                                  <span className="text-xs" style={{ color: "#6B7280" }}>
-                                    جاري الحفظ…
-                                  </span>
-                                </div>
-                              );
-                            }
-                            return (
-                              <UploadButton
-                                endpoint="documentUploader"
-                                onUploadProgress={(p) =>
-                                  setProgress((prev) => ({ ...prev, [it.id]: p }))
-                                }
-                                onClientUploadComplete={(res) => {
-                                  const url = res?.[0]?.url;
-                                  setProgress((prev) => {
-                                    const { [it.id]: _drop, ...rest } = prev;
-                                    void _drop;
-                                    return rest;
-                                  });
-                                  if (url) uploadDocument(it, url);
-                                }}
-                                onUploadError={(e) => {
-                                  setProgress((prev) => {
-                                    const { [it.id]: _drop, ...rest } = prev;
-                                    void _drop;
-                                    return rest;
-                                  });
-                                  setError(e.message);
-                                }}
-                                appearance={{
-                                  button: {
-                                    backgroundColor: "#5E5495",
-                                    color: "white",
-                                    fontSize: "12px",
-                                    borderRadius: "8px",
-                                  },
-                                  container: { width: "100%" },
-                                }}
-                                content={{
-                                  button: (
-                                    <span className="flex items-center gap-1">
-                                      <Upload size={12} />
-                                      رفع ملف
-                                    </span>
-                                  ),
-                                }}
-                              />
-                            );
-                          })()}
-                        </div>
-                      )}
-                    {it.kind === "DOCUMENT" && it.fileUrl && (
-                      <a
-                        href={it.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] mt-1"
-                        style={{ color: "#5E5495" }}
-                      >
-                        <FileText size={12} />
-                        عرض الملف الحالي
-                      </a>
-                    )}
                   </div>
                 );
               })}
