@@ -301,6 +301,24 @@ export default function ServiceTemplateRequirementsEditor({
         setError((data as { error?: string }).error || "تعذّر الحفظ");
         return;
       }
+      // Tier 5 — surface live-sync summary if the API returned one.
+      const data = (await res.json().catch(() => ({}))) as {
+        syncSummary?: {
+          affectedProjects: number;
+          spawned: number;
+          updated: number;
+        };
+      };
+      if (data.syncSummary && data.syncSummary.affectedProjects > 0) {
+        const s = data.syncSummary;
+        const parts: string[] = [];
+        if (s.spawned) parts.push(`أُضيف ${s.spawned} عنصر`);
+        if (s.updated) parts.push(`حُدّث ${s.updated} عنصر`);
+        const summaryText = parts.length
+          ? ` — ${parts.join("، ")} عبر ${s.affectedProjects} مشروع نشط`
+          : "";
+        alert(`تم الحفظ${summaryText}`);
+      }
       resetForm();
       await load();
     } catch {
@@ -311,7 +329,26 @@ export default function ServiceTemplateRequirementsEditor({
   }
 
   async function remove(r: Requirement) {
-    if (!confirm(`حذف المتطلب "${r.label}"؟`)) return;
+    // Tier 5 — preview the blast radius before asking to confirm.
+    let previewLine = "";
+    try {
+      const pres = await fetch(
+        `/api/service-template-requirements/${r.id}/preview?action=delete`
+      );
+      if (pres.ok) {
+        const p = (await pres.json()) as {
+          affectedProjects: number;
+          toDelete: number;
+          toArchive: number;
+        };
+        if (p.affectedProjects > 0) {
+          previewLine = `\n\nسيتم تحديث ${p.affectedProjects} مشروع نشط:\n• حذف ${p.toDelete} عنصر غير مرفوع\n• أرشفة ${p.toArchive} عنصر مرفوع (يبقى للسجل)`;
+        }
+      }
+    } catch {
+      // Non-fatal — continue without preview.
+    }
+    if (!confirm(`حذف المتطلب "${r.label}"؟${previewLine}`)) return;
     setBusyId(r.id);
     try {
       const res = await fetch(`/api/service-template-requirements/${r.id}`, {
@@ -321,6 +358,19 @@ export default function ServiceTemplateRequirementsEditor({
         const data = await res.json().catch(() => ({}));
         alert((data as { error?: string }).error || "تعذّر الحذف");
         return;
+      }
+      const data = (await res.json().catch(() => ({}))) as {
+        syncSummary?: {
+          affectedProjects: number;
+          deleted: number;
+          archived: number;
+        };
+      };
+      if (data.syncSummary && data.syncSummary.affectedProjects > 0) {
+        const s = data.syncSummary;
+        alert(
+          `تم الحذف — ${s.deleted} حُذفت، ${s.archived} أُرشفت، عبر ${s.affectedProjects} مشروع.`
+        );
       }
       await load();
     } finally {

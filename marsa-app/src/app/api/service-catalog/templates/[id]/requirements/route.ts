@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { syncRequirementCreated } from "@/lib/template-sync";
 
 // ═══════════════════════════════════════════════════════════════════════
 // /api/service-catalog/templates/[id]/requirements
@@ -154,12 +155,17 @@ export async function POST(
       },
     });
 
-    // TODO(Tier 5): live-sync this requirement into every active
-    // project that uses this template (spawn missing record items).
-    // For now, the spawn helper picks it up the next time a project
-    // is instantiated from the template.
+    // Tier 5 — propagate the new requirement into every active project
+    // that already uses this service template. Best-effort; failures
+    // log a warning and don't block the create response.
+    let syncSummary;
+    try {
+      syncSummary = await syncRequirementCreated(created.id);
+    } catch (err) {
+      logger.warn("syncRequirementCreated threw", { error: String(err) });
+    }
 
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json({ ...created, syncSummary }, { status: 201 });
   } catch (e) {
     if (e instanceof Response) return e;
     logger.error("service-template requirements POST", e);

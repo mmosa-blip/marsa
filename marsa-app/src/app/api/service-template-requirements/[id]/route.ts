@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import {
+  syncRequirementUpdated,
+  syncRequirementDeleted,
+} from "@/lib/template-sync";
 import type { Prisma } from "@/generated/prisma/client";
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -110,10 +114,23 @@ export async function PATCH(
       },
     });
 
-    // TODO(Tier 5): propagate this update to record items already
-    // spawned from this requirement on active projects.
+    // Tier 5 — propagate the change into spawned record items.
+    let syncSummary;
+    try {
+      syncSummary = await syncRequirementUpdated(id, {
+        label: typeof body.label === "string" ? body.label.trim() : undefined,
+        documentTypeId:
+          "documentTypeId" in body
+            ? (body.documentTypeId ? String(body.documentTypeId) : null)
+            : undefined,
+        isRequired: typeof body.isRequired === "boolean" ? body.isRequired : undefined,
+        isPerPartner: typeof body.isPerPartner === "boolean" ? body.isPerPartner : undefined,
+      });
+    } catch (err) {
+      logger.warn("syncRequirementUpdated threw", { error: String(err) });
+    }
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ ...updated, syncSummary });
   } catch (e) {
     if (e instanceof Response) return e;
     logger.error("service-template-requirement PATCH", e);
@@ -136,14 +153,19 @@ export async function DELETE(
       return NextResponse.json({ error: "غير موجود" }, { status: 404 });
     }
 
+    // Tier 5 — split spawned rows into "untouched → soft delete" vs
+    // "uploaded → mark obsolete" BEFORE deleting the requirement (the
+    // FK switches to NULL on delete and we need it to find the rows).
+    let syncSummary;
+    try {
+      syncSummary = await syncRequirementDeleted(id);
+    } catch (err) {
+      logger.warn("syncRequirementDeleted threw", { error: String(err) });
+    }
+
     await prisma.serviceTemplateRequirement.delete({ where: { id } });
 
-    // TODO(Tier 5): mark already-spawned record items as obsolete on
-    // every active project that used this requirement, instead of
-    // leaving orphaned MISSING placeholders behind. The schema already
-    // has `isObsolete` + `obsoletedAt` for this case.
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, syncSummary });
   } catch (e) {
     if (e instanceof Response) return e;
     logger.error("service-template-requirement DELETE", e);
