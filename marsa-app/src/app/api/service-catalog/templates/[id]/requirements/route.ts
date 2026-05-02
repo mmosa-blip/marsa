@@ -18,13 +18,15 @@ import { logger } from "@/lib/logger";
 //
 // ADMIN / MANAGER only on POST.
 
+// Template requirements only allow kinds the admin can plan ahead.
+// NOTE and ISSUE are ad-hoc inputs the executor raises from the task
+// toolbar at runtime — explicitly rejected here so the picker and the
+// API stay aligned.
 const ALLOWED_KINDS = [
   "DOCUMENT",
   "PLATFORM_ACCOUNT",
   "SENSITIVE_DATA",
-  "NOTE",
   "PLATFORM_LINK",
-  "ISSUE",
 ] as const;
 
 export async function GET(
@@ -85,9 +87,20 @@ export async function POST(
       return NextResponse.json({ error: "العنوان مطلوب" }, { status: 400 });
     }
 
-    const kind = (ALLOWED_KINDS as readonly string[]).includes(String(body.kind))
-      ? (body.kind as (typeof ALLOWED_KINDS)[number])
-      : "DOCUMENT";
+    const rawKind = String(body.kind ?? "DOCUMENT");
+    if (rawKind === "NOTE" || rawKind === "ISSUE") {
+      return NextResponse.json(
+        {
+          error:
+            "الملاحظات والإشكاليات تُضاف من شريط المهمة وليست متطلبات قالب",
+        },
+        { status: 400 }
+      );
+    }
+    if (!(ALLOWED_KINDS as readonly string[]).includes(rawKind)) {
+      return NextResponse.json({ error: "نوع غير صالح" }, { status: 400 });
+    }
+    const kind = rawKind as (typeof ALLOWED_KINDS)[number];
 
     // For non-DOCUMENT kinds documentTypeId is meaningless — drop it
     // rather than raising a 400, keeps the form forgiving when the

@@ -10,13 +10,14 @@ import type { Prisma } from "@/generated/prisma/client";
 // Per-row PATCH/DELETE for ServiceTemplateRequirement. ADMIN / MANAGER
 // only. Live-sync into active projects is left as a TODO (Tier 5).
 
+// NOTE / ISSUE are not template requirements — they are ad-hoc inputs
+// raised by the executor at runtime. See the matching list in
+// /api/service-catalog/templates/[id]/requirements/route.ts.
 const ALLOWED_KINDS = [
   "DOCUMENT",
   "PLATFORM_ACCOUNT",
   "SENSITIVE_DATA",
-  "NOTE",
   "PLATFORM_LINK",
-  "ISSUE",
 ] as const;
 
 export async function PATCH(
@@ -46,7 +47,17 @@ export async function PATCH(
       data.description = body.description?.toString().trim() || null;
     }
     if ("kind" in body) {
-      if (!(ALLOWED_KINDS as readonly string[]).includes(String(body.kind))) {
+      const rawKind = String(body.kind);
+      if (rawKind === "NOTE" || rawKind === "ISSUE") {
+        return NextResponse.json(
+          {
+            error:
+              "الملاحظات والإشكاليات تُضاف من شريط المهمة وليست متطلبات قالب",
+          },
+          { status: 400 }
+        );
+      }
+      if (!(ALLOWED_KINDS as readonly string[]).includes(rawKind)) {
         return NextResponse.json({ error: "نوع غير صالح" }, { status: 400 });
       }
       data.kind = body.kind;

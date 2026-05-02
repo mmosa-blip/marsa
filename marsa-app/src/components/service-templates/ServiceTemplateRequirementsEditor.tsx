@@ -60,20 +60,19 @@ type PickerOption =
       kind: Exclude<Kind, "DOCUMENT">;
     };
 
+// Template requirements only support kinds the admin can plan ahead
+// of time. NOTE and ISSUE are ad-hoc inputs the executor adds from
+// the task toolbar — they don't belong in service-template planning.
 const FIXED_OPTIONS: PickerOption[] = [
   { id: "__platform_account", group: "fixed", label: "حساب منصة جديد",      kind: "PLATFORM_ACCOUNT" },
   { id: "__platform_link",    group: "fixed", label: "رابط منصة جديد",       kind: "PLATFORM_LINK"    },
   { id: "__sensitive_data",   group: "fixed", label: "بيانات حساسة",          kind: "SENSITIVE_DATA"   },
-  { id: "__note",             group: "fixed", label: "ملاحظة",                 kind: "NOTE"             },
-  { id: "__issue",            group: "fixed", label: "مشكلة / إشكالية",       kind: "ISSUE"            },
 ];
 
 const FIXED_ICON: Record<string, string> = {
   __platform_account: "🔐",
   __platform_link:    "🔗",
   __sensitive_data:   "🗝️",
-  __note:             "✏️",
-  __issue:            "⚠️",
 };
 
 const KIND_COLOR: Record<Kind, string> = {
