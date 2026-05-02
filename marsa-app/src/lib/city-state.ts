@@ -60,17 +60,23 @@ export function getBuildingState(p: BuildingStateInput): BuildingState {
   const deadline = getEffectiveDeadline(p);
   const end = deadline ? deadline.getTime() : null;
 
-  // Worst-first priority order:
-  //   1. COLLAPSED       — actual deadline blown (project's fault)
-  //   2. PAYMENT_FROZEN  — locked non-first installment (client's fault)
-  //   3. ADMIN_PAUSED    — formally paused or ON_HOLD (admin decision)
+  // Priority order — "innocent" states win first so we never blame a
+  // team for a deadline that slipped while they were prevented from
+  // working. PAYMENT_FROZEN means the client owes a locked installment;
+  // ADMIN_PAUSED means an admin formally halted the project. In both
+  // cases the deadline keeps ticking but it is NOT the team's fault, so
+  // showing the building as COLLAPSED would mislead.
+  //
+  //   1. PAYMENT_FROZEN  — locked non-first installment (client owes)
+  //   2. ADMIN_PAUSED    — formally paused or ON_HOLD (admin decision)
+  //   3. COLLAPSED       — deadline blown with no protective state
   //   4. AT_RISK         — ≥ 80% of duration consumed
   //   5. TASK_LATE       — at least one task past its dueDate
   //   6. IN_PROGRESS     — default
 
-  if (end !== null && end < now) return "COLLAPSED";
   if (p.paymentFrozen) return "PAYMENT_FROZEN";
   if (p.isPaused || p.status === "ON_HOLD") return "ADMIN_PAUSED";
+  if (end !== null && end < now) return "COLLAPSED";
 
   // 80%+ of contracted duration consumed but project not delivered.
   const start =
