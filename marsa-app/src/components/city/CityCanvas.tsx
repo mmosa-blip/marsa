@@ -57,6 +57,10 @@ export interface CityApiProject {
   totalTasks: number;
   completedTasks: number;
   department?: { id: string; name: string; color: string | null } | null;
+  // Project's client. Optional because the executor view does not need
+  // it; the admin view renders the client name as a second badge below
+  // the executor label.
+  client?: { id: string; name: string } | null;
   services?: CityApiService[];
   tasks?: { id: string; status: string; dueDate: string | null }[];
   // Distinct executors (admin all-cities mode only).
@@ -85,6 +89,10 @@ export interface BuildingLayout extends CityApiProject {
   isComplete: boolean;
   state: BuildingState;
   executorLabel: string;
+  // Truncated client name for the second admin-only badge. Empty in
+  // executor mode or when the project has no client (shouldn't happen
+  // in practice but typing covers it).
+  clientLabel: string;
 }
 
 // Uniform window/grid constants.
@@ -348,12 +356,15 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
 
       const execList = p.executors || [];
       let executorLabel = "";
+      let clientLabel = "";
       if (viewMode === "admin") {
         if (execList.length === 1) {
           executorLabel = execList[0].name;
         } else if (execList.length > 1) {
           executorLabel = `${execList[0].name} +${execList.length - 1}`;
         }
+        // Admin-only secondary badge — keeps client visible at a glance.
+        if (p.client?.name) clientLabel = p.client.name;
       }
 
       return {
@@ -377,6 +388,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         isComplete,
         state,
         executorLabel,
+        clientLabel,
       };
     });
 
@@ -1307,21 +1319,44 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         ctx.strokeRect(baseX - 3, topY - 8, b.baseWidth + 6, b.baseHeight + 12);
       }
 
-      // Executor name badge — admin mode only.
+      // Executor name badge — admin mode only. Stacks above the building
+      // with the client name as a smaller secondary badge underneath, so
+      // an admin scanning the city sees both "who's working" and "for whom"
+      // without clicking each tower.
       if (b.executorLabel) {
-        const labelY = topY - (b.isComplete ? 40 : 70);
-        ctx.font = "bold 9px sans-serif";
+        const executorBaseY = topY - (b.isComplete ? 40 : 70);
         ctx.textAlign = "center";
-        const text = b.executorLabel.length > 20 ? b.executorLabel.slice(0, 18) + "…" : b.executorLabel;
-        const padX = 4;
-        const textW = ctx.measureText(text).width + padX * 2;
-        const labelH = 13;
+
+        // Primary badge — executor (dark indigo, white text).
+        ctx.font = "bold 9px sans-serif";
+        const execText =
+          b.executorLabel.length > 20 ? b.executorLabel.slice(0, 18) + "…" : b.executorLabel;
+        const execPadX = 4;
+        const execW = ctx.measureText(execText).width + execPadX * 2;
+        const execH = 13;
         ctx.fillStyle = "rgba(28,27,46,0.85)";
         ctx.beginPath();
-        ctx.roundRect(b.x - textW / 2, labelY - labelH + 2, textW, labelH, 6);
+        ctx.roundRect(b.x - execW / 2, executorBaseY - execH + 2, execW, execH, 6);
         ctx.fill();
         ctx.fillStyle = "#FFFFFF";
-        ctx.fillText(text, b.x, labelY);
+        ctx.fillText(execText, b.x, executorBaseY);
+
+        // Secondary badge — client (gold-tinted, smaller, sits 5px under).
+        if (b.clientLabel) {
+          const clientText =
+            b.clientLabel.length > 20 ? b.clientLabel.slice(0, 18) + "…" : b.clientLabel;
+          ctx.font = "600 8px sans-serif";
+          const cliPadX = 4;
+          const cliW = ctx.measureText(clientText).width + cliPadX * 2;
+          const cliH = 12;
+          const cliBaseY = executorBaseY + 5 + cliH; // 5px gap, then text baseline
+          ctx.fillStyle = "rgba(201,168,76,0.92)"; // Marsa gold @ 92%
+          ctx.beginPath();
+          ctx.roundRect(b.x - cliW / 2, cliBaseY - cliH + 2, cliW, cliH, 5);
+          ctx.fill();
+          ctx.fillStyle = "#1C1B2E"; // dark indigo for contrast on gold
+          ctx.fillText(clientText, b.x, cliBaseY);
+        }
       }
 
       ctx.restore();
@@ -1783,7 +1818,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
               </div>
             )}
             {selected.executors && selected.executors.length > 0 && (
-              <div className="mb-4">
+              <div className="mb-3">
                 <p className="text-[11px] font-semibold mb-1.5" style={{ color: "#6B7280" }}>
                   المنفذون:
                 </p>
@@ -1798,6 +1833,19 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+            {selected.client?.name && (
+              <div className="mb-4">
+                <p className="text-[11px] font-semibold mb-1.5" style={{ color: "#6B7280" }}>
+                  العميل:
+                </p>
+                <span
+                  className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{ backgroundColor: "rgba(201,168,76,0.15)", color: "#B45309" }}
+                >
+                  {selected.client.name}
+                </span>
               </div>
             )}
             <div className="grid grid-cols-3 gap-2 mb-4">
