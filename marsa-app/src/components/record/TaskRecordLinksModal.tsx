@@ -123,12 +123,10 @@ export default function TaskRecordLinksModal({
       }
       const data = (await res.json()) as RecordLink[];
       setLinks(data);
-      const stillBlocking = data.filter(
-        (l) => l.isRequired && l.recordItem.status !== "APPROVED"
-      );
-      if (stillBlocking.length === 0 && data.length > 0 && onAllResolved) {
-        onAllResolved();
-      }
+      // Don't auto-fire onAllResolved here — surface an explicit
+      // "إكمال المهمة الآن" button instead so the executor controls
+      // the moment of completion (and isn't surprised by the modal
+      // closing on them mid-action).
     } catch {
       setError("حدث خطأ في الاتصال");
     } finally {
@@ -233,16 +231,21 @@ export default function TaskRecordLinksModal({
             <>
               {allResolved && (
                 <div
-                  className="p-3 rounded-xl flex items-center gap-2"
+                  className="p-3 rounded-xl flex items-center gap-3"
                   style={{
                     backgroundColor: "rgba(34,197,94,0.08)",
                     border: "1px solid rgba(34,197,94,0.3)",
                   }}
                 >
-                  <CheckCircle2 size={18} style={{ color: "#16A34A" }} />
-                  <span className="text-sm font-bold" style={{ color: "#16A34A" }}>
-                    كل المتطلبات معتمدة. يمكنك الآن إنهاء المهمة.
-                  </span>
+                  <CheckCircle2 size={20} style={{ color: "#16A34A" }} className="shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-bold" style={{ color: "#16A34A" }}>
+                      كل المتطلبات الإجبارية معتمدة
+                    </p>
+                    <p className="text-[11px] mt-0.5" style={{ color: "#15803D" }}>
+                      اضغط "إكمال المهمة الآن" لإنهائها.
+                    </p>
+                  </div>
                 </div>
               )}
               {links.map((link) => {
@@ -445,10 +448,22 @@ export default function TaskRecordLinksModal({
           )}
         </div>
 
-        <div className="p-5 border-t border-gray-100 sticky bottom-0 bg-white flex justify-end">
+        <div className="p-5 border-t border-gray-100 sticky bottom-0 bg-white flex items-center justify-between gap-3">
           <MarsaButton variant="secondary" onClick={onClose} disabled={!!busyId}>
             إغلاق
           </MarsaButton>
+          {allResolved && onAllResolved && (
+            <button
+              type="button"
+              onClick={onAllResolved}
+              disabled={!!busyId}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all hover:brightness-105 active:brightness-95 disabled:opacity-50"
+              style={{ backgroundColor: "#16A34A", color: "white" }}
+            >
+              <CheckCircle2 size={16} />
+              إكمال المهمة الآن
+            </button>
+          )}
         </div>
       </div>
     </div>
