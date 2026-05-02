@@ -5,6 +5,8 @@ import { parsePagination, paginationMeta } from "@/lib/pagination";
 import { buildRecordVisibilityWhere } from "@/lib/record-visibility";
 import { encryptSecret } from "@/lib/secrets";
 import { appendRecordAudit } from "@/lib/record-audit";
+import { pusherServer } from "@/lib/pusher";
+import { logger } from "@/lib/logger";
 import type { Prisma } from "@/generated/prisma/client";
 
 const ALLOWED_KINDS = [
@@ -380,6 +382,22 @@ export async function POST(
             assignedToId: issue.assignedToId || null,
           },
         });
+        // Real-time alert for HIGH / CRITICAL — fans out on a public
+        // "admin-issues" channel that the dashboard layout subscribes
+        // to. ADMIN/MANAGER clients pop a mandatory acknowledge modal.
+        if (severity === "HIGH" || severity === "CRITICAL") {
+          try {
+            await pusherServer.trigger("admin-issues", "issue-raised", {
+              issueRecordItemId: item.id,
+              projectId,
+              severity,
+              title,
+              reportedById: userId,
+            });
+          } catch (err) {
+            logger.warn("admin-issues pusher failed", { err: String(err) });
+          }
+        }
       }
     } catch (siblingErr) {
       await prisma.projectRecordItem

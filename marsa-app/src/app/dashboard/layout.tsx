@@ -7,6 +7,7 @@ import { useSession, signOut } from "next-auth/react";
 import { ROUTES } from "@/lib/routes";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import PendingAcknowledgeModal from "@/components/PendingAcknowledgeModal";
+import AdminIssueAlert from "@/components/record/AdminIssueAlert";
 import { ToastProvider } from "@/components/Toast";
 import GlobalSearch from "@/components/GlobalSearch";
 import { useLang } from "@/contexts/LanguageContext";
@@ -88,6 +89,7 @@ const adminGroups: NavGroup[] = [
       // Pinned at the very top above all departments so admins / managers
       // can reach the assignment command center in a single click.
       { href: "/dashboard/operations-room", label: "إدارة العمليات", tKey: "operationsRoom", roles: ["ADMIN", "MANAGER"] },
+      { href: "/dashboard/issues", label: "المشاكل", tKey: "issues", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/approvals", label: "الموافقات", tKey: "approvals", roles: ["ADMIN", "MANAGER"] },
       { href: "/dashboard/user-preview", label: "شاشات المنفذين", tKey: "userPreview", roles: ["ADMIN"] },
       { href: "/dashboard/all-cities", label: "مدينة المنفذين", tKey: "allCities", roles: ["ADMIN", "MANAGER"] },
@@ -810,6 +812,10 @@ function DashboardLayoutInner({
       {/* Mandatory-acknowledgement modal — sits above everything else and
           self-hides when there is nothing in the recipient's queue. */}
       <PendingAcknowledgeModal />
+
+      {/* Realtime HIGH/CRITICAL issue popup for ADMIN/MANAGER. Self-mounts
+          a Pusher subscription internally and renders nothing for everyone else. */}
+      <AdminIssueAlert />
 
       {/* ═══ Mobile bottom navigation ═══ */}
       <div
