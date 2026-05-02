@@ -21,11 +21,15 @@ import {
   Lock,
   Archive,
   FolderOpen,
+  StickyNote,
+  AlertTriangle,
 } from "lucide-react";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import ProjectCodeBadge from "@/components/ProjectCodeBadge";
 import TaskCompletionRequirementsModal from "@/components/TaskCompletionRequirementsModal";
 import TaskRecordLinksModal from "@/components/record/TaskRecordLinksModal";
+import AddNoteModal from "@/components/record/AddNoteModal";
+import AddIssueModal from "@/components/record/AddIssueModal";
 import { useSession } from "next-auth/react";
 import { useLang } from "@/contexts/LanguageContext";
 import { useSidebarCounts } from "@/contexts/SidebarCountsContext";
@@ -183,6 +187,19 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [completionModal, setCompletionModal] = useState<{ taskId: string; title: string } | null>(null);
   const [recordLinksModal, setRecordLinksModal] = useState<{ taskId: string; title: string } | null>(null);
+  // Ad-hoc per-task NOTE/ISSUE modals — opened from the task toolbar.
+  const [noteModal, setNoteModal] = useState<{
+    taskId: string;
+    title: string;
+    projectId: string;
+    serviceId: string | null;
+  } | null>(null);
+  const [issueModal, setIssueModal] = useState<{
+    taskId: string;
+    title: string;
+    projectId: string;
+    serviceId: string | null;
+  } | null>(null);
   // Partial-payment-request modal — opened from the inline "في انتظار دفعة"
   // row on a payment-blocked task. The executor enters the amount they
   // want the admin to accept as a partial payment, and we POST to the
@@ -713,6 +730,51 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  // Renders the two ad-hoc record buttons (note + issue) for a task.
+  // Hidden on DONE/CANCELLED tasks where they'd just be clutter.
+  const renderRecordButtons = (task: Task) => {
+    if (task.status === "DONE" || task.status === "CANCELLED") return null;
+    if (!task.project?.id) return null;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() =>
+            setNoteModal({
+              taskId: task.id,
+              title: task.title,
+              projectId: task.project!.id,
+              serviceId: task.service?.id ?? null,
+            })
+          }
+          className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full transition-colors hover:brightness-95"
+          style={{ backgroundColor: "rgba(201,168,76,0.12)", color: "#B45309" }}
+          title="إضافة ملاحظة"
+        >
+          <StickyNote size={11} />
+          ملاحظة
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setIssueModal({
+              taskId: task.id,
+              title: task.title,
+              projectId: task.project!.id,
+              serviceId: task.service?.id ?? null,
+            })
+          }
+          className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full transition-colors hover:brightness-95"
+          style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#DC2626" }}
+          title="بلاغ مشكلة"
+        >
+          <AlertTriangle size={11} />
+          مشكلة
+        </button>
+      </>
+    );
   };
 
   const getActionButton = (task: Task) => {
@@ -1257,6 +1319,7 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                     {/* Row 4: Actions */}
                     <div className="flex items-center gap-2 flex-wrap">
                       {getActionButton(task)}
+                      {renderRecordButtons(task)}
                       {isOverdue && task.status !== "DONE" && task.status !== "CANCELLED" && !task.taskGraceDays && (
                         <button
                           type="button"
@@ -1554,8 +1617,9 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
                               </MarsaButton>
                             </div>
                           ) : (
-                            <div className="flex items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-1 flex-wrap">
                               {getActionButton(task)}
+                              {renderRecordButtons(task)}
                               {task.status !== "DONE" && task.status !== "CANCELLED" && !task.isTransferred && task.canStart !== false && (
                                 <MarsaButton
                                   onClick={() => setTransferModal(task.id)}
@@ -2203,6 +2267,28 @@ export default function MyTasksView({ projectId }: MyTasksViewProps = {}) {
               setRecordLinksModal(null);
             });
           }}
+        />
+      )}
+
+      {noteModal && (
+        <AddNoteModal
+          taskId={noteModal.taskId}
+          taskTitle={noteModal.title}
+          projectId={noteModal.projectId}
+          serviceId={noteModal.serviceId}
+          onClose={() => setNoteModal(null)}
+          onAdded={() => fetchTasks()}
+        />
+      )}
+
+      {issueModal && (
+        <AddIssueModal
+          taskId={issueModal.taskId}
+          taskTitle={issueModal.title}
+          projectId={issueModal.projectId}
+          serviceId={issueModal.serviceId}
+          onClose={() => setIssueModal(null)}
+          onAdded={() => fetchTasks()}
         />
       )}
 

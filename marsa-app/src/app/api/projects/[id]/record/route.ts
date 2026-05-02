@@ -388,6 +388,39 @@ export async function POST(
       throw siblingErr;
     }
 
+    // Optional taskId: when the producer is a task-toolbar action
+    // (e.g. executor adds a NOTE / ISSUE while working on a task) we
+    // also create a TaskRequirementLink so the item shows up under
+    // that task in the unified record view. Always non-blocking
+    // (isRequired: false) — these are runtime annotations, not gates.
+    if (body.taskId) {
+      try {
+        const linkedTask = await prisma.task.findFirst({
+          where: { id: String(body.taskId), projectId },
+          select: { id: true },
+        });
+        if (linkedTask) {
+          await prisma.taskRequirementLink.upsert({
+            where: {
+              taskId_recordItemId: {
+                taskId: linkedTask.id,
+                recordItemId: item.id,
+              },
+            },
+            create: {
+              taskId: linkedTask.id,
+              recordItemId: item.id,
+              isRequired: false,
+            },
+            update: {},
+          });
+        }
+      } catch (linkErr) {
+        // Don't fail the whole create on a bad link — just log and move on.
+        console.warn("record POST taskLink failed", linkErr);
+      }
+    }
+
     await appendRecordAudit({
       recordItemId: item.id,
       action: "CREATED",
@@ -399,6 +432,7 @@ export async function POST(
         visibility,
         partnerId: data.partnerId,
         serviceId: data.serviceId,
+        taskId: body.taskId || null,
       },
     });
 
