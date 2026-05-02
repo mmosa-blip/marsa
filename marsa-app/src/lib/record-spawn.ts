@@ -294,6 +294,8 @@ export async function getMissingProjectRecordItems(
       projectId,
       deletedAt: null,
       isObsolete: false,
+      // NOTE / ISSUE never block project close — runtime annotations.
+      kind: { notIn: ["NOTE", "ISSUE"] },
       status: { in: ["MISSING", "PENDING_REVIEW", "REJECTED", "DRAFT", "EXPIRED"] },
       sourceTemplateRequirement: { isRequired: true },
     },
@@ -315,10 +317,19 @@ export async function getMissingProjectRecordItems(
   }));
 }
 
+// NOTE and ISSUE are runtime annotations the executor raises from
+// the task toolbar — they never gate completion, even if some legacy
+// row or manual admin link mistakenly carries isRequired=true. Listed
+// in one place so the project-close guard and the task-DONE guard
+// stay in lockstep.
+const NON_BLOCKING_KINDS: ReadonlySet<string> = new Set(["NOTE", "ISSUE"]);
+
 /**
  * Returns the linked record items for a task that aren't APPROVED yet.
  * Used by the task-completion guard. Only TaskRequirementLink rows
- * with `isRequired = true` block completion.
+ * with `isRequired = true` block completion, AND only items whose
+ * kind is a planned artefact (DOCUMENT / PLATFORM_ACCOUNT /
+ * PLATFORM_LINK / SENSITIVE_DATA). NOTE / ISSUE are never blockers.
  */
 export async function getBlockingTaskRecordLinks(taskId: string) {
   const links = await prisma.taskRequirementLink.findMany({
@@ -340,6 +351,7 @@ export async function getBlockingTaskRecordLinks(taskId: string) {
     .filter((l) => {
       const ri = l.recordItem;
       if (!ri || ri.deletedAt || ri.isObsolete) return false;
+      if (NON_BLOCKING_KINDS.has(ri.kind)) return false;
       return ri.status !== "APPROVED";
     })
     .map((l) => ({
