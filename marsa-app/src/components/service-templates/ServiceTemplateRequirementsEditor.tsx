@@ -54,11 +54,27 @@ type PickerOption =
       defaultIsPerPartner: boolean; // inherited from DocType.isPerPartner
     }
   | {
+      // Custom document with a free-form title — kind=DOCUMENT but
+      // no DocType. Forces the admin to type a label.
+      id: "__custom_doc";
+      group: "custom_doc";
+      label: string;
+    }
+  | {
       id: string;            // "__platform_account" etc.
       group: "fixed";
       label: string;
       kind: Exclude<Kind, "DOCUMENT">;
     };
+
+// Free-form document option — appended after every DocType in the
+// picker so the admin can pin a one-off requirement without polluting
+// the global DocType list.
+const CUSTOM_DOC_OPTION: PickerOption = {
+  id: "__custom_doc",
+  group: "custom_doc",
+  label: "مستند آخر (اسم مخصص)",
+};
 
 // Template requirements only support kinds the admin can plan ahead
 // of time. NOTE and ISSUE are ad-hoc inputs the executor adds from
@@ -173,6 +189,8 @@ export default function ServiceTemplateRequirementsEditor({
   }, [expanded, load]);
 
   // Build the unified picker options list from current docTypes.
+  // CUSTOM_DOC_OPTION sits at the tail of the doctype group — visually
+  // grouped with the documents but processed differently on select.
   const pickerOptions: PickerOption[] = [
     ...docTypes.map<PickerOption>((dt) => ({
       id: dt.id,
@@ -181,6 +199,7 @@ export default function ServiceTemplateRequirementsEditor({
       docTypeId: dt.id,
       defaultIsPerPartner: dt.isPerPartner,
     })),
+    CUSTOM_DOC_OPTION,
     ...FIXED_OPTIONS,
   ];
 
@@ -206,6 +225,9 @@ export default function ServiceTemplateRequirementsEditor({
     if (opt.group === "doctype") {
       return { kind: "DOCUMENT", documentTypeId: opt.docTypeId };
     }
+    if (opt.group === "custom_doc") {
+      return { kind: "DOCUMENT", documentTypeId: null };
+    }
     return { kind: opt.kind, documentTypeId: null };
   }
 
@@ -219,8 +241,9 @@ export default function ServiceTemplateRequirementsEditor({
   // Pre-fill the picker when editing an existing requirement.
   function startEdit(r: Requirement) {
     let pickerOptionId = "";
-    if (r.kind === "DOCUMENT" && r.documentTypeId) {
-      pickerOptionId = r.documentTypeId;
+    if (r.kind === "DOCUMENT") {
+      // DocType-backed → use its id; custom title → __custom_doc.
+      pickerOptionId = r.documentTypeId || CUSTOM_DOC_OPTION.id;
     } else {
       const fixed = FIXED_OPTIONS.find((f) => f.group === "fixed" && f.kind === r.kind);
       pickerOptionId = fixed?.id ?? "";
@@ -368,6 +391,15 @@ export default function ServiceTemplateRequirementsEditor({
             {r.documentType && r.label !== r.documentType.name && (
               <span className="text-[9px] px-1 py-0.5 rounded" style={{ backgroundColor: "rgba(94,84,149,0.08)", color: "#5E5495" }}>
                 {r.documentType.name}
+              </span>
+            )}
+            {r.kind === "DOCUMENT" && !r.documentType && (
+              <span
+                className="text-[9px] px-1 py-0.5 rounded"
+                style={{ backgroundColor: "rgba(148,163,184,0.18)", color: "#475569" }}
+                title="مستند بدون نوع محدد"
+              >
+                مخصص
               </span>
             )}
             {r.isRequired && (
@@ -568,6 +600,7 @@ function RequirementForm({
   }, []);
 
   const doctypeOptions = pickerOptions.filter((o) => o.group === "doctype");
+  const customDocOption = pickerOptions.find((o) => o.group === "custom_doc");
   const fixedOptions   = pickerOptions.filter((o) => o.group === "fixed");
   const q = query.trim().toLowerCase();
 
@@ -577,26 +610,42 @@ function RequirementForm({
   }
 
   const filteredDoctype = filterGroup(doctypeOptions);
+  const filteredCustomDoc = customDocOption && (!q || customDocOption.label.toLowerCase().includes(q))
+    ? customDocOption
+    : null;
   const filteredFixed   = filterGroup(fixedOptions);
-  const hasResults      = filteredDoctype.length > 0 || filteredFixed.length > 0;
+  const hasResults      =
+    filteredDoctype.length > 0 || !!filteredCustomDoc || filteredFixed.length > 0;
 
   function selectOption(opt: PickerOption) {
-    const autoLabel = form.label.trim() === "" || form.label === form.pickerOptionId;
-    setForm((f) => ({
-      ...f,
-      pickerOptionId: opt.id,
-      label: autoLabel ? opt.label : f.label,
-      isPerPartner:
-        opt.group === "doctype" && opt.defaultIsPerPartner ? true : f.isPerPartner,
-    }));
+    if (opt.group === "custom_doc") {
+      // Force the admin to type a label — don't carry over an
+      // auto-filled DocType name from a previous selection.
+      setForm((f) => ({
+        ...f,
+        pickerOptionId: opt.id,
+        label: "",
+      }));
+    } else {
+      const autoLabel = form.label.trim() === "" || form.label === form.pickerOptionId;
+      setForm((f) => ({
+        ...f,
+        pickerOptionId: opt.id,
+        label: autoLabel ? opt.label : f.label,
+        isPerPartner:
+          opt.group === "doctype" && opt.defaultIsPerPartner ? true : f.isPerPartner,
+      }));
+    }
     setQuery("");
     setOpen(false);
   }
 
   const selected = pickerOptions.find((o) => o.id === form.pickerOptionId);
+  const isCustomDoc = selected?.group === "custom_doc";
   const selectedIcon =
     !selected ? null
     : selected.group === "doctype" ? "📄"
+    : selected.group === "custom_doc" ? "📄"
     : FIXED_ICON[selected.id] ?? "📎";
 
   return (
@@ -652,7 +701,7 @@ function RequirementForm({
               <p className="text-xs px-4 py-3" style={{ color: "#9CA3AF" }}>لا توجد نتائج للبحث</p>
             )}
 
-            {filteredDoctype.length > 0 && (
+            {(filteredDoctype.length > 0 || filteredCustomDoc) && (
               <div>
                 <p className="text-[10px] font-bold px-3 py-1.5 sticky top-0 bg-gray-50" style={{ color: "#6B7280" }}>
                   📄 مستندات
@@ -672,12 +721,37 @@ function RequirementForm({
                     )}
                   </button>
                 ))}
+                {filteredCustomDoc && (
+                  <button
+                    type="button"
+                    onMouseDown={() => selectOption(filteredCustomDoc)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-right transition-colors hover:bg-purple-50"
+                    style={{
+                      color: "#5E5495",
+                      borderTop:
+                        filteredDoctype.length > 0
+                          ? "1px dashed rgba(94,84,149,0.2)"
+                          : "none",
+                    }}
+                  >
+                    <span>📄</span>
+                    <span className="flex-1 italic">{filteredCustomDoc.label}</span>
+                    <span
+                      className="text-[9px] px-1 rounded shrink-0"
+                      style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}
+                    >
+                      مخصص
+                    </span>
+                  </button>
+                )}
               </div>
             )}
 
             {filteredFixed.length > 0 && (
               <div>
-                {filteredDoctype.length > 0 && <div className="mx-3 border-t border-gray-100" />}
+                {(filteredDoctype.length > 0 || filteredCustomDoc) && (
+                  <div className="mx-3 border-t border-gray-100" />
+                )}
                 <p className="text-[10px] font-bold px-3 py-1.5 sticky top-0 bg-gray-50" style={{ color: "#6B7280" }}>
                   أنواع أخرى
                 </p>
@@ -711,18 +785,25 @@ function RequirementForm({
         )}
       </div>
 
-      {/* ── Label (auto-filled, editable) ── */}
+      {/* ── Label (auto-filled for DocTypes, manual for custom) ── */}
       <div>
         <label className="block text-xs font-semibold mb-1" style={{ color: "#374151" }}>
           العنوان <span style={{ color: "#DC2626" }}>*</span>
-          <span className="text-[10px] font-normal ms-1" style={{ color: "#9CA3AF" }}>(تُملأ تلقائياً)</span>
+          <span className="text-[10px] font-normal ms-1" style={{ color: "#9CA3AF" }}>
+            {isCustomDoc ? "(اكتب اسم المستند)" : "(تُملأ تلقائياً)"}
+          </span>
         </label>
         <input
           type="text"
           value={form.label}
           onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-200"
-          placeholder="مثال: السجل التجاري"
+          className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-amber-200"
+          style={{
+            borderColor: isCustomDoc ? "rgba(94,84,149,0.4)" : "#E5E7EB",
+            backgroundColor: isCustomDoc ? "rgba(94,84,149,0.03)" : "white",
+          }}
+          placeholder={isCustomDoc ? "اكتب اسم المستند المطلوب" : "مثال: السجل التجاري"}
+          autoFocus={isCustomDoc}
         />
       </div>
 
