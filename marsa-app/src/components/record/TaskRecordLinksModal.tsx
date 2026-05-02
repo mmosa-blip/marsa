@@ -100,6 +100,9 @@ export default function TaskRecordLinksModal({
   const [links, setLinks] = useState<RecordLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Per-item upload progress (0-100). Cleared when the file lands and
+  // the PATCH to /api/record-items/[id] resolves.
+  const [progress, setProgress] = useState<Record<string, number>>({});
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -324,47 +327,90 @@ export default function TaskRecordLinksModal({
                     {it.kind === "DOCUMENT" &&
                       ["MISSING", "DRAFT", "REJECTED", "EXPIRED"].includes(it.status) && (
                         <div className="mt-2">
-                          {busyId === it.id ? (
-                            <div
-                              className="flex items-center gap-2 p-2 rounded-lg"
-                              style={{ backgroundColor: "#F8F8F4" }}
-                            >
-                              <Loader2
-                                size={14}
-                                className="animate-spin"
-                                style={{ color: "#C9A84C" }}
-                              />
-                              <span className="text-xs" style={{ color: "#6B7280" }}>
-                                جاري الحفظ…
-                              </span>
-                            </div>
-                          ) : (
-                            <UploadButton
-                              endpoint="documentUploader"
-                              onClientUploadComplete={(res) => {
-                                const url = res?.[0]?.url;
-                                if (url) uploadDocument(it, url);
-                              }}
-                              onUploadError={(e) => setError(e.message)}
-                              appearance={{
-                                button: {
-                                  backgroundColor: "#5E5495",
-                                  color: "white",
-                                  fontSize: "12px",
-                                  borderRadius: "8px",
-                                },
-                                container: { width: "100%" },
-                              }}
-                              content={{
-                                button: (
-                                  <span className="flex items-center gap-1">
-                                    <Upload size={12} />
-                                    رفع ملف
+                          {(() => {
+                            const pct = progress[it.id];
+                            // Three states: uploading (pct < 100), saving (busyId set,
+                            // pct undefined or 100), idle (show button).
+                            if (pct !== undefined && pct < 100) {
+                              return (
+                                <div
+                                  className="p-2 rounded-lg"
+                                  style={{ backgroundColor: "#F8F8F4" }}
+                                >
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs flex items-center gap-1" style={{ color: "#5E5495" }}>
+                                      <Upload size={12} />
+                                      جاري رفع الملف…
+                                    </span>
+                                    <span className="text-xs font-bold" style={{ color: "#5E5495" }}>
+                                      {pct}%
+                                    </span>
+                                  </div>
+                                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "#E5E7EB" }}>
+                                    <div
+                                      className="h-full transition-all duration-200 ease-out"
+                                      style={{ width: `${pct}%`, backgroundColor: "#5E5495" }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            }
+                            if (busyId === it.id) {
+                              return (
+                                <div
+                                  className="flex items-center gap-2 p-2 rounded-lg"
+                                  style={{ backgroundColor: "#F8F8F4" }}
+                                >
+                                  <Loader2 size={14} className="animate-spin" style={{ color: "#C9A84C" }} />
+                                  <span className="text-xs" style={{ color: "#6B7280" }}>
+                                    جاري الحفظ…
                                   </span>
-                                ),
-                              }}
-                            />
-                          )}
+                                </div>
+                              );
+                            }
+                            return (
+                              <UploadButton
+                                endpoint="documentUploader"
+                                onUploadProgress={(p) =>
+                                  setProgress((prev) => ({ ...prev, [it.id]: p }))
+                                }
+                                onClientUploadComplete={(res) => {
+                                  const url = res?.[0]?.url;
+                                  setProgress((prev) => {
+                                    const { [it.id]: _drop, ...rest } = prev;
+                                    void _drop;
+                                    return rest;
+                                  });
+                                  if (url) uploadDocument(it, url);
+                                }}
+                                onUploadError={(e) => {
+                                  setProgress((prev) => {
+                                    const { [it.id]: _drop, ...rest } = prev;
+                                    void _drop;
+                                    return rest;
+                                  });
+                                  setError(e.message);
+                                }}
+                                appearance={{
+                                  button: {
+                                    backgroundColor: "#5E5495",
+                                    color: "white",
+                                    fontSize: "12px",
+                                    borderRadius: "8px",
+                                  },
+                                  container: { width: "100%" },
+                                }}
+                                content={{
+                                  button: (
+                                    <span className="flex items-center gap-1">
+                                      <Upload size={12} />
+                                      رفع ملف
+                                    </span>
+                                  ),
+                                }}
+                              />
+                            );
+                          })()}
                         </div>
                       )}
                     {it.kind === "DOCUMENT" && it.fileUrl && (
