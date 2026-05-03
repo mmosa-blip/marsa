@@ -40,11 +40,33 @@ export default function UserPreviewPage() {
 
   // Reusable loader so the delete handler can refresh the list after a soft
   // delete without duplicating the fetch logic from the mount effect.
+  //
+  // Fetches per role (in parallel) instead of a single /api/users call —
+  // the bare endpoint paginates at 50 and orders by createdAt desc, so
+  // older roles (EXECUTOR, ADMIN) get hidden behind the wave of recent
+  // CLIENTs. Six small filtered requests ride concurrently and the
+  // results are merged.
   const loadUsers = useCallback(() => {
     setLoading(true);
-    fetch("/api/users")
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setUsers(d); })
+    const ROLES_TO_FETCH = [
+      "ADMIN",
+      "MANAGER",
+      "EXECUTOR",
+      "BRANCH_MANAGER",
+      "EXTERNAL_PROVIDER",
+      "CLIENT",
+    ];
+    Promise.all(
+      ROLES_TO_FETCH.map((role) =>
+        fetch(`/api/users?role=${role}&take=200`)
+          .then((r) => (r.ok ? r.json() : []))
+          .catch(() => [])
+      )
+    )
+      .then((responses) => {
+        const all = responses.flat().filter((u): u is UserItem => !!u && typeof u.id === "string");
+        setUsers(all);
+      })
       .finally(() => setLoading(false));
   }, []);
 
