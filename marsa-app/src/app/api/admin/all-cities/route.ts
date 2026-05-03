@@ -29,6 +29,14 @@ export async function GET() {
         department: { select: { id: true, name: true, nameEn: true, color: true } },
         // Live contract.endDate for getEffectiveDeadline (earliest-wins).
         contract: { select: { endDate: true } },
+        // Open pause row (endDate IS NULL) — at most one per project. Drives
+        // the canvas's choice between PAYMENT_FROZEN / CLIENT_HOLD / ADMIN_PAUSED.
+        pauses: {
+          where: { endDate: null },
+          orderBy: { startDate: "desc" },
+          take: 1,
+          select: { reason: true, notes: true, startDate: true },
+        },
         tasks: {
           select: {
             id: true,
@@ -79,14 +87,27 @@ export async function GET() {
       // Derive paymentFrozen on the server before stripping linkedInstallment.
       const paymentFrozen = deriveProjectPaymentFrozen(p.tasks);
 
+      // Surface the open pause row's reason / note / startedAt for the
+      // canvas's hybrid state derivation. Stripped from the wire shape so
+      // we don't ship the whole `pauses` array.
+      const openPause = p.pauses?.[0] ?? null;
+      const pauseReason = openPause?.reason ?? null;
+      const pauseNote = openPause?.notes ?? null;
+      const pausedAt = openPause?.startDate ?? null;
+      const { pauses: _drop, ...rest } = p;
+      void _drop;
+
       return {
-        ...p,
+        ...rest,
         tasks,
         progress: total > 0 ? Math.round((done / total) * 100) : 0,
         totalTasks: total,
         completedTasks: done,
         executors,
         paymentFrozen,
+        pauseReason,
+        pauseNote,
+        pausedAt,
       };
     });
 

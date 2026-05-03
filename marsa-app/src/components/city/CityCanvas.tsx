@@ -49,6 +49,12 @@ export interface CityApiProject {
   // /api/admin/cities-leaderboard when the project has a locked unpaid
   // non-first installment.
   paymentFrozen?: boolean;
+  // Open ProjectPause row — drives the visual differentiation between
+  // PAYMENT_FROZEN / CLIENT_HOLD / ADMIN_PAUSED. Reason vocabulary:
+  // "PAYMENT_DELAY" | "CLIENT_REQUEST" | "ADMIN_DECISION" | "OTHER" | null.
+  pauseReason?: string | null;
+  pauseNote?: string | null;
+  pausedAt?: string | null;
   // Live contract.endDate piped through by the same APIs. Read by
   // getEffectiveDeadline so the canvas honors the earliest of the three
   // deadline sources.
@@ -910,9 +916,11 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
       const isTaskLate = b.state === "TASK_LATE";
       const isPaymentFrozen = b.state === "PAYMENT_FROZEN";
       const isAdminPaused = b.state === "ADMIN_PAUSED";
+      const isClientHold = b.state === "CLIENT_HOLD";
+      const isPaused = isPaymentFrozen || isAdminPaused || isClientHold;
 
       // Only the fully ruined (COLLAPSED) building shakes — TASK_LATE,
-      // AT_RISK, PAYMENT_FROZEN, ADMIN_PAUSED all keep visual integrity.
+      // AT_RISK, paused states all keep visual integrity.
       const shakeX = isCollapsed ? Math.sin(time / 60 + b.x) * 1.5 : 0;
 
       ctx.save();
@@ -1132,6 +1140,16 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         drawDoorSign(b.x, topY - 4, "⏸️", "متوقف");
       }
 
+      // CLIENT_HOLD — clean grey wash + "بانتظار العميل" sign. No tape
+      // and no frost: the building is intact, the team is just idle
+      // because the client asked to pause. Window glow is dimmer (drawn
+      // earlier) — see the lit-window shortcut below.
+      if (isClientHold) {
+        ctx.fillStyle = "rgba(150,150,150,0.22)";
+        ctx.fillRect(baseX, topY, b.baseWidth, b.baseHeight);
+        drawDoorSign(b.x, baseY, "🚪", "بانتظار العميل");
+      }
+
       // No rooftop emergency strobe — COLLAPSED already reads as a wreck
       // (debris, smoke, ambulance + police car parked out front). Adding
       // tiny lights on the rubble made it look like a working police HQ.
@@ -1139,8 +1157,8 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
 
       // Crane: stays up while construction is active OR delayed-but-standing
       // (TASK_LATE / AT_RISK). Hidden once the building is COMPLETED, has
-      // COLLAPSED, or work is paused (PAYMENT_FROZEN / ADMIN_PAUSED).
-      if (!b.isComplete && !isCollapsed && !isPaymentFrozen && !isAdminPaused) {
+      // COLLAPSED, or work is paused (any pause variant).
+      if (!b.isComplete && !isCollapsed && !isPaused) {
         const mastX = baseX + b.baseWidth - 6;
         const craneTop = topY - 55;
         const armLen = b.baseWidth * 0.7 + 30;
@@ -1372,8 +1390,10 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
       } else if (isTaskLate) {
         // Single police cruiser to flag the slipping deadline.
         drawPoliceCar(b.x, carY, time);
-      } else if (isAdminPaused) {
-        // No siren — just a worksite cone planted on the curb.
+      } else if (isAdminPaused || isClientHold) {
+        // No siren — just a worksite cone planted on the curb. Same
+        // signal for both paused-by-decision and paused-by-client; the
+        // door sign + tint already differentiates them visually.
         drawTrafficCone(b.x, roadY - 1);
       }
 
@@ -1768,55 +1788,66 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
             {/* State-driven reason banner — explains why the building is
                 frozen / paused / collapsed without burying it inside the
                 stat tiles. Only shown for non-happy states. */}
-            {selected.state && selected.state !== "COMPLETED" && selected.state !== "IN_PROGRESS" && (
-              <div
-                className="mb-3 px-3 py-2 rounded-lg text-xs"
-                style={{
-                  backgroundColor:
-                    selected.state === "COLLAPSED"
-                      ? "rgba(220,38,38,0.08)"
-                      : selected.state === "PAYMENT_FROZEN"
-                        ? "rgba(168,85,247,0.10)"
-                        : selected.state === "ADMIN_PAUSED"
-                          ? "rgba(250,204,21,0.10)"
-                          : selected.state === "AT_RISK"
-                            ? "rgba(234,88,12,0.10)"
-                            : "rgba(217,119,6,0.10)",
-                  border:
-                    selected.state === "COLLAPSED"
-                      ? "1px solid rgba(220,38,38,0.30)"
-                      : selected.state === "PAYMENT_FROZEN"
-                        ? "1px solid rgba(168,85,247,0.30)"
-                        : selected.state === "ADMIN_PAUSED"
-                          ? "1px solid rgba(250,204,21,0.40)"
-                          : selected.state === "AT_RISK"
-                            ? "1px solid rgba(234,88,12,0.30)"
-                            : "1px solid rgba(217,119,6,0.30)",
-                  color: "#1C1B2E",
-                }}
-              >
-                <span className="font-bold">
-                  {selected.state === "COLLAPSED"
-                    ? "💥 منهار: "
-                    : selected.state === "PAYMENT_FROZEN"
-                      ? "❄️ مجمّد: "
-                      : selected.state === "ADMIN_PAUSED"
-                        ? "⏸️ متوقف: "
-                        : selected.state === "AT_RISK"
-                          ? "⚠️ متهالك: "
-                          : "🚓 متأخر بمهمة: "}
-                </span>
-                {selected.state === "COLLAPSED"
-                  ? "تجاوز الموعد التعاقدي — يحتاج تدخّل فوري"
-                  : selected.state === "PAYMENT_FROZEN"
-                    ? "متوقف بسبب دفعة معلقة من العميل"
-                    : selected.state === "ADMIN_PAUSED"
-                      ? "موقوف من الإدارة"
-                      : selected.state === "AT_RISK"
-                        ? "تجاوز 80% من المدة بدون تسليم"
-                        : "توجد مهام تجاوزت موعد التسليم"}
-              </div>
-            )}
+            {selected.state && selected.state !== "COMPLETED" && selected.state !== "IN_PROGRESS" && (() => {
+              // Tint the banner based on state. CLIENT_HOLD picks a calm
+              // grey since it's "innocent": admin and team are both fine,
+              // the client just asked to wait.
+              const tint =
+                selected.state === "COLLAPSED"      ? { bg: "rgba(220,38,38,0.08)",  border: "rgba(220,38,38,0.30)" } :
+                selected.state === "PAYMENT_FROZEN" ? { bg: "rgba(168,85,247,0.10)", border: "rgba(168,85,247,0.30)" } :
+                selected.state === "CLIENT_HOLD"    ? { bg: "rgba(150,150,150,0.10)", border: "rgba(100,116,139,0.35)" } :
+                selected.state === "ADMIN_PAUSED"   ? { bg: "rgba(250,204,21,0.10)", border: "rgba(250,204,21,0.40)" } :
+                selected.state === "AT_RISK"        ? { bg: "rgba(234,88,12,0.10)",  border: "rgba(234,88,12,0.30)" } :
+                                                      { bg: "rgba(217,119,6,0.10)",  border: "rgba(217,119,6,0.30)" };
+              const headline =
+                selected.state === "COLLAPSED"      ? "💥 منهار: " :
+                selected.state === "PAYMENT_FROZEN" ? "❄️ مجمّد: " :
+                selected.state === "CLIENT_HOLD"    ? "🚪 بانتظار العميل: " :
+                selected.state === "ADMIN_PAUSED"   ? "⏸️ متوقف: " :
+                selected.state === "AT_RISK"        ? "⚠️ متهالك: " :
+                                                      "🚓 متأخر بمهمة: ";
+              // For paused states, prefer the human-readable pause reason
+              // pulled from ProjectPause.reason so the popup matches what
+              // the admin selected when they triggered the pause.
+              const reasonLabel =
+                selected.pauseReason === "PAYMENT_DELAY" || selected.pauseReason === "PAYMENT" ? "دفعة متأخرة من العميل" :
+                selected.pauseReason === "CLIENT_REQUEST" ? "طلب من العميل" :
+                selected.pauseReason === "ADMIN_DECISION" ? "قرار إداري" :
+                selected.pauseReason === "OTHER" ? "سبب آخر" :
+                null;
+              const body =
+                selected.state === "COLLAPSED"      ? "تجاوز الموعد التعاقدي — يحتاج تدخّل فوري" :
+                selected.state === "PAYMENT_FROZEN" ? (reasonLabel ?? "متوقف بسبب دفعة معلقة من العميل") :
+                selected.state === "CLIENT_HOLD"    ? "موقوف بطلب من العميل" :
+                selected.state === "ADMIN_PAUSED"   ? (reasonLabel ?? "موقوف من الإدارة") :
+                selected.state === "AT_RISK"        ? "تجاوز 80% من المدة بدون تسليم" :
+                                                      "توجد مهام تجاوزت موعد التسليم";
+              return (
+                <div
+                  className="mb-3 px-3 py-2 rounded-lg text-xs"
+                  style={{
+                    backgroundColor: tint.bg,
+                    border: `1px solid ${tint.border}`,
+                    color: "#1C1B2E",
+                  }}
+                >
+                  <div>
+                    <span className="font-bold">{headline}</span>
+                    {body}
+                  </div>
+                  {selected.pauseNote && (
+                    <p className="mt-1 text-[11px]" style={{ color: "#374151" }}>
+                      📝 {selected.pauseNote}
+                    </p>
+                  )}
+                  {selected.pausedAt && (
+                    <p className="mt-1 text-[10px]" style={{ color: "#6B7280" }}>
+                      موقوف منذ {Math.max(0, Math.floor((Date.now() - new Date(selected.pausedAt).getTime()) / 86400000))} يوم
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
             {selected.executors && selected.executors.length > 0 && (
               <div className="mb-3">
                 <p className="text-[11px] font-semibold mb-1.5" style={{ color: "#6B7280" }}>

@@ -16,7 +16,8 @@ export type BuildingState =
   | "COMPLETED"
   | "COLLAPSED"        // endDate truly blown — "guilty" (their fault)
   | "PAYMENT_FROZEN"   // a locked non-first installment is gating work — "innocent"
-  | "ADMIN_PAUSED"     // status === ON_HOLD or isPaused — "innocent"
+  | "CLIENT_HOLD"      // admin-paused with reason CLIENT_REQUEST — "innocent"
+  | "ADMIN_PAUSED"     // status === ON_HOLD or isPaused with no specific reason
   | "AT_RISK"          // ≥ 80% of duration elapsed, not done
   | "TASK_LATE"        // any task past dueDate, not COLLAPSED/AT_RISK
   | "IN_PROGRESS";
@@ -26,12 +27,20 @@ export interface BuildingStateInput {
   status: string;
   // Formal pause flag from the project (set by the operations room when
   // an admin pauses delivery). Independent of `status === ON_HOLD` —
-  // either signal puts the project into ADMIN_PAUSED.
+  // either signal puts the project into a paused state.
   isPaused?: boolean | null;
   // Server-derived: true if the project has a locked, unpaid, non-first
   // installment with a still-open linked task. Lifts the project into
   // PAYMENT_FROZEN regardless of dueDate or task lateness.
   paymentFrozen?: boolean | null;
+  // Last-known reason for the pause, sourced from the open ProjectPause
+  // history row (endDate IS NULL). Drives the visual differentiation
+  // between PAYMENT_FROZEN, CLIENT_HOLD, and ADMIN_PAUSED — the admin's
+  // stated reason wins when paymentFrozen=false (no actual locked
+  // installment but admin called it a payment delay anyway).
+  // Vocabulary: "PAYMENT_DELAY" | "CLIENT_REQUEST" | "ADMIN_DECISION"
+  // | "OTHER" (legacy) | null
+  pauseReason?: string | null;
   startDate?: string | Date | null;
   contractStartDate?: string | Date | null;
   createdAt?: string | Date | null;
@@ -62,20 +71,37 @@ export function getBuildingState(p: BuildingStateInput): BuildingState {
 
   // Priority order — "innocent" states win first so we never blame a
   // team for a deadline that slipped while they were prevented from
-  // working. PAYMENT_FROZEN means the client owes a locked installment;
-  // ADMIN_PAUSED means an admin formally halted the project. In both
-  // cases the deadline keeps ticking but it is NOT the team's fault, so
-  // showing the building as COLLAPSED would mislead.
+  // working. The pause reason flows in from ProjectPause.reason (open
+  // row) and refines the visual:
   //
-  //   1. PAYMENT_FROZEN  — locked non-first installment (client owes)
-  //   2. ADMIN_PAUSED    — formally paused or ON_HOLD (admin decision)
-  //   3. COLLAPSED       — deadline blown with no protective state
-  //   4. AT_RISK         — ≥ 80% of duration consumed
-  //   5. TASK_LATE       — at least one task past its dueDate
-  //   6. IN_PROGRESS     — default
+  //   1. PAYMENT_FROZEN  — actual locked installment (auto-derived) OR
+  //                        admin-paused with reason=PAYMENT_DELAY
+  //                        (admin's stated reason is honored even when
+  //                        paymentFrozen=false, e.g. project has no
+  //                        contract row but the admin knows the client
+  //                        owes a payment).
+  //   2. CLIENT_HOLD     — admin-paused with reason=CLIENT_REQUEST
+  //   3. ADMIN_PAUSED    — admin-paused with no specific reason or
+  //                        reason=ADMIN_DECISION / OTHER (catch-all)
+  //   4. COLLAPSED       — deadline blown with no protective state
+  //   5. AT_RISK         — ≥ 80% of duration consumed
+  //   6. TASK_LATE       — at least one task past its dueDate
+  //   7. IN_PROGRESS     — default
 
   if (p.paymentFrozen) return "PAYMENT_FROZEN";
-  if (p.isPaused || p.status === "ON_HOLD") return "ADMIN_PAUSED";
+  if (p.isPaused || p.status === "ON_HOLD") {
+    switch (p.pauseReason) {
+      case "PAYMENT":
+      case "PAYMENT_DELAY":  // legacy ProjectPause.reason value
+        return "PAYMENT_FROZEN";
+      case "CLIENT_REQUEST":
+        return "CLIENT_HOLD";
+      case "ADMIN_DECISION":
+      case "OTHER":          // legacy ProjectPause.reason value
+      default:
+        return "ADMIN_PAUSED";
+    }
+  }
   if (end !== null && end < now) return "COLLAPSED";
 
   // 80%+ of contracted duration consumed but project not delivered.
@@ -141,7 +167,8 @@ export const STATE_ORDER: Record<BuildingState, number> = {
   IN_PROGRESS: 1,
   TASK_LATE: 2,
   AT_RISK: 3,
-  ADMIN_PAUSED: 4,
-  PAYMENT_FROZEN: 5,
-  COLLAPSED: 6,
+  CLIENT_HOLD: 4,
+  ADMIN_PAUSED: 5,
+  PAYMENT_FROZEN: 6,
+  COLLAPSED: 7,
 };

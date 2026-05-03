@@ -91,6 +91,7 @@ export async function GET() {
         IN_PROGRESS: 0,
         TASK_LATE: 0,
         AT_RISK: 0,
+        CLIENT_HOLD: 0,
         ADMIN_PAUSED: 0,
         PAYMENT_FROZEN: 0,
         COLLAPSED: 0,

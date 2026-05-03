@@ -75,6 +75,14 @@ export async function GET(request: Request) {
           // pick the earliest of (project.endDate, project.contractEndDate,
           // contract.endDate) when classifying overdue projects.
           contract: { select: { endDate: true } },
+          // Open pause row — drives the canvas's PAYMENT_FROZEN /
+          // CLIENT_HOLD / ADMIN_PAUSED differentiation.
+          pauses: {
+            where: { endDate: null },
+            orderBy: { startDate: "desc" },
+            take: 1,
+            select: { reason: true, notes: true, startDate: true },
+          },
           tasks: {
             select: {
               id: true,
@@ -132,10 +140,21 @@ export async function GET(request: Request) {
         status: t.status,
         dueDate: t.dueDate,
       }));
+      // Open pause row → flat fields for the canvas. The full `pauses`
+      // array is dropped from the wire shape.
+      const openPause = p.pauses?.[0] ?? null;
+      const pauseReason = openPause?.reason ?? null;
+      const pauseNote = openPause?.notes ?? null;
+      const pausedAt = openPause?.startDate ?? null;
+      const { pauses: _drop, ...rest } = p;
+      void _drop;
       return {
-        ...p,
+        ...rest,
         tasks,
         paymentFrozen,
+        pauseReason,
+        pauseNote,
+        pausedAt,
         progress: total > 0 ? Math.round((done / total) * 100) : 0,
         totalTasks: total,
         completedTasks: done,

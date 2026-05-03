@@ -35,6 +35,7 @@ export default function CityStatsBar({ projects }: { projects: CityApiProject[] 
       IN_PROGRESS: 0,
       TASK_LATE: 0,
       AT_RISK: 0,
+      CLIENT_HOLD: 0,
       ADMIN_PAUSED: 0,
       PAYMENT_FROZEN: 0,
       COLLAPSED: 0,
@@ -87,6 +88,15 @@ export default function CityStatsBar({ projects }: { projects: CityApiProject[] 
         color: "#EA580C",
         bg: "rgba(234,88,12,0.10)",
         border: "rgba(234,88,12,0.32)",
+      },
+      {
+        key: "CLIENT_HOLD",
+        label: "بانتظار العميل",
+        icon: "🚪",
+        count: String(counts.CLIENT_HOLD),
+        color: "#475569",
+        bg: "rgba(100,116,139,0.10)",
+        border: "rgba(100,116,139,0.30)",
       },
       {
         key: "ADMIN_PAUSED",
