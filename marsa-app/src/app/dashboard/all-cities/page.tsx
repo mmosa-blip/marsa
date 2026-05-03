@@ -21,6 +21,7 @@ import { Loader2, Building2 } from "lucide-react";
 import CityCanvas, { CityApiProject, BuildingLayout } from "@/components/city/CityCanvas";
 import CityStatsBar from "@/components/city/CityStatsBar";
 import PauseProjectModal from "@/components/city/PauseProjectModal";
+import ReactivateProjectModal from "@/components/city/ReactivateProjectModal";
 import { ROUTES } from "@/lib/routes";
 import { logger } from "@/lib/logger";
 import { pusherClient } from "@/lib/pusher-client";
@@ -35,6 +36,7 @@ export default function AllCitiesPage() {
   // Quick-action state — populated when the inline ⏸️ button on a building
   // is clicked. The pause modal opens; resume confirms inline.
   const [pauseModal, setPauseModal] = useState<{ id: string; name: string } | null>(null);
+  const [reactivateModal, setReactivateModal] = useState<{ id: string; name: string } | null>(null);
   const [resumingId, setResumingId] = useState<string | null>(null);
 
   // Hard role gate. Middleware already blocks /api/admin/* for non-staff,
@@ -161,6 +163,9 @@ export default function AllCitiesPage() {
           viewMode="admin"
           celebrate={celebrate}
           onPauseClick={(b: BuildingLayout) => setPauseModal({ id: b.id, name: b.name })}
+          onReactivateClick={(b: BuildingLayout) =>
+            setReactivateModal({ id: b.id, name: b.name })
+          }
           onResumeClick={async (b: BuildingLayout) => {
             if (resumingId) return;
             if (!confirm(`هل أنت متأكد من استئناف مشروع "${b.name}"؟`)) return;
@@ -185,6 +190,15 @@ export default function AllCitiesPage() {
           projectId={pauseModal.id}
           projectName={pauseModal.name}
           onClose={() => setPauseModal(null)}
+          onSuccess={() => refetch()}
+        />
+      )}
+
+      {reactivateModal && (
+        <ReactivateProjectModal
+          projectId={reactivateModal.id}
+          projectName={reactivateModal.name}
+          onClose={() => setReactivateModal(null)}
           onSuccess={() => refetch()}
         />
       )}

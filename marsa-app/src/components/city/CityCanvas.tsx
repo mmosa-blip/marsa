@@ -99,10 +99,18 @@ export interface BuildingLayout extends CityApiProject {
   // executor mode or when the project has no client (shouldn't happen
   // in practice but typing covers it).
   clientLabel: string;
-  // Pause/resume quick-action button — admin mode only. NULL in
-  // executor mode or when the building is in a no-op state
-  // (COMPLETED / COLLAPSED).
-  actionButton: { cx: number; cy: number; r: number; kind: "pause" | "resume" } | null;
+  // Quick-action button — admin mode only. NULL in executor mode or
+  // when the building is in a no-op state (COMPLETED). Kind switches
+  // by lifecycle state:
+  //   pause      — IN_PROGRESS / AT_RISK / TASK_LATE
+  //   resume     — PAYMENT_FROZEN / ADMIN_PAUSED / CLIENT_HOLD
+  //   reactivate — COLLAPSED (extends the deadline + resets to ACTIVE)
+  actionButton: {
+    cx: number;
+    cy: number;
+    r: number;
+    kind: "pause" | "resume" | "reactivate";
+  } | null;
 }
 
 // Uniform window/grid constants.
@@ -176,10 +184,11 @@ export interface CityCanvasProps {
   onBuildingClick?: (b: BuildingLayout) => void;
   // Admin-only quick-action callbacks. When present, a circular pill
   // appears in the top-right corner of every building that's in a
-  // pausable state and clicking it fires the matching callback. The
-  // parent owns the pause modal + resume confirmation.
+  // pausable / resumable / reactivatable state and clicking it fires
+  // the matching callback. The parent owns the modals + confirmations.
   onPauseClick?: (b: BuildingLayout) => void;
   onResumeClick?: (b: BuildingLayout) => void;
+  onReactivateClick?: (b: BuildingLayout) => void;
   // Optional content rendered absolutely in the top-right corner of the
   // city frame. Used by executor-city for the builder-tier badge; null in
   // all-cities. Renders inside the same wrapper, so it follows fullscreen.
@@ -189,7 +198,7 @@ export interface CityCanvasProps {
   celebrate?: { key: number; projectId: string } | null;
 }
 
-export default function CityCanvas({ projects, viewMode, onBuildingClick, onPauseClick, onResumeClick, topRightBadge, celebrate }: CityCanvasProps) {
+export default function CityCanvas({ projects, viewMode, onBuildingClick, onPauseClick, onResumeClick, onReactivateClick, topRightBadge, celebrate }: CityCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [selected, setSelected] = useState<BuildingLayout | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -399,13 +408,18 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
         state === "PAYMENT_FROZEN" ||
         state === "ADMIN_PAUSED" ||
         state === "CLIENT_HOLD";
+      const isReactivatable = state === "COLLAPSED";
       const actionButton =
-        viewMode === "admin" && (isPausable || isResumable)
+        viewMode === "admin" && (isPausable || isResumable || isReactivatable)
           ? {
               cx: baseRight + 2,
               cy: topY - 8,
               r: 11,
-              kind: isResumable ? ("resume" as const) : ("pause" as const),
+              kind: isResumable
+                ? ("resume" as const)
+                : isReactivatable
+                  ? ("reactivate" as const)
+                  : ("pause" as const),
             }
           : null;
 
@@ -1414,10 +1428,10 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
         }
       }
 
-      // Pause / resume quick-action button — admin mode only. Lives in
-      // the building's coordinate space (drawn outside the shake
-      // transform via ctx.restore() below) so the click hit-test stays
-      // accurate during COLLAPSED tremors.
+      // Quick-action button — admin mode only. Lives in the building's
+      // coordinate space (drawn outside the shake transform via
+      // ctx.restore() below) so the click hit-test stays accurate during
+      // COLLAPSED tremors.
       if (b.actionButton) {
         const ab = b.actionButton;
         const isHovered = hoveredActionId === b.id;
@@ -1428,7 +1442,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
           ctx.shadowBlur = 6;
           ctx.shadowOffsetY = 2;
         }
-        // Outer ring — Marsa purple at full opacity for visibility.
+        // Outer white disc.
         ctx.fillStyle = "#FFFFFF";
         ctx.beginPath();
         ctx.arc(ab.cx, ab.cy, r, 0, Math.PI * 2);
@@ -1436,11 +1450,21 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetY = 0;
-        ctx.strokeStyle = ab.kind === "resume" ? "#16A34A" : "#5E5495";
+        // Color per kind. Reactivate uses a darker emerald to read as
+        // "recovery / cycle back" without colliding visually with the
+        // pure-green resume — a different shade is enough since the two
+        // never appear on the same building.
+        const accent =
+          ab.kind === "resume"
+            ? "#16A34A"
+            : ab.kind === "reactivate"
+              ? "#059669"
+              : "#5E5495";
+        ctx.strokeStyle = accent;
         ctx.lineWidth = 1.6;
         ctx.stroke();
-        // Glyph centred on the circle.
-        ctx.fillStyle = ab.kind === "resume" ? "#16A34A" : "#5E5495";
+        ctx.fillStyle = accent;
+
         if (ab.kind === "resume") {
           // Right-pointing triangle.
           const tr = r * 0.55;
@@ -1448,6 +1472,27 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
           ctx.moveTo(ab.cx - tr * 0.55, ab.cy - tr);
           ctx.lineTo(ab.cx + tr, ab.cy);
           ctx.lineTo(ab.cx - tr * 0.55, ab.cy + tr);
+          ctx.closePath();
+          ctx.fill();
+        } else if (ab.kind === "reactivate") {
+          // Refresh glyph — three-quarter clockwise arc + a small
+          // arrowhead at the head. Uses ctx.arc + a triangle to fake the
+          // RefreshCw lucide icon at canvas resolution.
+          const ar = r * 0.55;
+          ctx.lineWidth = 1.8;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          // Arc from -45° clockwise to +225° (270° sweep).
+          ctx.arc(ab.cx, ab.cy, ar, -Math.PI / 4, (Math.PI * 5) / 4);
+          ctx.stroke();
+          // Arrow head at the start point (-45° = top-right).
+          const startX = ab.cx + ar * Math.cos(-Math.PI / 4);
+          const startY = ab.cy + ar * Math.sin(-Math.PI / 4);
+          const ah = 3;
+          ctx.beginPath();
+          ctx.moveTo(startX, startY - ah);
+          ctx.lineTo(startX + ah * 1.4, startY);
+          ctx.lineTo(startX, startY + ah);
           ctx.closePath();
           ctx.fill();
         } else {
@@ -1696,16 +1741,15 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
 
   function handleClick(e: React.MouseEvent<HTMLCanvasElement>) {
     if (dragStateRef.current.moved > 5) return;
-    // Action button wins over the popup — fire pause/resume callback
+    // Action button wins over the popup — fire the matching callback
     // and bail before the building click handler runs.
     const ab = pointToActionButton(e.clientX, e.clientY);
     if (ab && ab.actionButton) {
       e.stopPropagation();
-      if (ab.actionButton.kind === "resume") {
-        onResumeClick?.(ab);
-      } else {
-        onPauseClick?.(ab);
-      }
+      const kind = ab.actionButton.kind;
+      if (kind === "resume") onResumeClick?.(ab);
+      else if (kind === "reactivate") onReactivateClick?.(ab);
+      else onPauseClick?.(ab);
       return;
     }
     const b = pointToBuilding(e.clientX, e.clientY);
@@ -1771,10 +1815,13 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
     if (canvasRef.current) {
       canvasRef.current.style.cursor = b ? "pointer" : "default";
       if (ab) {
+        const kind = ab.actionButton?.kind;
         canvasRef.current.title =
-          ab.actionButton?.kind === "resume"
+          kind === "resume"
             ? "استئناف المشروع"
-            : "إيقاف المشروع";
+            : kind === "reactivate"
+              ? "إعادة تنشيط المشروع"
+              : "إيقاف المشروع";
       } else {
         canvasRef.current.title = "";
       }
