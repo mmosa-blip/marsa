@@ -18,8 +18,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Loader2, Building2 } from "lucide-react";
-import CityCanvas, { CityApiProject } from "@/components/city/CityCanvas";
+import CityCanvas, { CityApiProject, BuildingLayout } from "@/components/city/CityCanvas";
 import CityStatsBar from "@/components/city/CityStatsBar";
+import PauseProjectModal from "@/components/city/PauseProjectModal";
 import { ROUTES } from "@/lib/routes";
 import { logger } from "@/lib/logger";
 import { pusherClient } from "@/lib/pusher-client";
@@ -31,6 +32,10 @@ export default function AllCitiesPage() {
   const [executorFilter, setExecutorFilter] = useState<string | null>(null);
   // Celebration token for Pusher 'task-completed' → CityCanvas glow.
   const [celebrate, setCelebrate] = useState<{ key: number; projectId: string } | null>(null);
+  // Quick-action state — populated when the inline ⏸️ button on a building
+  // is clicked. The pause modal opens; resume confirms inline.
+  const [pauseModal, setPauseModal] = useState<{ id: string; name: string } | null>(null);
+  const [resumingId, setResumingId] = useState<string | null>(null);
 
   // Hard role gate. Middleware already blocks /api/admin/* for non-staff,
   // but the page itself is reachable by any signed-in user, so we redirect
@@ -155,6 +160,32 @@ export default function AllCitiesPage() {
           projects={filteredProjects}
           viewMode="admin"
           celebrate={celebrate}
+          onPauseClick={(b: BuildingLayout) => setPauseModal({ id: b.id, name: b.name })}
+          onResumeClick={async (b: BuildingLayout) => {
+            if (resumingId) return;
+            if (!confirm(`هل أنت متأكد من استئناف مشروع "${b.name}"؟`)) return;
+            setResumingId(b.id);
+            try {
+              const res = await fetch(`/api/projects/${b.id}/resume`, { method: "POST" });
+              if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                alert((data as { error?: string }).error || "تعذّر استئناف المشروع");
+                return;
+              }
+              refetch();
+            } finally {
+              setResumingId(null);
+            }
+          }}
+        />
+      )}
+
+      {pauseModal && (
+        <PauseProjectModal
+          projectId={pauseModal.id}
+          projectName={pauseModal.name}
+          onClose={() => setPauseModal(null)}
+          onSuccess={() => refetch()}
         />
       )}
 

@@ -99,6 +99,10 @@ export interface BuildingLayout extends CityApiProject {
   // executor mode or when the project has no client (shouldn't happen
   // in practice but typing covers it).
   clientLabel: string;
+  // Pause/resume quick-action button — admin mode only. NULL in
+  // executor mode or when the building is in a no-op state
+  // (COMPLETED / COLLAPSED).
+  actionButton: { cx: number; cy: number; r: number; kind: "pause" | "resume" } | null;
 }
 
 // Uniform window/grid constants.
@@ -170,6 +174,12 @@ export interface CityCanvasProps {
   viewMode: "executor" | "admin";
   // Optional override — if provided, replaces the default popup behavior.
   onBuildingClick?: (b: BuildingLayout) => void;
+  // Admin-only quick-action callbacks. When present, a circular pill
+  // appears in the top-right corner of every building that's in a
+  // pausable state and clicking it fires the matching callback. The
+  // parent owns the pause modal + resume confirmation.
+  onPauseClick?: (b: BuildingLayout) => void;
+  onResumeClick?: (b: BuildingLayout) => void;
   // Optional content rendered absolutely in the top-right corner of the
   // city frame. Used by executor-city for the builder-tier badge; null in
   // all-cities. Renders inside the same wrapper, so it follows fullscreen.
@@ -179,10 +189,11 @@ export interface CityCanvasProps {
   celebrate?: { key: number; projectId: string } | null;
 }
 
-export default function CityCanvas({ projects, viewMode, onBuildingClick, topRightBadge, celebrate }: CityCanvasProps) {
+export default function CityCanvas({ projects, viewMode, onBuildingClick, onPauseClick, onResumeClick, topRightBadge, celebrate }: CityCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [selected, setSelected] = useState<BuildingLayout | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [hoveredActionId, setHoveredActionId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<{ w: number; h: number }>({
     w: typeof window !== "undefined" ? window.innerWidth : 1280,
     h: typeof window !== "undefined" ? window.innerHeight : 720,
@@ -373,9 +384,32 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         if (p.client?.name) clientLabel = p.client.name;
       }
 
+      // Quick-action button (admin mode only). Skipped for COMPLETED
+      // and COLLAPSED — neither is recoverable through pause/resume.
+      // Position: top-right corner of the building, slightly above the
+      // roof line. Same coordinate space as the rest of the building so
+      // hit-testing maps cleanly.
+      const cx = padX + idx * slot + slot / 2;
+      const roadY = sky + 30;
+      const topY = roadY - 4 - baseHeight;
+      const baseRight = cx + baseWidth / 2;
+      const isPausable =
+        state === "IN_PROGRESS" || state === "AT_RISK" || state === "TASK_LATE";
+      const isResumable =
+        state === "PAYMENT_FROZEN" || state === "ADMIN_PAUSED" || state === "CLIENT_HOLD";
+      const actionButton =
+        viewMode === "admin" && (isPausable || isResumable)
+          ? {
+              cx: baseRight + 2,
+              cy: topY - 8,
+              r: 11,
+              kind: isResumable ? ("resume" as const) : ("pause" as const),
+            }
+          : null;
+
       return {
         ...p,
-        x: padX + idx * slot + slot / 2,
+        x: cx,
         baseWidth,
         baseHeight,
         cols,
@@ -395,6 +429,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         state,
         executorLabel,
         clientLabel,
+        actionButton,
       };
     });
 
@@ -1377,6 +1412,51 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
         }
       }
 
+      // Pause / resume quick-action button — admin mode only. Lives in
+      // the building's coordinate space (drawn outside the shake
+      // transform via ctx.restore() below) so the click hit-test stays
+      // accurate during COLLAPSED tremors.
+      if (b.actionButton) {
+        const ab = b.actionButton;
+        const isHovered = hoveredActionId === b.id;
+        const r = isHovered ? ab.r * 1.15 : ab.r;
+        // Subtle drop shadow on hover so the button "lifts" off the city.
+        if (isHovered) {
+          ctx.shadowColor = "rgba(0,0,0,0.25)";
+          ctx.shadowBlur = 6;
+          ctx.shadowOffsetY = 2;
+        }
+        // Outer ring — Marsa purple at full opacity for visibility.
+        ctx.fillStyle = "#FFFFFF";
+        ctx.beginPath();
+        ctx.arc(ab.cx, ab.cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = ab.kind === "resume" ? "#16A34A" : "#5E5495";
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        // Glyph centred on the circle.
+        ctx.fillStyle = ab.kind === "resume" ? "#16A34A" : "#5E5495";
+        if (ab.kind === "resume") {
+          // Right-pointing triangle.
+          const tr = r * 0.55;
+          ctx.beginPath();
+          ctx.moveTo(ab.cx - tr * 0.55, ab.cy - tr);
+          ctx.lineTo(ab.cx + tr, ab.cy);
+          ctx.lineTo(ab.cx - tr * 0.55, ab.cy + tr);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          // Pause — two vertical bars.
+          const bw = Math.max(2, Math.round(r * 0.28));
+          const bh = Math.round(r * 1.15);
+          ctx.fillRect(ab.cx - bw - 1, ab.cy - bh / 2, bw, bh);
+          ctx.fillRect(ab.cx + 1, ab.cy - bh / 2, bw, bh);
+        }
+      }
+
       ctx.restore();
 
       // Emergency vehicles park on the road in front of the building. They
@@ -1570,7 +1650,30 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
       cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [layout, hoveredId]);
+  }, [layout, hoveredId, hoveredActionId]);
+
+  // Returns the building whose action button (if any) contains the
+  // given client-coordinate point. Run BEFORE pointToBuilding so the
+  // button steals the click from the popup.
+  function pointToActionButton(clientX: number, clientY: number): BuildingLayout | null {
+    if (!layout) return null;
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * layout.canvasWidth;
+    const y = ((clientY - rect.top) / rect.height) * layout.canvasHeight;
+    for (const b of layout.buildings) {
+      const ab = b.actionButton;
+      if (!ab) continue;
+      const dx = x - ab.cx;
+      const dy = y - ab.cy;
+      // Slightly inflated hit radius for forgiving touches on small targets.
+      if (dx * dx + dy * dy <= (ab.r + 4) * (ab.r + 4)) {
+        return b;
+      }
+    }
+    return null;
+  }
 
   function pointToBuilding(clientX: number, clientY: number): BuildingLayout | null {
     if (!layout) return null;
@@ -1591,6 +1694,18 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
 
   function handleClick(e: React.MouseEvent<HTMLCanvasElement>) {
     if (dragStateRef.current.moved > 5) return;
+    // Action button wins over the popup — fire pause/resume callback
+    // and bail before the building click handler runs.
+    const ab = pointToActionButton(e.clientX, e.clientY);
+    if (ab && ab.actionButton) {
+      e.stopPropagation();
+      if (ab.actionButton.kind === "resume") {
+        onResumeClick?.(ab);
+      } else {
+        onPauseClick?.(ab);
+      }
+      return;
+    }
     const b = pointToBuilding(e.clientX, e.clientY);
     if (!b) return;
     if (onBuildingClick) {
@@ -1647,10 +1762,20 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
   }, [layout, fullscreen]);
 
   function handleMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    const b = pointToBuilding(e.clientX, e.clientY);
+    const ab = pointToActionButton(e.clientX, e.clientY);
+    setHoveredActionId(ab?.id || null);
+    const b = ab ?? pointToBuilding(e.clientX, e.clientY);
     setHoveredId(b?.id || null);
     if (canvasRef.current) {
       canvasRef.current.style.cursor = b ? "pointer" : "default";
+      if (ab) {
+        canvasRef.current.title =
+          ab.actionButton?.kind === "resume"
+            ? "استئناف المشروع"
+            : "إيقاف المشروع";
+      } else {
+        canvasRef.current.title = "";
+      }
     }
   }
 
@@ -1687,7 +1812,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, topRig
             ref={canvasRef}
             onClick={handleClick}
             onMouseMove={handleMove}
-            onMouseLeave={() => setHoveredId(null)}
+            onMouseLeave={() => { setHoveredId(null); setHoveredActionId(null); }}
             style={{ display: "block" }}
           />
         </div>
