@@ -395,22 +395,10 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
       const baseRight = cx + baseWidth / 2;
       const isPausable =
         state === "IN_PROGRESS" || state === "AT_RISK" || state === "TASK_LATE";
-      // Resume is only offered when the project hasn't slipped its
-      // deadline by more than 30 days. Long-overdue paused projects
-      // need a real admin intervention (extend the contract, renegotiate
-      // scope, talk to the client) — not a one-click resume that just
-      // un-pauses a deeply broken plan. The visual classification
-      // (frost/tape/grey) stays so the canvas still tells the story.
-      const deadline = getEffectiveDeadline(p);
-      const daysOverdue = deadline
-        ? (Date.now() - deadline.getTime()) / 86400000
-        : 0;
-      const deadlineBlownLong = daysOverdue > 30;
       const isResumable =
-        (state === "PAYMENT_FROZEN" ||
-          state === "ADMIN_PAUSED" ||
-          state === "CLIENT_HOLD") &&
-        !deadlineBlownLong;
+        state === "PAYMENT_FROZEN" ||
+        state === "ADMIN_PAUSED" ||
+        state === "CLIENT_HOLD";
       const actionButton =
         viewMode === "admin" && (isPausable || isResumable)
           ? {
