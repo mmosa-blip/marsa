@@ -95,7 +95,6 @@ export async function GET(request: NextRequest) {
               id: true,
               title: true,
               status: true,
-              updatedAt: true,
               assignee: { select: { id: true, name: true } },
               service: { select: { id: true, name: true, serviceOrder: true } },
               timeSummary: { select: { completedAt: true } },
@@ -121,13 +120,15 @@ export async function GET(request: NextRequest) {
 
     // Compute "due date" per installment. Three rules in priority order:
     //
-    //   1. MILESTONE-LINKED, task DONE
-    //        dueDate = task.completedAt + 7 days
-    //        (grace window before this row is considered overdue)
+    //   1. MILESTONE-LINKED, task DONE, AND we have a real completion
+    //      timestamp (taskTimeSummary.completedAt only — task.updatedAt
+    //      is unreliable because it bumps for unrelated edits).
+    //        dueDate = completedAt + 7 days
     //
-    //   2. MILESTONE-LINKED, task not DONE
-    //        dueDate = null  (the row is "waiting on a milestone" — it
-    //        is intentionally not on the overdue clock).
+    //   2. MILESTONE-LINKED, task not DONE OR we lack a real completion
+    //      timestamp.
+    //        dueDate = null (treat as WAITING_ON_TASK rather than fake
+    //        a date and risk false "overdue" alarms).
     //
     //   3. NOT LINKED (upfront / legacy time-based)
     //        baseline = contract.signedAt OR installment.createdAt
@@ -137,8 +138,9 @@ export async function GET(request: NextRequest) {
       const linkedTask = it.linkedTask;
       const isMilestone = !!linkedTask;
       const taskDone = linkedTask?.status === "DONE";
-      const completedAt =
-        linkedTask?.timeSummary?.completedAt ?? linkedTask?.updatedAt ?? null;
+      // Strict — only the recorded completion timestamp counts. We
+      // deliberately do NOT fall back to task.updatedAt here.
+      const completedAt = linkedTask?.timeSummary?.completedAt ?? null;
 
       let dueDate: Date | null;
       let milestoneState: "DUE_NOW" | "WAITING_ON_TASK" | "TIME_BASED" = "TIME_BASED";
@@ -146,7 +148,10 @@ export async function GET(request: NextRequest) {
       if (isMilestone && taskDone && completedAt) {
         dueDate = new Date(new Date(completedAt).getTime() + GRACE_DAYS * 86400000);
         milestoneState = "DUE_NOW";
-      } else if (isMilestone && !taskDone) {
+      } else if (isMilestone) {
+        // Either the task is still open, or it is DONE but we don't
+        // have a trustworthy completion time — keep the row off the
+        // overdue clock.
         dueDate = null;
         milestoneState = "WAITING_ON_TASK";
       } else {
@@ -228,7 +233,6 @@ export async function GET(request: NextRequest) {
           linkedTask: {
             select: {
               status: true,
-              updatedAt: true,
               timeSummary: { select: { completedAt: true } },
             },
           },
@@ -267,8 +271,10 @@ export async function GET(request: NextRequest) {
       const linked = r.linkedTask;
       let due: Date | null = null;
       if (linked) {
-        if (linked.status === "DONE") {
-          const completed = linked.timeSummary?.completedAt ?? linked.updatedAt;
+        // Same strict rule as the row enrichment — only the time
+        // summary's completedAt counts, never task.updatedAt.
+        const completed = linked.timeSummary?.completedAt ?? null;
+        if (linked.status === "DONE" && completed) {
           due = new Date(new Date(completed).getTime() + GRACE * 86400000);
         } else {
           due = null;

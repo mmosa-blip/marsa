@@ -61,7 +61,6 @@ interface InstallmentRow {
     id: string;
     title: string;
     status: string;
-    updatedAt: string;
     assignee: { id: string; name: string } | null;
     service: { id: string; name: string; serviceOrder: number } | null;
     timeSummary: { completedAt: string | null } | null;
