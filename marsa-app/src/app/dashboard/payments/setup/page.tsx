@@ -14,6 +14,8 @@ import {
   Trash2,
   AlertTriangle,
   Settings,
+  Link2,
+  Zap,
 } from "lucide-react";
 import { ROUTES } from "@/lib/routes";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -38,45 +40,97 @@ interface ContractRow {
   } | null;
 }
 
-// Quick-pick templates that fill the modal in one click. Each entry is
-// a list of (percentage, dueAfterDays, title) tuples that sum to 100%.
-const TEMPLATES: {
-  key: string;
-  label: string;
-  splits: { percentage: number; dueAfterDays: number; title: string }[];
-}[] = [
-  { key: "single",  label: "دفعة واحدة (100%)",       splits: [{ percentage: 100, dueAfterDays: 0,  title: "الدفعة الكاملة" }] },
-  { key: "two",     label: "دفعتين (50% + 50%)",      splits: [
-    { percentage: 50, dueAfterDays: 0,  title: "الدفعة الأولى" },
-    { percentage: 50, dueAfterDays: 60, title: "الدفعة النهائية" },
-  ]},
-  { key: "three",   label: "ثلاث دفعات (40 + 30 + 30)", splits: [
-    { percentage: 40, dueAfterDays: 0,  title: "الدفعة الأولى" },
-    { percentage: 30, dueAfterDays: 30, title: "الدفعة الثانية" },
-    { percentage: 30, dueAfterDays: 60, title: "الدفعة النهائية" },
-  ]},
-  { key: "four",    label: "أربع دفعات (25% × 4)",     splits: [
-    { percentage: 25, dueAfterDays: 0,  title: "الدفعة الأولى" },
-    { percentage: 25, dueAfterDays: 30, title: "الدفعة الثانية" },
-    { percentage: 25, dueAfterDays: 60, title: "الدفعة الثالثة" },
-    { percentage: 25, dueAfterDays: 90, title: "الدفعة الرابعة" },
-  ]},
-];
+interface ServiceOption {
+  id: string;
+  name: string;
+  serviceOrder: number;
+  hasTasks: boolean;
+}
+
+// ─── Trigger model ─────────────────────────────────────────────────────
+//
+// The system is milestone-based. A payment becomes due either:
+//   - UPFRONT       — paid before any work starts (no task link)
+//   - AFTER_SERVICE — paid after a specific service finishes; we link
+//                     the installment to that service's first task
+//
+// (The legacy time-based "X days after signing" model is gone from
+//  this UI — the wizard always emits milestone-based rows.)
+type Trigger = "UPFRONT" | "AFTER_SERVICE";
 
 interface Split {
   title: string;
+  // We store the percentage as a string for input ergonomics. The
+  // amount is derived from percentage × contractValue at render time
+  // and on submit.
   percentage: string;
-  dueAfterDays: string;
+  trigger: Trigger;
+  linkedServiceId: string | null;
 }
 
-function templateToSplits(key: string): Split[] {
+// Quick-pick templates. Each template is a list of splits with
+// percentages that sum to 100%. The trigger choice is encoded per
+// split:
+//   - "upfront" → UPFRONT (no service link required)
+//   - "first"   → AFTER_SERVICE on the first project service
+//   - "last"    → AFTER_SERVICE on the last project service
+//   - "service:N" → AFTER_SERVICE on service at that index (N ≥ 0)
+const TEMPLATES: {
+  key: string;
+  label: string;
+  splits: { percentage: number; title: string; on: "upfront" | "first" | "last" }[];
+}[] = [
+  {
+    key: "single-upfront",
+    label: "دفعة واحدة عند البدء",
+    splits: [{ percentage: 100, title: "الدفعة الكاملة", on: "upfront" }],
+  },
+  {
+    key: "single-final",
+    label: "دفعة واحدة عند الإنجاز",
+    splits: [{ percentage: 100, title: "الدفعة عند التسليم", on: "last" }],
+  },
+  {
+    key: "fifty-fifty",
+    label: "50% مقدمة + 50% بعد الإنجاز",
+    splits: [
+      { percentage: 50, title: "الدفعة المقدمة", on: "upfront" },
+      { percentage: 50, title: "الدفعة النهائية", on: "last" },
+    ],
+  },
+  {
+    key: "third-third-final",
+    label: "30% مقدم + 30% بعد أول خدمة + 40% نهائية",
+    splits: [
+      { percentage: 30, title: "الدفعة المقدمة", on: "upfront" },
+      { percentage: 30, title: "الدفعة الثانية", on: "first" },
+      { percentage: 40, title: "الدفعة النهائية", on: "last" },
+    ],
+  },
+];
+
+function templateToSplits(key: string, services: ServiceOption[]): Split[] {
   const t = TEMPLATES.find((x) => x.key === key);
   if (!t) return [];
-  return t.splits.map((s) => ({
-    title: s.title,
-    percentage: String(s.percentage),
-    dueAfterDays: String(s.dueAfterDays),
-  }));
+  const firstSvc = services[0];
+  const lastSvc = services[services.length - 1];
+  return t.splits.map((s) => {
+    if (s.on === "upfront") {
+      return {
+        title: s.title,
+        percentage: String(s.percentage),
+        trigger: "UPFRONT" as const,
+        linkedServiceId: null,
+      };
+    }
+    const svc = s.on === "first" ? firstSvc : lastSvc;
+    return {
+      title: s.title,
+      percentage: String(s.percentage),
+      trigger: "AFTER_SERVICE" as const,
+      linkedServiceId: svc?.id ?? null,
+    };
+  });
 }
 
 export default function PaymentsSetupPage() {
@@ -134,7 +188,7 @@ export default function PaymentsSetupPage() {
           إعداد جداول الدفعات
         </h1>
         <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
-          عقود نشطة بدون جدول دفعات معرّف. حدد لكل عقد نموذج التوزيع.
+          عقود نشطة بدون جدول دفعات معرّف. الدفعات ترتبط بإنجاز خدمات المشروع، لا بمواعيد زمنية.
         </p>
       </div>
 
@@ -301,16 +355,13 @@ function SetupModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [templateKey, setTemplateKey] = useState<string>("two");
-  const [splits, setSplits] = useState<Split[]>(() => templateToSplits("two"));
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [templateKey, setTemplateKey] = useState<string>("fifty-fifty");
+  const [splits, setSplits] = useState<Split[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  // Manual contract-value gate: when neither contract.contractValue
-  // nor project.totalPrice gave us a number, the user has to type the
-  // figure here before we can compute installment amounts. The figure
-  // is persisted to Contract.contractValue via /set-value before the
-  // template selector unlocks.
   const initialEffective = contract.effectiveValue ?? 0;
   const [savedValue, setSavedValue] = useState<number>(initialEffective);
   const [manualValueInput, setManualValueInput] = useState<string>("");
@@ -325,14 +376,41 @@ function SetupModal({
   );
   const isCustom = templateKey === "custom";
 
+  // Load the project's services on open so the trigger dropdown
+  // has options. Without services, the AFTER_SERVICE trigger is
+  // disabled — only UPFRONT works.
+  useEffect(() => {
+    let alive = true;
+    setLoadingServices(true);
+    fetch(`/api/contracts/${contract.id}/services`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!alive) return;
+        const svcs: ServiceOption[] = data?.services ?? [];
+        setServices(svcs);
+        // Initialize splits once we know the services.
+        setSplits(templateToSplits("fifty-fifty", svcs));
+        setLoadingServices(false);
+      })
+      .catch(() => {
+        if (alive) {
+          setServices([]);
+          setLoadingServices(false);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [contract.id]);
+
   function applyTemplate(key: string) {
     setTemplateKey(key);
     if (key !== "custom") {
-      setSplits(templateToSplits(key));
+      setSplits(templateToSplits(key, services));
     }
   }
 
-  function updateSplit(idx: number, field: keyof Split, value: string) {
+  function updateSplit<K extends keyof Split>(idx: number, field: K, value: Split[K]) {
     setSplits((prev) =>
       prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s))
     );
@@ -342,7 +420,12 @@ function SetupModal({
   function addSplit() {
     setSplits((prev) => [
       ...prev,
-      { title: `الدفعة ${prev.length + 1}`, percentage: "0", dueAfterDays: "30" },
+      {
+        title: `الدفعة ${prev.length + 1}`,
+        percentage: "0",
+        trigger: "AFTER_SERVICE",
+        linkedServiceId: services[0]?.id ?? null,
+      },
     ]);
     setTemplateKey("custom");
   }
@@ -394,6 +477,14 @@ function SetupModal({
       setError("أضف دفعة واحدة على الأقل");
       return;
     }
+    // Validate AFTER_SERVICE rows have a linked service
+    for (let i = 0; i < splits.length; i++) {
+      const s = splits[i];
+      if (s.trigger === "AFTER_SERVICE" && !s.linkedServiceId) {
+        setError(`الدفعة #${i + 1}: اختر الخدمة المرتبطة`);
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const res = await fetch(`/api/contracts/${contract.id}/setup-installments`, {
@@ -403,7 +494,9 @@ function SetupModal({
           installments: splits.map((s) => ({
             title: s.title.trim(),
             percentage: Number(s.percentage),
-            dueAfterDays: Number(s.dueAfterDays),
+            isUpfront: s.trigger === "UPFRONT",
+            linkedServiceId:
+              s.trigger === "AFTER_SERVICE" ? s.linkedServiceId : null,
           })),
         }),
       });
@@ -420,9 +513,12 @@ function SetupModal({
     }
   }
 
+  const noServicesAvailable =
+    !loadingServices && services.filter((s) => s.hasTasks).length === 0;
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => !submitting && onClose()}>
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white z-10">
           <div className="min-w-0">
             <h3 className="text-base font-bold" style={{ color: "#1C1B2E" }}>
@@ -511,9 +607,26 @@ function SetupModal({
             </div>
           )}
 
+          {noServicesAvailable && (
+            <div
+              className="p-3 rounded-xl flex items-start gap-2"
+              style={{
+                backgroundColor: "rgba(220,38,38,0.05)",
+                border: "1px solid rgba(220,38,38,0.20)",
+              }}
+            >
+              <AlertTriangle size={14} style={{ color: "#DC2626" }} className="shrink-0 mt-0.5" />
+              <p className="text-[11px]" style={{ color: "#374151" }}>
+                لا توجد خدمات بمهام في هذا المشروع — جميع الدفعات يجب أن تكون <strong>مقدمة</strong>.
+              </p>
+            </div>
+          )}
+
           <div style={needsManualValue ? { opacity: 0.4, pointerEvents: "none" } : undefined}>
-            <label className="block text-xs font-semibold mb-2" style={{ color: "#374151" }}>نموذج التوزيع</label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <label className="block text-xs font-semibold mb-2" style={{ color: "#374151" }}>
+              نموذج التوزيع
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {TEMPLATES.map((t) => {
                 const active = templateKey === t.key;
                 return (
@@ -521,7 +634,7 @@ function SetupModal({
                     key={t.key}
                     type="button"
                     onClick={() => applyTemplate(t.key)}
-                    disabled={submitting}
+                    disabled={submitting || loadingServices}
                     className="px-3 py-2 rounded-lg text-xs font-semibold text-right transition-all"
                     style={{
                       backgroundColor: active ? "rgba(94,84,149,0.08)" : "white",
@@ -537,7 +650,7 @@ function SetupModal({
                 type="button"
                 onClick={() => applyTemplate("custom")}
                 disabled={submitting}
-                className="px-3 py-2 rounded-lg text-xs font-semibold text-right transition-all"
+                className="px-3 py-2 rounded-lg text-xs font-semibold text-right transition-all md:col-span-2"
                 style={{
                   backgroundColor: isCustom ? "rgba(94,84,149,0.08)" : "white",
                   color: isCustom ? "#5E5495" : "#1C1B2E",
@@ -549,58 +662,22 @@ function SetupModal({
             </div>
           </div>
 
-          <div className="space-y-2" style={needsManualValue ? { opacity: 0.4, pointerEvents: "none" } : undefined}>
+          <div
+            className="space-y-2"
+            style={needsManualValue ? { opacity: 0.4, pointerEvents: "none" } : undefined}
+          >
             {splits.map((s, idx) => {
               const amount = ((Number(s.percentage) || 0) / 100) * total;
               return (
                 <div
                   key={idx}
-                  className="grid grid-cols-12 gap-2 p-3 rounded-xl"
+                  className="p-3 rounded-xl space-y-2"
                   style={{ backgroundColor: "#F8F8F4", border: "1px solid #E5E7EB" }}
                 >
-                  <div className="col-span-12 md:col-span-4">
-                    <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>الوصف</label>
-                    <input
-                      type="text"
-                      value={s.title}
-                      onChange={(e) => updateSplit(idx, "title", e.target.value)}
-                      disabled={submitting}
-                      className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none"
-                    />
-                  </div>
-                  <div className="col-span-4 md:col-span-2">
-                    <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>%</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={s.percentage}
-                      onChange={(e) => updateSplit(idx, "percentage", e.target.value)}
-                      disabled={submitting}
-                      className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none"
-                      style={{ direction: "ltr", textAlign: "right" }}
-                    />
-                  </div>
-                  <div className="col-span-4 md:col-span-3">
-                    <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>المبلغ</label>
-                    <p className="px-2 py-1.5 rounded-lg text-xs font-mono font-bold" style={{ color: "#1C1B2E", direction: "ltr", textAlign: "right" }}>
-                      {amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-bold" style={{ color: "#5E5495" }}>
+                      الدفعة {idx + 1}
                     </p>
-                  </div>
-                  <div className="col-span-3 md:col-span-2">
-                    <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>بعد كم يوم</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={s.dueAfterDays}
-                      onChange={(e) => updateSplit(idx, "dueAfterDays", e.target.value)}
-                      disabled={submitting}
-                      className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none"
-                      style={{ direction: "ltr", textAlign: "right" }}
-                    />
-                  </div>
-                  <div className="col-span-1 flex items-end justify-end">
                     {splits.length > 1 && (
                       <MarsaButton
                         size="xs"
@@ -612,6 +689,118 @@ function SetupModal({
                         title="حذف"
                         style={{ color: "#DC2626" }}
                       />
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-12 md:col-span-6">
+                      <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>الوصف</label>
+                      <input
+                        type="text"
+                        value={s.title}
+                        onChange={(e) => updateSplit(idx, "title", e.target.value)}
+                        disabled={submitting}
+                        className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none"
+                      />
+                    </div>
+                    <div className="col-span-6 md:col-span-3">
+                      <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>%</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={s.percentage}
+                        onChange={(e) => updateSplit(idx, "percentage", e.target.value)}
+                        disabled={submitting}
+                        className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none"
+                        style={{ direction: "ltr", textAlign: "right" }}
+                      />
+                    </div>
+                    <div className="col-span-6 md:col-span-3">
+                      <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>المبلغ</label>
+                      <p className="px-2 py-1.5 rounded-lg text-xs font-mono font-bold" style={{ color: "#1C1B2E", direction: "ltr", textAlign: "right" }}>
+                        {amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Trigger row — UPFRONT vs AFTER_SERVICE */}
+                  <div className="space-y-1.5 pt-1">
+                    <p className="text-[10px] font-semibold" style={{ color: "#6B7280" }}>متى تستحق</p>
+                    <div className="flex gap-2 flex-wrap">
+                      <label
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all"
+                        style={{
+                          backgroundColor: s.trigger === "UPFRONT" ? "rgba(22,163,74,0.10)" : "white",
+                          color: s.trigger === "UPFRONT" ? "#16A34A" : "#6B7280",
+                          border: `1.5px solid ${s.trigger === "UPFRONT" ? "#16A34A" : "#E5E7EB"}`,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name={`trigger-${idx}`}
+                          value="UPFRONT"
+                          checked={s.trigger === "UPFRONT"}
+                          onChange={() => {
+                            updateSplit(idx, "trigger", "UPFRONT");
+                            updateSplit(idx, "linkedServiceId", null);
+                          }}
+                          disabled={submitting}
+                          className="hidden"
+                        />
+                        <Zap size={12} />
+                        دفعة مقدمة
+                      </label>
+                      <label
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold cursor-pointer transition-all"
+                        style={{
+                          backgroundColor: s.trigger === "AFTER_SERVICE" ? "rgba(94,84,149,0.10)" : "white",
+                          color: s.trigger === "AFTER_SERVICE" ? "#5E5495" : "#6B7280",
+                          border: `1.5px solid ${s.trigger === "AFTER_SERVICE" ? "#5E5495" : "#E5E7EB"}`,
+                          opacity: noServicesAvailable ? 0.4 : 1,
+                          pointerEvents: noServicesAvailable ? "none" : "auto",
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name={`trigger-${idx}`}
+                          value="AFTER_SERVICE"
+                          checked={s.trigger === "AFTER_SERVICE"}
+                          onChange={() => {
+                            updateSplit(idx, "trigger", "AFTER_SERVICE");
+                            if (!s.linkedServiceId && services[0]) {
+                              updateSplit(idx, "linkedServiceId", services[0].id);
+                            }
+                          }}
+                          disabled={submitting || noServicesAvailable}
+                          className="hidden"
+                        />
+                        <Link2 size={12} />
+                        بعد إكمال خدمة
+                      </label>
+                    </div>
+                    {s.trigger === "AFTER_SERVICE" && (
+                      <select
+                        value={s.linkedServiceId ?? ""}
+                        onChange={(e) =>
+                          updateSplit(idx, "linkedServiceId", e.target.value || null)
+                        }
+                        disabled={submitting || loadingServices}
+                        className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none"
+                      >
+                        <option value="">— اختر الخدمة —</option>
+                        {services.map((svc) => (
+                          <option
+                            key={svc.id}
+                            value={svc.id}
+                            disabled={!svc.hasTasks}
+                          >
+                            {svc.serviceOrder + 1}. {svc.name}
+                            {!svc.hasTasks ? " (بدون مهام)" : ""}
+                          </option>
+                        ))}
+                      </select>
                     )}
                   </div>
                 </div>

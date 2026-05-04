@@ -5,16 +5,24 @@ import { logger } from "@/lib/logger";
 import { createAuditLog, AuditModule } from "@/lib/audit";
 
 // POST /api/contracts/[id]/setup-installments
-// body: { installments: [{ title?, percentage?, amount?, dueAfterDays? }] }
+// body: { installments: [{ title?, amount?, percentage?, linkedServiceId?, isUpfront? }] }
 //
-// Bulk-defines the payment schedule on a contract that has none. The
-// wizard's API target — refuses to overwrite existing installments
-// (the contract editor handles edits separately).
+// Bulk-defines a milestone-based payment schedule on a contract that
+// has none. The wizard's API target — refuses to overwrite existing
+// installments. Each installment is either upfront (no link, unlocked)
+// or anchored to a project service (linked to that service's first
+// task, locked unless it is the first row).
+//
+// Legacy fields (dueAfterDays) are still accepted for back-compat
+// with the older time-based wizard but no longer encouraged.
 
 interface InstallmentInput {
   title?: string;
-  percentage?: number;
   amount?: number;
+  percentage?: number;
+  linkedServiceId?: string | null;
+  isUpfront?: boolean;
+  // legacy
   dueAfterDays?: number;
 }
 
@@ -42,6 +50,47 @@ export async function POST(
         contractValue: true,
         status: true,
         client: { select: { name: true } },
+        // Resolve project + services + first-task-per-service for the
+        // linkedTaskId lookup. Either side of the relation works.
+        project: {
+          select: {
+            id: true,
+            services: {
+              where: { deletedAt: null },
+              select: {
+                id: true,
+                name: true,
+                serviceOrder: true,
+                tasks: {
+                  select: { id: true },
+                  orderBy: { order: "asc" },
+                  take: 1,
+                },
+              },
+              orderBy: { serviceOrder: "asc" },
+            },
+          },
+        },
+        linkedProjects: {
+          select: {
+            id: true,
+            services: {
+              where: { deletedAt: null },
+              select: {
+                id: true,
+                name: true,
+                serviceOrder: true,
+                tasks: {
+                  select: { id: true },
+                  orderBy: { order: "asc" },
+                  take: 1,
+                },
+              },
+              orderBy: { serviceOrder: "asc" },
+            },
+          },
+          take: 1,
+        },
         _count: { select: { installments: true } },
       },
     });
@@ -55,13 +104,24 @@ export async function POST(
       );
     }
 
+    // Build a serviceId → firstTaskId lookup from whichever side of
+    // the project relation is populated.
+    const services =
+      contract.project?.services ??
+      contract.linkedProjects[0]?.services ??
+      [];
+    const serviceIndex = new Map<string, { id: string; firstTaskId: string | null }>();
+    for (const s of services) {
+      serviceIndex.set(s.id, { id: s.id, firstTaskId: s.tasks[0]?.id ?? null });
+    }
+
     const total = contract.contractValue ?? 0;
 
-    // Resolve each row's amount: explicit `amount` wins; otherwise
-    // compute from `percentage` against contractValue. Validation:
-    //   - amount must be > 0
-    //   - dueAfterDays >= 0 (0 = due on signing)
-    //   - title ≤ 200 chars (nice-to-have)
+    // Resolve each row. Validation:
+    //   - amount must be > 0 (computed from percentage if missing)
+    //   - title ≤ 200 chars
+    //   - if linkedServiceId is provided, it must exist on this
+    //     project, and its first task must exist
     const data = inputs.map((inst, idx) => {
       const pct =
         typeof inst.percentage === "number" && Number.isFinite(inst.percentage)
@@ -76,6 +136,25 @@ export async function POST(
       if (amount <= 0) {
         throw new Error(`الدفعة #${idx + 1}: المبلغ غير صالح`);
       }
+
+      const isUpfront = inst.isUpfront === true || !inst.linkedServiceId;
+      let linkedTaskId: string | null = null;
+
+      if (!isUpfront && inst.linkedServiceId) {
+        const svc = serviceIndex.get(inst.linkedServiceId);
+        if (!svc) {
+          throw new Error(
+            `الدفعة #${idx + 1}: الخدمة المختارة لا تنتمي لهذا المشروع`
+          );
+        }
+        if (!svc.firstTaskId) {
+          throw new Error(
+            `الدفعة #${idx + 1}: الخدمة المختارة لا تحتوي على مهام`
+          );
+        }
+        linkedTaskId = svc.firstTaskId;
+      }
+
       const dueAfterDays =
         typeof inst.dueAfterDays === "number" && Number.isFinite(inst.dueAfterDays)
           ? Math.max(0, Math.trunc(inst.dueAfterDays))
@@ -89,11 +168,20 @@ export async function POST(
         percentage: pct,
         dueAfterDays,
         order: idx,
-        isLocked: idx > 0,
+        // Upfront → unlocked. Otherwise: first row unlocked, rest locked.
+        isLocked: isUpfront ? false : idx > 0,
+        linkedTaskId,
       };
     });
 
-    await prisma.contractPaymentInstallment.createMany({ data });
+    // createMany doesn't allow nullable relation fields cleanly; use
+    // a per-row create instead so linkedTaskId stays null when blank.
+    for (const row of data) {
+      const { linkedTaskId, ...rest } = row;
+      await prisma.contractPaymentInstallment.create({
+        data: { ...rest, ...(linkedTaskId ? { linkedTaskId } : {}) },
+      });
+    }
 
     await createAuditLog({
       userId: session.user.id,
@@ -108,6 +196,8 @@ export async function POST(
       after: {
         count: data.length,
         total: data.reduce((s, x) => s + x.amount, 0),
+        upfrontCount: data.filter((x) => !x.linkedTaskId).length,
+        linkedCount: data.filter((x) => x.linkedTaskId).length,
       },
     });
 
