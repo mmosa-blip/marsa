@@ -293,40 +293,44 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      {/* Setup-status banner */}
-      {setupStatus && setupStatus.contractsWithoutInstallments > 0 && (
-        <div
-          className="mb-4 rounded-2xl p-4 flex items-center gap-3 flex-wrap"
-          style={{
-            backgroundColor: "rgba(234,88,12,0.06)",
-            border: "1px solid rgba(234,88,12,0.30)",
-          }}
-        >
+      {/* Setup-status banner — only shown on tabs other than the
+          dedicated needs-setup tab to avoid redundancy. */}
+      {setupStatus &&
+        setupStatus.contractsWithoutInstallments > 0 &&
+        tab !== "needs_setup" && (
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-            style={{ backgroundColor: "rgba(234,88,12,0.15)" }}
+            className="mb-4 rounded-2xl p-4 flex items-center gap-3 flex-wrap"
+            style={{
+              backgroundColor: "rgba(234,88,12,0.06)",
+              border: "1px solid rgba(234,88,12,0.30)",
+            }}
           >
-            <AlertTriangle size={18} style={{ color: "#EA580C" }} />
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{ backgroundColor: "rgba(234,88,12,0.15)" }}
+            >
+              <AlertTriangle size={18} style={{ color: "#EA580C" }} />
+            </div>
+            <div className="flex-1 min-w-[220px]">
+              <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+                يوجد {setupStatus.contractsWithoutInstallments} مشروع نشط بحاجة لجدول دفعات
+              </p>
+              <p className="text-[11px] mt-0.5" style={{ color: "#6B7280" }}>
+                دفعات هذه المشاريع لن تظهر هنا حتى يتم تعريف جدول الأقساط لكل عقد.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTab("needs_setup")}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:brightness-105"
+              style={{ backgroundColor: "#EA580C", color: "white" }}
+            >
+              <Settings size={13} />
+              إعداد الدفعات الآن
+              <ArrowLeft size={13} />
+            </button>
           </div>
-          <div className="flex-1 min-w-[220px]">
-            <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
-              يوجد {setupStatus.contractsWithoutInstallments} عقد بدون جدول دفعات معرّف
-            </p>
-            <p className="text-[11px] mt-0.5" style={{ color: "#6B7280" }}>
-              هذه العقود لن تظهر دفعاتها في الصفحة حتى يتم تحديد جدول الأقساط لها.
-            </p>
-          </div>
-          <Link
-            href="/dashboard/payments/setup"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:brightness-105"
-            style={{ backgroundColor: "#EA580C", color: "white" }}
-          >
-            <Settings size={13} />
-            إعداد جداول الدفعات الآن
-            <ArrowLeft size={13} />
-          </Link>
-        </div>
-      )}
+        )}
 
       {/* Tabs + search */}
       <div className="bg-white rounded-2xl p-3 border border-gray-100 mb-4 flex items-center gap-2 flex-wrap">
