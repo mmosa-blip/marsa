@@ -17,6 +17,13 @@ export async function GET() {
       where: {
         installments: { none: {} },
         status: { not: "CANCELLED" },
+        // Skip orphan contracts — those without any live project.
+        // They are old / unrelated rows that the user can't act on
+        // through the wizard, so we hide them entirely.
+        OR: [
+          { project: { is: { deletedAt: null } } },
+          { linkedProjects: { some: { deletedAt: null } } },
+        ],
       },
       select: {
         id: true,

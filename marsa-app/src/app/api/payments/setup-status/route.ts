@@ -19,22 +19,37 @@ export async function GET() {
   try {
     await requireRole(["ADMIN", "MANAGER", "FINANCE_MANAGER"]);
 
+    // Mirror the orphan filter on /api/payments/contracts-needing-setup
+    // — counts here drive the banner that links to that endpoint, so
+    // they must agree.
+    const liveProjectClause = {
+      OR: [
+        { project: { is: { deletedAt: null } } },
+        { linkedProjects: { some: { deletedAt: null } } },
+      ],
+    };
+
     const [withoutInstallments, draftWithoutInstallments, eligible] =
       await Promise.all([
         prisma.contract.count({
           where: {
             installments: { none: {} },
             status: { not: "CANCELLED" },
+            ...liveProjectClause,
           },
         }),
         prisma.contract.count({
           where: {
             installments: { none: {} },
             status: "DRAFT",
+            ...liveProjectClause,
           },
         }),
         prisma.contract.count({
-          where: { status: { not: "CANCELLED" } },
+          where: {
+            status: { not: "CANCELLED" },
+            ...liveProjectClause,
+          },
         }),
       ]);
 
