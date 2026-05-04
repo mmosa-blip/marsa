@@ -13,9 +13,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Loader2, Building2, Trophy } from "lucide-react";
+import { Loader2, Building2, Trophy, Archive, X } from "lucide-react";
 import MyTasksView from "@/components/MyTasksView";
-import CityCanvas, { CityApiProject, isProjectComplete } from "@/components/city/CityCanvas";
+import CityCanvas, {
+  CityApiProject,
+  isProjectComplete,
+  getBuildingState,
+} from "@/components/city/CityCanvas";
 import CityStatsBar from "@/components/city/CityStatsBar";
 import { ROUTES } from "@/lib/routes";
 import { logger } from "@/lib/logger";
@@ -50,6 +54,9 @@ export default function ExecutorCityPage() {
   // Project picker — null until the first fetch resolves; a project is always
   // selected after that so the embedded tasks view stays focused.
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  // Archive drawer — opt-in view of COMPLETED + COLLAPSED projects so
+  // the main grid stays focused on what still needs work.
+  const [archiveOpen, setArchiveOpen] = useState(false);
   // Auto-select runs once on the very first response. Real-time refetches
   // update `projects` without ever stomping on the user's current pick.
   const initialSelectDoneRef = useRef(false);
@@ -128,6 +135,52 @@ export default function ExecutorCityPage() {
     return projects.reduce((acc, p) => acc + (isProjectComplete(p) ? 1 : 0), 0);
   }, [projects]);
 
+  // Split into "active" (still needs work) vs "archived"
+  // (COMPLETED / COLLAPSED — finished one way or another). The grid
+  // shows active only; archived is opt-in via the drawer.
+  //
+  // Sort priority within active: TASK_LATE first (red — needs urgent
+  // attention), then AT_RISK, then PAYMENT_FROZEN / CLIENT_HOLD /
+  // ADMIN_PAUSED (still needs eyes but blocked), then plain IN_PROGRESS.
+  // Tiebreak by closest deadline.
+  const STATE_PRIORITY: Record<string, number> = {
+    TASK_LATE: 0,
+    AT_RISK: 1,
+    PAYMENT_FROZEN: 2,
+    CLIENT_HOLD: 3,
+    ADMIN_PAUSED: 4,
+    IN_PROGRESS: 5,
+    COLLAPSED: 90,
+    COMPLETED: 99,
+  };
+
+  const { activeProjects, archivedProjects } = useMemo(() => {
+    if (!projects) return { activeProjects: [], archivedProjects: [] };
+    const active: CityApiProject[] = [];
+    const archived: CityApiProject[] = [];
+    for (const p of projects) {
+      const isComplete = isProjectComplete(p);
+      const state = getBuildingState({ ...p, isComplete });
+      if (state === "COMPLETED" || state === "COLLAPSED") {
+        archived.push(p);
+      } else {
+        active.push(p);
+      }
+    }
+    active.sort((a, b) => {
+      const aState = getBuildingState({ ...a, isComplete: isProjectComplete(a) });
+      const bState = getBuildingState({ ...b, isComplete: isProjectComplete(b) });
+      const ap = STATE_PRIORITY[aState] ?? 50;
+      const bp = STATE_PRIORITY[bState] ?? 50;
+      if (ap !== bp) return ap - bp;
+      const aEnd = a.contractEndDate ? new Date(a.contractEndDate).getTime() : Infinity;
+      const bEnd = b.contractEndDate ? new Date(b.contractEndDate).getTime() : Infinity;
+      return aEnd - bEnd;
+    });
+    return { activeProjects: active, archivedProjects: archived };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects]);
+
   const tier = getBuilderTier(completedCount);
   const tierBadge = tier ? (
     <div
@@ -197,61 +250,105 @@ export default function ExecutorCityPage() {
 
       {projects && projects.length > 0 && (
         <div className="flex-shrink-0 px-4 lg:px-6 mt-3">
-          <div
-            className="flex items-center gap-2 overflow-x-auto pb-2"
-            style={{ scrollbarWidth: "thin" }}
-          >
-            {projects.map((p) => {
-              const active = pickedProjectId === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  // Always select — no toggle-off. A project is always
-                  // active so the executor sees a focused task list.
-                  onClick={() => setPickedProjectId(p.id)}
-                  title={p.projectCode ? `${p.projectCode} — ${p.name}` : p.name}
-                  className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 max-w-[260px]"
-                  style={
-                    active
-                      ? {
-                          backgroundColor: "#5E5495",
-                          color: "white",
-                          boxShadow: "0 2px 6px rgba(94,84,149,0.3)",
-                          border: "1px solid #5E5495",
-                        }
-                      : {
-                          backgroundColor: "white",
-                          color: "#1C1B2E",
-                          border: "1px solid #E2E0D8",
-                        }
-                  }
+          {/* Wrapping grid — every active project visible in one shot,
+              no scroll. Sorted by urgency (TASK_LATE first), then by
+              closest deadline. Completed/collapsed land in the archive
+              drawer instead. */}
+          <div className="flex items-start gap-2 flex-wrap pb-2">
+            {activeProjects.map((p) => (
+              <ProjectChip
+                key={p.id}
+                project={p}
+                isActive={pickedProjectId === p.id}
+                onClick={() => setPickedProjectId(p.id)}
+              />
+            ))}
+            {archivedProjects.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setArchiveOpen(true)}
+                title="عرض المشاريع المنتهية والمنهارة"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all hover:brightness-105"
+                style={{
+                  backgroundColor: "rgba(148,163,184,0.10)",
+                  border: "1px dashed rgba(148,163,184,0.45)",
+                  color: "#475569",
+                }}
+              >
+                <Archive size={13} />
+                الأرشيف
+                <span
+                  className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
+                  style={{ backgroundColor: "rgba(148,163,184,0.20)" }}
                 >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: active ? "#FFFFFF" : (p.department?.color || "#C9A84C") }}
-                  />
-                  <span className="truncate">{p.name}</span>
-                  {p.projectCode && (
-                    <span
-                      className="text-[9px] font-mono font-bold flex-shrink-0 px-1 py-0.5 rounded"
-                      style={{
-                        backgroundColor: active ? "rgba(255,255,255,0.2)" : "rgba(94,84,149,0.1)",
-                        color: active ? "#FFFFFF" : "#5E5495",
+                  {archivedProjects.length}
+                </span>
+              </button>
+            )}
+            {activeProjects.length === 0 && (
+              <p className="text-xs px-1 py-2" style={{ color: "#9CA3AF" }}>
+                لا توجد مشاريع نشطة حالياً.
+                {archivedProjects.length > 0 && " افتح الأرشيف لعرض المنتهية."}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Archive drawer */}
+      {archiveOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40"
+          onClick={() => setArchiveOpen(false)}
+        >
+          <div
+            className="bg-white rounded-t-2xl w-full max-w-3xl shadow-2xl max-h-[80vh] flex flex-col"
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Archive size={18} style={{ color: "#5E5495" }} />
+                <h3 className="text-base font-bold" style={{ color: "#1C1B2E" }}>
+                  أرشيف المشاريع
+                </h3>
+                <span
+                  className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full"
+                  style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}
+                >
+                  {archivedProjects.length}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setArchiveOpen(false)}
+                className="p-1.5 rounded-lg transition-colors hover:bg-gray-100"
+                style={{ color: "#9CA3AF" }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4">
+              {archivedProjects.length === 0 ? (
+                <p className="text-xs text-center py-6" style={{ color: "#9CA3AF" }}>
+                  لا توجد مشاريع مؤرشفة.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {archivedProjects.map((p) => (
+                    <ProjectChip
+                      key={p.id}
+                      project={p}
+                      isActive={pickedProjectId === p.id}
+                      onClick={() => {
+                        setPickedProjectId(p.id);
+                        setArchiveOpen(false);
                       }}
-                    >
-                      {p.projectCode}
-                    </span>
-                  )}
-                  <span
-                    className="text-[10px] font-bold flex-shrink-0"
-                    style={{ color: active ? "rgba(255,255,255,0.8)" : "#9CA3AF" }}
-                  >
-                    {p.completedTasks}/{p.totalTasks}
-                  </span>
-                </button>
-              );
-            })}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -265,3 +362,95 @@ export default function ExecutorCityPage() {
     </div>
   );
 }
+
+// ─── ProjectChip ────────────────────────────────────────────────────────
+// Compact project card for the picker grid. Shows project name (truncated),
+// client name underneath, a colored status dot per BuildingState, and the
+// task progress fraction. Highlights when active (the project the executor
+// is currently focused on).
+
+const STATE_DOT: Record<string, { color: string; label: string }> = {
+  TASK_LATE: { color: "#DC2626", label: "متأخر" },
+  AT_RISK: { color: "#EA580C", label: "متهالك" },
+  COLLAPSED: { color: "#7F1D1D", label: "منهار" },
+  PAYMENT_FROZEN: { color: "#A855F7", label: "مجمّد" },
+  ADMIN_PAUSED: { color: "#A16207", label: "متوقف" },
+  CLIENT_HOLD: { color: "#475569", label: "بانتظار العميل" },
+  COMPLETED: { color: "#16A34A", label: "مكتمل" },
+  IN_PROGRESS: { color: "#2563EB", label: "جارٍ" },
+};
+
+function ProjectChip({
+  project,
+  isActive,
+  onClick,
+}: {
+  project: CityApiProject;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const isComplete = isProjectComplete(project);
+  const state = getBuildingState({ ...project, isComplete });
+  const dot = STATE_DOT[state] ?? STATE_DOT.IN_PROGRESS;
+  const clientName = project.client?.name ?? null;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`${project.projectCode ? project.projectCode + " — " : ""}${project.name}${clientName ? " — " + clientName : ""} (${dot.label})`}
+      className="rounded-xl text-right transition-all flex flex-col gap-0.5 min-w-[180px] max-w-[240px]"
+      style={
+        isActive
+          ? {
+              backgroundColor: "#5E5495",
+              color: "white",
+              boxShadow: "0 2px 8px rgba(94,84,149,0.35)",
+              border: "1.5px solid #5E5495",
+              padding: "8px 10px",
+            }
+          : {
+              backgroundColor: "white",
+              color: "#1C1B2E",
+              border: "1px solid #E2E0D8",
+              padding: "8px 10px",
+            }
+      }
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ backgroundColor: isActive ? "#FFFFFF" : dot.color }}
+          title={dot.label}
+        />
+        <span className="text-xs font-bold truncate flex-1">{project.name}</span>
+        {project.projectCode && (
+          <span
+            className="text-[9px] font-mono font-bold flex-shrink-0 px-1 py-0.5 rounded"
+            style={{
+              backgroundColor: isActive ? "rgba(255,255,255,0.2)" : "rgba(94,84,149,0.1)",
+              color: isActive ? "#FFFFFF" : "#5E5495",
+            }}
+          >
+            {project.projectCode}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center justify-between gap-1">
+        <span
+          className="text-[10px] truncate"
+          style={{ color: isActive ? "rgba(255,255,255,0.75)" : "#9CA3AF" }}
+        >
+          {clientName ?? "—"}
+        </span>
+        <span
+          className="text-[10px] font-bold flex-shrink-0 font-mono"
+          style={{ color: isActive ? "rgba(255,255,255,0.85)" : "#9CA3AF" }}
+        >
+          {project.completedTasks}/{project.totalTasks}
+        </span>
+      </div>
+    </button>
+  );
+}
+
