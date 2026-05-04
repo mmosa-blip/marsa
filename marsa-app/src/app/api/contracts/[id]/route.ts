@@ -433,6 +433,38 @@ export async function PATCH(
         },
       });
 
+      // Safety net: if the signed contract has no installments at all, the
+      // payments page would never surface its value. Drop in a single
+      // catch-all installment for the full contractValue, due 30 days
+      // out, so finance has something to track. The user can split it
+      // later via the bulk wizard.
+      if ((contract.contractValue ?? 0) > 0) {
+        const existing = await prisma.contractPaymentInstallment.count({
+          where: { contractId: id },
+        });
+        if (existing === 0) {
+          await prisma.contractPaymentInstallment.create({
+            data: {
+              contractId: id,
+              title: "الدفعة الكاملة",
+              amount: contract.contractValue ?? 0,
+              percentage: 100,
+              dueAfterDays: 30,
+              order: 0,
+              isLocked: false,
+            },
+          });
+          createAuditLog({
+            userId: session.user.id, userName: session.user.name || undefined, userRole: role,
+            action: "INSTALLMENTS_AUTO_CREATED", module: AuditModule.FINANCE,
+            entityType: "Contract", entityId: id,
+            entityName: contract.template?.title || "عقد",
+            after: { count: 1, total: contract.contractValue, trigger: "sign" },
+            notes: "إنشاء تلقائي عند التوقيع لعدم وجود جدول دفعات",
+          });
+        }
+      }
+
       const managersToNotify = await prisma.user.findMany({
         where: { role: { in: ["ADMIN", "MANAGER"] }, isActive: true, deletedAt: null },
         select: { id: true },
