@@ -21,6 +21,9 @@ import {
   TrendingDown,
   Settings,
   ArrowLeft,
+  Link2,
+  Hourglass,
+  Zap,
 } from "lucide-react";
 import { ROUTES } from "@/lib/routes";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -57,7 +60,11 @@ interface InstallmentRow {
   linkedTask: {
     id: string;
     title: string;
+    status: string;
+    updatedAt: string;
     assignee: { id: string; name: string } | null;
+    service: { id: string; name: string; serviceOrder: number } | null;
+    timeSummary: { completedAt: string | null } | null;
   } | null;
   followUps: {
     id: string;
@@ -69,6 +76,8 @@ interface InstallmentRow {
   // server-derived
   dueDate: string | null;
   daysOverdue: number;
+  milestoneState: "DUE_NOW" | "WAITING_ON_TASK" | "TIME_BASED";
+  taskCompletedAt: string | null;
   remainingAmount: number;
   isPaid: boolean;
 }
@@ -535,6 +544,16 @@ function InstallmentRowView({
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: `${overdueColor}15`, color: overdueColor }}>
                 متأخرة {row.daysOverdue} يوم
               </span>
+            ) : row.milestoneState === "DUE_NOW" ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ backgroundColor: "rgba(22,163,74,0.12)", color: "#16A34A" }}>
+                <Zap size={10} />
+                مستحقة الآن
+              </span>
+            ) : row.milestoneState === "WAITING_ON_TASK" ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ backgroundColor: "rgba(14,165,233,0.10)", color: "#0EA5E9" }}>
+                <Hourglass size={10} />
+                بانتظار إنجاز المهمة
+              </span>
             ) : (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(94,84,149,0.1)", color: "#5E5495" }}>
                 {row.paymentStatus === "PARTIAL" ? "جزئية" : "قادمة"}
@@ -562,6 +581,45 @@ function InstallmentRowView({
               <span>· استحقاق {new Date(row.dueDate).toLocaleDateString("ar-SA-u-nu-latn", { year: "numeric", month: "short", day: "numeric" })}</span>
             )}
           </div>
+          {row.linkedTask && (
+            <div
+              className="flex items-center gap-1.5 text-[10px] mt-1.5 px-2 py-1 rounded-md inline-flex"
+              style={{
+                backgroundColor:
+                  row.linkedTask.status === "DONE"
+                    ? "rgba(22,163,74,0.06)"
+                    : "rgba(94,84,149,0.05)",
+                color:
+                  row.linkedTask.status === "DONE" ? "#16A34A" : "#5E5495",
+                border: `1px solid ${
+                  row.linkedTask.status === "DONE"
+                    ? "rgba(22,163,74,0.20)"
+                    : "rgba(94,84,149,0.18)"
+                }`,
+              }}
+            >
+              <Link2 size={10} />
+              <span>
+                مرتبطة بـ <strong>{row.linkedTask.title}</strong>
+                {row.linkedTask.service && (
+                  <>
+                    {" — "}
+                    <span style={{ color: "#9CA3AF" }}>{row.linkedTask.service.name}</span>
+                  </>
+                )}
+                {" · "}
+                <span style={{ fontWeight: 700 }}>
+                  {row.linkedTask.status === "DONE"
+                    ? "✓ مكتملة"
+                    : row.linkedTask.status === "IN_PROGRESS"
+                      ? "قيد التنفيذ"
+                      : row.linkedTask.status === "TODO"
+                        ? "لم تبدأ"
+                        : row.linkedTask.status}
+                </span>
+              </span>
+            </div>
+          )}
           {lastFollowUp && (
             <p className="text-[10px] mt-1" style={{ color: "#9CA3AF" }}>
               آخر متابعة: {OUTCOME_LABELS[lastFollowUp.outcome] ?? lastFollowUp.outcome} —{" "}

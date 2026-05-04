@@ -83,7 +83,11 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               title: true,
+              status: true,
+              updatedAt: true,
               assignee: { select: { id: true, name: true } },
+              service: { select: { id: true, name: true, serviceOrder: true } },
+              timeSummary: { select: { completedAt: true } },
             },
           },
           followUps: {
@@ -104,19 +108,43 @@ export async function GET(request: NextRequest) {
       prisma.contractPaymentInstallment.count({ where }),
     ]);
 
-    // Compute "due date" per installment. Two fallbacks because real
-    // legacy data is messier than the schema implies:
-    //   1. baseline = contract.signedAt OR installment.createdAt (when
-    //      the contract is still DRAFT and signedAt is null).
-    //   2. offset   = installment.dueAfterDays OR 30 (a sane default
-    //      that keeps the row visible in week/month/overdue tabs
-    //      instead of disappearing because the field is missing).
+    // Compute "due date" per installment. Three rules in priority order:
+    //
+    //   1. MILESTONE-LINKED, task DONE
+    //        dueDate = task.completedAt + 7 days
+    //        (grace window before this row is considered overdue)
+    //
+    //   2. MILESTONE-LINKED, task not DONE
+    //        dueDate = null  (the row is "waiting on a milestone" — it
+    //        is intentionally not on the overdue clock).
+    //
+    //   3. NOT LINKED (upfront / legacy time-based)
+    //        baseline = contract.signedAt OR installment.createdAt
+    //        offset   = installment.dueAfterDays OR 30
+    const GRACE_DAYS = 7;
     const enriched = items.map((it) => {
-      const baseline = it.contract?.signedAt ?? it.createdAt;
-      const offsetDays = it.dueAfterDays ?? 30;
-      const dueDate = new Date(
-        new Date(baseline).getTime() + offsetDays * 86400000
-      );
+      const linkedTask = it.linkedTask;
+      const isMilestone = !!linkedTask;
+      const taskDone = linkedTask?.status === "DONE";
+      const completedAt =
+        linkedTask?.timeSummary?.completedAt ?? linkedTask?.updatedAt ?? null;
+
+      let dueDate: Date | null;
+      let milestoneState: "DUE_NOW" | "WAITING_ON_TASK" | "TIME_BASED" = "TIME_BASED";
+
+      if (isMilestone && taskDone && completedAt) {
+        dueDate = new Date(new Date(completedAt).getTime() + GRACE_DAYS * 86400000);
+        milestoneState = "DUE_NOW";
+      } else if (isMilestone && !taskDone) {
+        dueDate = null;
+        milestoneState = "WAITING_ON_TASK";
+      } else {
+        const baseline = it.contract?.signedAt ?? it.createdAt;
+        const offsetDays = it.dueAfterDays ?? 30;
+        dueDate = new Date(new Date(baseline).getTime() + offsetDays * 86400000);
+        milestoneState = "TIME_BASED";
+      }
+
       const remaining = Math.max(
         0,
         it.amount -
@@ -128,12 +156,15 @@ export async function GET(request: NextRequest) {
         dueDate && !isPaid && dueDate.getTime() < today.getTime()
           ? Math.floor((today.getTime() - dueDate.getTime()) / 86400000)
           : 0;
+
       return {
         ...it,
         dueDate,
         daysOverdue,
         remainingAmount: remaining,
         isPaid,
+        milestoneState,
+        taskCompletedAt: completedAt,
       };
     });
 
@@ -162,7 +193,7 @@ export async function GET(request: NextRequest) {
 
     // Dashboard summary — global counters across the whole table, NOT
     // the page slice. Cheap because it's two count + one aggregate query.
-    const [allUnpaid, paidAgg, overdueAgg] = await Promise.all([
+    const [allUnpaid, paidAgg] = await Promise.all([
       prisma.contractPaymentInstallment.findMany({
         where: { paymentStatus: { not: "PAID" } },
         select: {
@@ -171,6 +202,13 @@ export async function GET(request: NextRequest) {
           waiverAmount: true,
           dueAfterDays: true,
           createdAt: true,
+          linkedTask: {
+            select: {
+              status: true,
+              updatedAt: true,
+              timeSummary: { select: { completedAt: true } },
+            },
+          },
           contract: {
             select: { clientId: true, signedAt: true },
           },
@@ -180,9 +218,6 @@ export async function GET(request: NextRequest) {
         _sum: { paidAmount: true },
         where: { paymentStatus: "PAID" },
       }),
-      prisma.contractPaymentInstallment.count({
-        where: { paymentStatus: { not: "PAID" } },
-      }),
     ]);
 
     let totalDue = 0;
@@ -190,6 +225,7 @@ export async function GET(request: NextRequest) {
     let overdueDaysSum = 0;
     let overdueCount = 0;
     const overdueClients = new Set<string>();
+    const GRACE = 7;
 
     for (const r of allUnpaid) {
       const remain = Math.max(
@@ -199,12 +235,28 @@ export async function GET(request: NextRequest) {
           (r.waiverAmount ? Number(r.waiverAmount) : 0)
       );
       totalDue += remain;
-      // Same fallback as the row-level enrichment above so the summary
-      // and per-row daysOverdue stay in lockstep.
-      const baseline = r.contract?.signedAt ?? r.createdAt;
-      const offsetDays = r.dueAfterDays ?? 30;
-      const due = new Date(new Date(baseline).getTime() + offsetDays * 86400000);
-      if (due.getTime() < today.getTime() && remain > 0) {
+
+      // Mirror the row-level dueDate logic so summary and table stay
+      // in lockstep:
+      //   - milestone-linked + task DONE → due = completedAt + 7d
+      //   - milestone-linked + task open → not on the overdue clock
+      //   - unlinked                     → signedAt/createdAt + dueAfterDays/30
+      const linked = r.linkedTask;
+      let due: Date | null = null;
+      if (linked) {
+        if (linked.status === "DONE") {
+          const completed = linked.timeSummary?.completedAt ?? linked.updatedAt;
+          due = new Date(new Date(completed).getTime() + GRACE * 86400000);
+        } else {
+          due = null;
+        }
+      } else {
+        const baseline = r.contract?.signedAt ?? r.createdAt;
+        const offsetDays = r.dueAfterDays ?? 30;
+        due = new Date(new Date(baseline).getTime() + offsetDays * 86400000);
+      }
+
+      if (due && due.getTime() < today.getTime() && remain > 0) {
         totalOverdue += remain;
         overdueDaysSum += (today.getTime() - due.getTime()) / 86400000;
         overdueCount++;
@@ -220,7 +272,7 @@ export async function GET(request: NextRequest) {
         overdueCount > 0 ? Math.round(overdueDaysSum / overdueCount) : 0,
       // Extras the UI uses
       totalCollected: Math.round(paidAgg._sum.paidAmount ?? 0),
-      overdueInstallmentsCount: overdueAgg,
+      overdueInstallmentsCount: overdueCount,
     };
 
     return NextResponse.json({
