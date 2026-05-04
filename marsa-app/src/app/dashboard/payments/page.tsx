@@ -94,11 +94,11 @@ interface Summary {
 type TabKey = "all" | "overdue" | "week" | "month" | "paid";
 
 const TABS: { key: TabKey; label: string }[] = [
+  { key: "all", label: "الكل" },
   { key: "overdue", label: "متأخرة الآن" },
   { key: "week", label: "هذا الأسبوع" },
   { key: "month", label: "هذا الشهر" },
   { key: "paid", label: "مدفوعة" },
-  { key: "all", label: "الكل" },
 ];
 
 const OUTCOME_LABELS: Record<string, string> = {
@@ -116,7 +116,7 @@ export default function PaymentsPage() {
   const [items, setItems] = useState<InstallmentRow[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabKey>("overdue");
+  const [tab, setTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
 
