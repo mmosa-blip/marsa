@@ -31,6 +31,7 @@ import PaymentRecordModal from "@/components/payments/PaymentRecordModal";
 import FollowUpModal from "@/components/payments/FollowUpModal";
 import WaiverModal from "@/components/payments/WaiverModal";
 import PauseProjectModal from "@/components/city/PauseProjectModal";
+import SetupInstallmentsModal from "@/components/payments/SetupInstallmentsModal";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -90,7 +91,25 @@ interface Summary {
   overdueInstallmentsCount: number;
 }
 
-type TabKey = "all" | "overdue" | "week" | "month" | "paid";
+type TabKey = "all" | "overdue" | "week" | "month" | "paid" | "needs_setup";
+
+interface NeedsSetupRow {
+  id: string;
+  contractNumber: number | null;
+  status: string;
+  signedAt: string | null;
+  contractValue: number | null;
+  effectiveValue: number | null;
+  valueSource: "contract" | "project" | "missing";
+  client: { id: string; name: string; phone: string | null } | null;
+  project: {
+    id: string;
+    name: string;
+    projectCode: string | null;
+    status: string;
+    totalPrice: number | null;
+  } | null;
+}
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "الكل" },
@@ -98,6 +117,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "week", label: "هذا الأسبوع" },
   { key: "month", label: "هذا الشهر" },
   { key: "paid", label: "مدفوعة" },
+  { key: "needs_setup", label: "🛠️ بحاجة إعداد" },
 ];
 
 const OUTCOME_LABELS: Record<string, string> = {
@@ -133,13 +153,21 @@ export default function PaymentsPage() {
     eligibleContracts: number;
   } | null>(null);
 
+  // Needs-setup tab data — fetched lazily when the tab is opened, kept
+  // separate from the main installment list because the shapes differ.
+  const [setupContracts, setSetupContracts] = useState<NeedsSetupRow[]>([]);
+  const [loadingSetup, setLoadingSetup] = useState(false);
+  const [setupTarget, setSetupTarget] = useState<NeedsSetupRow | null>(null);
+
   const isAdmin = session?.user?.role === "ADMIN";
 
   const refetch = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (tab !== "all") params.set("status", tab);
+      // Skip the status filter when the tab is one of the synthetic
+      // ones that the API doesn't recognise.
+      if (tab !== "all" && tab !== "needs_setup") params.set("status", tab);
       if (search.trim()) params.set("search", search.trim());
       params.set("take", "200");
       const res = await fetch(`/api/payments?${params}`);
@@ -153,9 +181,26 @@ export default function PaymentsPage() {
     }
   }, [tab, search]);
 
+  const loadNeedsSetup = useCallback(async () => {
+    setLoadingSetup(true);
+    try {
+      const res = await fetch("/api/payments/contracts-needing-setup");
+      if (res.ok) {
+        const data = await res.json();
+        setSetupContracts(data.items ?? []);
+      }
+    } finally {
+      setLoadingSetup(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (authStatus === "authenticated") refetch();
   }, [authStatus, refetch]);
+
+  useEffect(() => {
+    if (authStatus === "authenticated" && tab === "needs_setup") loadNeedsSetup();
+  }, [authStatus, tab, loadNeedsSetup]);
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
@@ -291,7 +336,9 @@ export default function PaymentsPage() {
             const count =
               t.key === "overdue" && summary
                 ? summary.overdueInstallmentsCount
-                : null;
+                : t.key === "needs_setup" && setupStatus
+                  ? setupStatus.contractsWithoutInstallments
+                  : null;
             return (
               <button
                 key={t.key}
@@ -338,8 +385,33 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      {/* Body */}
-      {loading ? (
+      {/* Body — needs-setup tab is rendered separately because the
+          API returns a different shape than the regular installment
+          list. */}
+      {tab === "needs_setup" ? (
+        loadingSetup ? (
+          <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+            <Loader2 size={28} className="animate-spin mx-auto" style={{ color: "#C9A84C" }} />
+          </div>
+        ) : setupContracts.length === 0 ? (
+          <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+            <CheckCircle2 size={32} className="mx-auto mb-2" style={{ color: "#16A34A" }} />
+            <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+              كل العقود لها جداول دفعات معرّفة.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {setupContracts.map((c) => (
+              <NeedsSetupRowView
+                key={c.id}
+                contract={c}
+                onSetup={() => setSetupTarget(c)}
+              />
+            ))}
+          </div>
+        )
+      ) : loading ? (
         <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
           <Loader2 size={28} className="animate-spin mx-auto" style={{ color: "#C9A84C" }} />
         </div>
@@ -462,6 +534,33 @@ export default function PaymentsPage() {
           projectName={pauseModal.projectName}
           onClose={() => setPauseModal(null)}
           onSuccess={() => refetch()}
+        />
+      )}
+      {setupTarget && (
+        <SetupInstallmentsModal
+          target={{
+            contractId: setupTarget.id,
+            displayName:
+              setupTarget.project?.name ?? setupTarget.client?.name ?? "—",
+            effectiveValue: setupTarget.effectiveValue,
+            valueSource: setupTarget.valueSource,
+          }}
+          onClose={() => setSetupTarget(null)}
+          onSuccess={() => {
+            setSetupTarget(null);
+            // After saving, refresh both the list of contracts that
+            // still need setup AND the main installment list (the
+            // newly-created rows now belong to "all").
+            loadNeedsSetup();
+            refetch();
+            // Refresh the banner counter too.
+            fetch("/api/payments/setup-status")
+              .then((r) => (r.ok ? r.json() : null))
+              .then((data) => {
+                if (data) setSetupStatus(data);
+              })
+              .catch(() => {});
+          }}
         />
       )}
     </div>
@@ -669,6 +768,75 @@ function InstallmentRowView({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Needs-setup tab row ───────────────────────────────────────────────
+
+function NeedsSetupRowView({
+  contract,
+  onSetup,
+}: {
+  contract: NeedsSetupRow;
+  onSetup: () => void;
+}) {
+  const project = contract.project;
+  const isDraft = contract.status === "DRAFT";
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3 flex-wrap" style={{ borderRightWidth: 4, borderRightColor: "#EA580C" }}>
+      <div className="flex-1 min-w-[240px]">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{
+              backgroundColor: isDraft ? "rgba(234,88,12,0.10)" : "rgba(22,163,74,0.10)",
+              color: isDraft ? "#EA580C" : "#16A34A",
+            }}
+          >
+            {isDraft ? "مسودة" : contract.status}
+          </span>
+          <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+            {project?.name ?? "—"}
+          </p>
+          {contract.contractNumber != null && (
+            <span className="text-[10px] font-mono" style={{ color: "#5E5495" }}>
+              عقد #{contract.contractNumber}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-[11px] mt-1 flex-wrap" style={{ color: "#6B7280" }}>
+          <span>{contract.client?.name ?? "—"}</span>
+          {contract.client?.phone && (
+            <span style={{ direction: "ltr", color: "#9CA3AF" }}>{contract.client.phone}</span>
+          )}
+          {contract.signedAt && (
+            <span>· وُقّع {new Date(contract.signedAt).toLocaleDateString("ar-SA-u-nu-latn")}</span>
+          )}
+        </div>
+      </div>
+      <div className="text-left shrink-0">
+        <p className="text-[10px]" style={{ color: "#9CA3AF" }}>قيمة العقد</p>
+        <p
+          className="text-sm font-bold font-mono"
+          style={{
+            color:
+              contract.valueSource === "missing"
+                ? "#DC2626"
+                : contract.valueSource === "project"
+                  ? "#EA580C"
+                  : "#1C1B2E",
+          }}
+        >
+          {contract.effectiveValue ? contract.effectiveValue.toLocaleString("en-US") : "—"}
+          {contract.valueSource === "project" && (
+            <span className="text-[9px] font-normal ms-1" style={{ color: "#EA580C" }}>(من المشروع)</span>
+          )}
+        </p>
+      </div>
+      <MarsaButton size="sm" variant="primary" icon={<Settings size={13} />} onClick={onSetup}>
+        إعداد دفعات الآن
+      </MarsaButton>
     </div>
   );
 }
