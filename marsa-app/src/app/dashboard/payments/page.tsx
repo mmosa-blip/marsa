@@ -19,6 +19,8 @@ import {
   ChevronDown,
   ChevronUp,
   TrendingDown,
+  Settings,
+  ArrowLeft,
 } from "lucide-react";
 import { ROUTES } from "@/lib/routes";
 import { MarsaButton } from "@/components/ui/MarsaButton";
@@ -115,6 +117,14 @@ export default function PaymentsPage() {
   const [waiverModal, setWaiverModal] = useState<InstallmentRow | null>(null);
   const [pauseModal, setPauseModal] = useState<{ projectId: string; projectName: string } | null>(null);
 
+  // Setup-status banner — counts contracts that have no installments yet,
+  // so the page can prompt the user to fix the missing schedules in bulk.
+  const [setupStatus, setSetupStatus] = useState<{
+    contractsWithoutInstallments: number;
+    contractsToSign: number;
+    eligibleContracts: number;
+  } | null>(null);
+
   const isAdmin = session?.user?.role === "ADMIN";
 
   const refetch = useCallback(async () => {
@@ -138,6 +148,20 @@ export default function PaymentsPage() {
   useEffect(() => {
     if (authStatus === "authenticated") refetch();
   }, [authStatus, refetch]);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    let alive = true;
+    fetch("/api/payments/setup-status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (alive && data) setSetupStatus(data);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [authStatus]);
 
   if (authStatus === "loading") return null;
   if (!session) redirect(ROUTES.LOGIN);
@@ -209,6 +233,41 @@ export default function PaymentsPage() {
           <SummaryCard label="إجمالي المتأخر" value={summary.totalOverdue} icon={AlertTriangle} color="#DC2626" suffix="ريال" emphasize={summary.totalOverdue > 0} />
           <SummaryCard label="عملاء متأخرون" value={summary.overdueClientsCount} icon={Users} color="#EA580C" />
           <SummaryCard label="متوسط أيام التأخير" value={summary.avgOverdueDays} icon={Clock} color="#A16207" suffix="يوم" />
+        </div>
+      )}
+
+      {/* Setup-status banner */}
+      {setupStatus && setupStatus.contractsWithoutInstallments > 0 && (
+        <div
+          className="mb-4 rounded-2xl p-4 flex items-center gap-3 flex-wrap"
+          style={{
+            backgroundColor: "rgba(234,88,12,0.06)",
+            border: "1px solid rgba(234,88,12,0.30)",
+          }}
+        >
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ backgroundColor: "rgba(234,88,12,0.15)" }}
+          >
+            <AlertTriangle size={18} style={{ color: "#EA580C" }} />
+          </div>
+          <div className="flex-1 min-w-[220px]">
+            <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+              يوجد {setupStatus.contractsWithoutInstallments} عقد بدون جدول دفعات معرّف
+            </p>
+            <p className="text-[11px] mt-0.5" style={{ color: "#6B7280" }}>
+              هذه العقود لن تظهر دفعاتها في الصفحة حتى يتم تحديد جدول الأقساط لها.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/payments/setup"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:brightness-105"
+            style={{ backgroundColor: "#EA580C", color: "white" }}
+          >
+            <Settings size={13} />
+            إعداد جداول الدفعات الآن
+            <ArrowLeft size={13} />
+          </Link>
         </div>
       )}
 
