@@ -167,6 +167,17 @@ export async function POST(request: Request) {
       },
     });
 
+    // Mirror the relation onto Contract.projectId so the reverse
+    // lookup (e.g. /api/payments) can resolve the project without
+    // having to traverse linkedProjects. Skipped silently if another
+    // project already claims the contract on the reverse side.
+    if (contractId) {
+      await prisma.contract.updateMany({
+        where: { id: contractId, projectId: null },
+        data: { projectId: project.id },
+      });
+    }
+
     const isInvestment = await isInvestmentDepartment(departmentId);
 
     // متغير لتتبع بداية كل خدمة في الوضع التسلسلي

@@ -414,6 +414,16 @@ export async function POST(request: Request) {
           });
         }
 
+        // Mirror Project.contractId → Contract.projectId so the reverse
+        // relation is populated. /api/payments and similar consumers
+        // read from the reverse side first.
+        if (project.contractId) {
+          await tx.contract.updateMany({
+            where: { id: project.contractId, projectId: null },
+            data: { projectId: project.id },
+          });
+        }
+
         // Persist project partners
         if (Array.isArray(partners) && partners.length > 0) {
           for (let pi = 0; pi < partners.length; pi++) {
@@ -842,6 +852,14 @@ export async function POST(request: Request) {
             OR: [{ contractValue: null }, { contractValue: 0 }],
           },
           data: { contractValue: project.totalPrice },
+        });
+      }
+
+      // Mirror the project relation onto Contract.projectId.
+      if (project.contractId) {
+        await tx.contract.updateMany({
+          where: { id: project.contractId, projectId: null },
+          data: { projectId: project.id },
         });
       }
 
