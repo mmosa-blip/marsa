@@ -163,21 +163,11 @@ export default function PaymentsPage() {
     };
   }, [authStatus]);
 
-  if (authStatus === "loading") return null;
-  if (!session) redirect(ROUTES.LOGIN);
-  if (
-    !["ADMIN", "MANAGER", "FINANCE_MANAGER", "TREASURY_MANAGER"].includes(
-      session.user.role
-    )
-  ) {
-    return (
-      <div className="p-8 text-center">
-        <p className="text-gray-500">غير مصرح</p>
-      </div>
-    );
-  }
-
-  // Group rows by client for the table.
+  // Group rows by client for the table. MUST stay above the early
+  // returns below — otherwise the hook count changes between the
+  // "loading" render (returns null before useMemo) and the
+  // "authenticated" render (reaches useMemo), which is React error
+  // #310: "Rendered more hooks than during the previous render".
   const grouped = useMemo(() => {
     const map = new Map<
       string,
@@ -209,6 +199,20 @@ export default function PaymentsPage() {
     }
     return Array.from(map.values()).sort((a, b) => b.totalDue - a.totalDue);
   }, [items]);
+
+  if (authStatus === "loading") return null;
+  if (!session) redirect(ROUTES.LOGIN);
+  if (
+    !["ADMIN", "MANAGER", "FINANCE_MANAGER", "TREASURY_MANAGER"].includes(
+      session.user.role
+    )
+  ) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-gray-500">غير مصرح</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 pb-12" dir="rtl">
