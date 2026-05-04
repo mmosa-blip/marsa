@@ -25,6 +25,8 @@ interface ContractRow {
   signedAt: string | null;
   startDate: string | null;
   contractValue: number | null;
+  effectiveValue: number | null;
+  valueSource: "contract" | "project" | "missing";
   createdAt: string;
   client: { id: string; name: string; phone: string | null } | null;
   project: {
@@ -32,6 +34,7 @@ interface ContractRow {
     name: string;
     projectCode: string | null;
     status: string;
+    totalPrice: number | null;
   } | null;
 }
 
@@ -249,8 +252,32 @@ function ContractRowView({
       </div>
       <div className="text-left">
         <p className="text-[10px]" style={{ color: "#9CA3AF" }}>قيمة العقد</p>
-        <p className="text-base font-bold font-mono" style={{ color: "#1C1B2E" }}>
-          {contract.contractValue ? contract.contractValue.toLocaleString("en-US") : "—"}
+        <p
+          className="text-base font-bold font-mono"
+          style={{
+            color:
+              contract.valueSource === "missing"
+                ? "#DC2626"
+                : contract.valueSource === "project"
+                  ? "#EA580C"
+                  : "#1C1B2E",
+          }}
+          title={
+            contract.valueSource === "project"
+              ? "القيمة مأخوذة من totalPrice (سيُحفظ على العقد عند الإعداد)"
+              : contract.valueSource === "missing"
+                ? "القيمة غير محددة — أدخلها في نموذج الإعداد"
+                : ""
+          }
+        >
+          {contract.effectiveValue
+            ? contract.effectiveValue.toLocaleString("en-US")
+            : "—"}
+          {contract.valueSource === "project" && (
+            <span className="text-[9px] font-normal ms-1" style={{ color: "#EA580C" }}>
+              (من المشروع)
+            </span>
+          )}
         </p>
       </div>
       <div className="flex items-center gap-1.5">
@@ -279,7 +306,7 @@ function SetupModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const total = contract.contractValue ?? 0;
+  const total = contract.effectiveValue ?? 0;
   const sumPct = splits.reduce((s, x) => s + (Number(x.percentage) || 0), 0);
   const sumAmount = splits.reduce(
     (s, x) => s + ((Number(x.percentage) || 0) / 100) * total,
