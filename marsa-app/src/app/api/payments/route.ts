@@ -104,13 +104,19 @@ export async function GET(request: NextRequest) {
       prisma.contractPaymentInstallment.count({ where }),
     ]);
 
-    // Compute "due date" per installment from contract.signedAt + dueAfterDays
-    // and bucket by status for client-side filtering.
+    // Compute "due date" per installment. Two fallbacks because real
+    // legacy data is messier than the schema implies:
+    //   1. baseline = contract.signedAt OR installment.createdAt (when
+    //      the contract is still DRAFT and signedAt is null).
+    //   2. offset   = installment.dueAfterDays OR 30 (a sane default
+    //      that keeps the row visible in week/month/overdue tabs
+    //      instead of disappearing because the field is missing).
     const enriched = items.map((it) => {
-      const signedAt = it.contract?.signedAt ?? it.createdAt;
-      const dueDate = it.dueAfterDays
-        ? new Date(new Date(signedAt).getTime() + it.dueAfterDays * 86400000)
-        : null;
+      const baseline = it.contract?.signedAt ?? it.createdAt;
+      const offsetDays = it.dueAfterDays ?? 30;
+      const dueDate = new Date(
+        new Date(baseline).getTime() + offsetDays * 86400000
+      );
       const remaining = Math.max(
         0,
         it.amount -
@@ -193,11 +199,12 @@ export async function GET(request: NextRequest) {
           (r.waiverAmount ? Number(r.waiverAmount) : 0)
       );
       totalDue += remain;
-      const signed = r.contract?.signedAt ?? r.createdAt;
-      const due = r.dueAfterDays
-        ? new Date(new Date(signed).getTime() + r.dueAfterDays * 86400000)
-        : null;
-      if (due && due.getTime() < today.getTime() && remain > 0) {
+      // Same fallback as the row-level enrichment above so the summary
+      // and per-row daysOverdue stay in lockstep.
+      const baseline = r.contract?.signedAt ?? r.createdAt;
+      const offsetDays = r.dueAfterDays ?? 30;
+      const due = new Date(new Date(baseline).getTime() + offsetDays * 86400000);
+      if (due.getTime() < today.getTime() && remain > 0) {
         totalOverdue += remain;
         overdueDaysSum += (today.getTime() - due.getTime()) / 86400000;
         overdueCount++;
