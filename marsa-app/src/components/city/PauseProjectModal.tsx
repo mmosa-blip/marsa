@@ -13,16 +13,25 @@ import { MarsaButton } from "@/components/ui/MarsaButton";
 // `PAYMENT_DELAY | CLIENT_REQUEST | OTHER` (matches what the API
 // already accepts and what ProjectPause history was written with).
 
-type PauseReason = "PAYMENT_DELAY" | "ADMIN_DECISION" | "CLIENT_REQUEST";
+type PauseReason =
+  | "PAYMENT_DELAY"
+  | "ADMIN_DECISION"
+  | "CLIENT_REQUEST"
+  | "OVERDUE_REVIEW"; // only offered when isCollapsed=true
 
 interface Props {
   projectId: string;
   projectName: string;
+  // True when the modal is opened from a COLLAPSED building. Surfaces
+  // a 4th option ("تأخر التسليم — مراجعة المسؤولية") that's hidden in
+  // the regular pause flow because it only makes sense after a missed
+  // deadline.
+  isCollapsed?: boolean;
   onClose: () => void;
   onSuccess?: () => void;
 }
 
-const REASONS: { value: PauseReason; label: string; hint: string }[] = [
+const BASE_REASONS: { value: PauseReason; label: string; hint: string }[] = [
   {
     value: "PAYMENT_DELAY",
     label: "دفعة متأخرة",
@@ -40,13 +49,26 @@ const REASONS: { value: PauseReason; label: string; hint: string }[] = [
   },
 ];
 
+const OVERDUE_REASON = {
+  value: "OVERDUE_REVIEW" as PauseReason,
+  label: "تأخر التسليم — مراجعة",
+  hint: "إيقاف العمل لتحديد المسؤولية. الموعد العقدي لا يتغيّر.",
+};
+
 export default function PauseProjectModal({
   projectId,
   projectName,
+  isCollapsed,
   onClose,
   onSuccess,
 }: Props) {
-  const [reason, setReason] = useState<PauseReason>("PAYMENT_DELAY");
+  // 4th option (OVERDUE_REVIEW) only shows when the modal is opened
+  // from a COLLAPSED building; default-select it so the admin's first
+  // tap is on the most relevant choice.
+  const REASONS = isCollapsed ? [...BASE_REASONS, OVERDUE_REASON] : BASE_REASONS;
+  const [reason, setReason] = useState<PauseReason>(
+    isCollapsed ? "OVERDUE_REVIEW" : "PAYMENT_DELAY"
+  );
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -58,7 +80,8 @@ export default function PauseProjectModal({
       // The API enum still uses "OTHER" for the catch-all; map our
       // internal "ADMIN_DECISION" label onto that. Visually we want the
       // clearer label, but on the wire we stay backward-compatible.
-      const wireReason = reason === "ADMIN_DECISION" ? "OTHER" : reason;
+      const wireReason =
+        reason === "ADMIN_DECISION" ? "OTHER" : reason;
       const res = await fetch(`/api/projects/${projectId}/pause`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

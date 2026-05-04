@@ -35,7 +35,7 @@ export default function AllCitiesPage() {
   const [celebrate, setCelebrate] = useState<{ key: number; projectId: string } | null>(null);
   // Quick-action state — populated when the inline ⏸️ button on a building
   // is clicked. The pause modal opens; resume confirms inline.
-  const [pauseModal, setPauseModal] = useState<{ id: string; name: string } | null>(null);
+  const [pauseModal, setPauseModal] = useState<{ id: string; name: string; isCollapsed: boolean } | null>(null);
   const [reactivateModal, setReactivateModal] = useState<{ id: string; name: string } | null>(null);
   const [resumingId, setResumingId] = useState<string | null>(null);
 
@@ -162,7 +162,13 @@ export default function AllCitiesPage() {
           projects={filteredProjects}
           viewMode="admin"
           celebrate={celebrate}
-          onPauseClick={(b: BuildingLayout) => setPauseModal({ id: b.id, name: b.name })}
+          onPauseClick={(b: BuildingLayout) =>
+            setPauseModal({
+              id: b.id,
+              name: b.name,
+              isCollapsed: b.state === "COLLAPSED",
+            })
+          }
           onReactivateClick={(b: BuildingLayout) =>
             setReactivateModal({ id: b.id, name: b.name })
           }
@@ -189,6 +195,7 @@ export default function AllCitiesPage() {
         <PauseProjectModal
           projectId={pauseModal.id}
           projectName={pauseModal.name}
+          isCollapsed={pauseModal.isCollapsed}
           onClose={() => setPauseModal(null)}
           onSuccess={() => refetch()}
         />

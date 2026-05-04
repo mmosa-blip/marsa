@@ -102,14 +102,23 @@ export interface BuildingLayout extends CityApiProject {
   // Quick-action button — admin mode only. NULL in executor mode or
   // when the building is in a no-op state (COMPLETED). Kind switches
   // by lifecycle state:
-  //   pause      — IN_PROGRESS / AT_RISK / TASK_LATE
+  //   pause      — IN_PROGRESS / AT_RISK / TASK_LATE / COLLAPSED
   //   resume     — PAYMENT_FROZEN / ADMIN_PAUSED / CLIENT_HOLD
-  //   reactivate — COLLAPSED (extends the deadline + resets to ACTIVE)
+  //   reactivate — COLLAPSED (primary on this state — extends deadline)
   actionButton: {
     cx: number;
     cy: number;
     r: number;
     kind: "pause" | "resume" | "reactivate";
+  } | null;
+  // Secondary button — only set on COLLAPSED so the admin can choose
+  // between "extend the deadline" (primary, 🔄) and "pause the work
+  // clock for review" (secondary, ⏸️) without an extra menu.
+  secondaryActionButton: {
+    cx: number;
+    cy: number;
+    r: number;
+    kind: "pause";
   } | null;
 }
 
@@ -402,24 +411,50 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
       const roadY = sky + 30;
       const topY = roadY - 4 - baseHeight;
       const baseRight = cx + baseWidth / 2;
+      // COLLAPSED gets BOTH a pause button and a reactivate button — they
+      // sit side-by-side in the top-right corner. The pause flow halts
+      // the work clock pending an accountability review (without changing
+      // the deadline); the reactivate flow extends the deadline outright.
+      // Two distinct admin decisions, two distinct buttons.
       const isPausable =
-        state === "IN_PROGRESS" || state === "AT_RISK" || state === "TASK_LATE";
+        state === "IN_PROGRESS" ||
+        state === "AT_RISK" ||
+        state === "TASK_LATE" ||
+        state === "COLLAPSED";
       const isResumable =
         state === "PAYMENT_FROZEN" ||
         state === "ADMIN_PAUSED" ||
         state === "CLIENT_HOLD";
       const isReactivatable = state === "COLLAPSED";
+      // Primary button: collapsed → reactivate (extending deadline is
+      // the more decisive action), other states pick whichever applies.
+      const primaryKind: "pause" | "resume" | "reactivate" | null =
+        isReactivatable
+          ? "reactivate"
+          : isResumable
+            ? "resume"
+            : isPausable
+              ? "pause"
+              : null;
       const actionButton =
-        viewMode === "admin" && (isPausable || isResumable || isReactivatable)
+        viewMode === "admin" && primaryKind
           ? {
               cx: baseRight + 2,
               cy: topY - 8,
               r: 11,
-              kind: isResumable
-                ? ("resume" as const)
-                : isReactivatable
-                  ? ("reactivate" as const)
-                  : ("pause" as const),
+              kind: primaryKind,
+            }
+          : null;
+      // Secondary button — only on COLLAPSED, sits 26px to the left of
+      // the primary so both are visible without overlap. Lets the admin
+      // pause-for-review without committing to a deadline extension.
+      const secondaryActionButton =
+        viewMode === "admin" && state === "COLLAPSED"
+          ? {
+              cx: baseRight + 2 - 26,
+              cy: topY - 8,
+              r: 11,
+              kind: "pause" as const,
             }
           : null;
 
@@ -446,6 +481,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
         executorLabel,
         clientLabel,
         actionButton,
+        secondaryActionButton,
       };
     });
 
@@ -1428,21 +1464,21 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
         }
       }
 
-      // Quick-action button — admin mode only. Lives in the building's
-      // coordinate space (drawn outside the shake transform via
-      // ctx.restore() below) so the click hit-test stays accurate during
-      // COLLAPSED tremors.
-      if (b.actionButton) {
-        const ab = b.actionButton;
-        const isHovered = hoveredActionId === b.id;
+      // Quick-action button(s) — admin mode only. Lives in the
+      // building's coordinate space (drawn outside the shake transform
+      // via ctx.restore() below) so the click hit-test stays accurate
+      // during COLLAPSED tremors.
+      const drawActionButton = (
+        ab: { cx: number; cy: number; r: number; kind: "pause" | "resume" | "reactivate" },
+        hoverKey: string
+      ) => {
+        const isHovered = hoveredActionId === hoverKey;
         const r = isHovered ? ab.r * 1.15 : ab.r;
-        // Subtle drop shadow on hover so the button "lifts" off the city.
         if (isHovered) {
           ctx.shadowColor = "rgba(0,0,0,0.25)";
           ctx.shadowBlur = 6;
           ctx.shadowOffsetY = 2;
         }
-        // Outer white disc.
         ctx.fillStyle = "#FFFFFF";
         ctx.beginPath();
         ctx.arc(ab.cx, ab.cy, r, 0, Math.PI * 2);
@@ -1450,10 +1486,8 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetY = 0;
-        // Color per kind. Reactivate uses a darker emerald to read as
-        // "recovery / cycle back" without colliding visually with the
-        // pure-green resume — a different shade is enough since the two
-        // never appear on the same building.
+        // Color per kind. Reactivate uses a darker emerald than pure
+        // resume green; pause is Marsa purple.
         const accent =
           ab.kind === "resume"
             ? "#16A34A"
@@ -1466,7 +1500,6 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
         ctx.fillStyle = accent;
 
         if (ab.kind === "resume") {
-          // Right-pointing triangle.
           const tr = r * 0.55;
           ctx.beginPath();
           ctx.moveTo(ab.cx - tr * 0.55, ab.cy - tr);
@@ -1475,17 +1508,12 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
           ctx.closePath();
           ctx.fill();
         } else if (ab.kind === "reactivate") {
-          // Refresh glyph — three-quarter clockwise arc + a small
-          // arrowhead at the head. Uses ctx.arc + a triangle to fake the
-          // RefreshCw lucide icon at canvas resolution.
           const ar = r * 0.55;
           ctx.lineWidth = 1.8;
           ctx.lineCap = "round";
           ctx.beginPath();
-          // Arc from -45° clockwise to +225° (270° sweep).
           ctx.arc(ab.cx, ab.cy, ar, -Math.PI / 4, (Math.PI * 5) / 4);
           ctx.stroke();
-          // Arrow head at the start point (-45° = top-right).
           const startX = ab.cx + ar * Math.cos(-Math.PI / 4);
           const startY = ab.cy + ar * Math.sin(-Math.PI / 4);
           const ah = 3;
@@ -1502,7 +1530,11 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
           ctx.fillRect(ab.cx - bw - 1, ab.cy - bh / 2, bw, bh);
           ctx.fillRect(ab.cx + 1, ab.cy - bh / 2, bw, bh);
         }
-      }
+      };
+
+      if (b.actionButton) drawActionButton(b.actionButton, b.id);
+      if (b.secondaryActionButton)
+        drawActionButton(b.secondaryActionButton, `${b.id}::sec`);
 
       ctx.restore();
 
@@ -1699,10 +1731,13 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
     };
   }, [layout, hoveredId, hoveredActionId]);
 
-  // Returns the building whose action button (if any) contains the
-  // given client-coordinate point. Run BEFORE pointToBuilding so the
-  // button steals the click from the popup.
-  function pointToActionButton(clientX: number, clientY: number): BuildingLayout | null {
+  // Returns the building + which button (primary / secondary) was hit
+  // by the given client-coordinate point. Run BEFORE pointToBuilding so
+  // the button steals the click from the popup.
+  function pointToActionButton(
+    clientX: number,
+    clientY: number
+  ): { b: BuildingLayout; which: "primary" | "secondary" } | null {
     if (!layout) return null;
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -1710,13 +1745,22 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
     const x = ((clientX - rect.left) / rect.width) * layout.canvasWidth;
     const y = ((clientY - rect.top) / rect.height) * layout.canvasHeight;
     for (const b of layout.buildings) {
+      // Test secondary first — it sits to the LEFT of the primary, and
+      // when both exist we want each click to map to its own button.
+      const sb = b.secondaryActionButton;
+      if (sb) {
+        const dx = x - sb.cx;
+        const dy = y - sb.cy;
+        if (dx * dx + dy * dy <= (sb.r + 4) * (sb.r + 4)) {
+          return { b, which: "secondary" };
+        }
+      }
       const ab = b.actionButton;
       if (!ab) continue;
       const dx = x - ab.cx;
       const dy = y - ab.cy;
-      // Slightly inflated hit radius for forgiving touches on small targets.
       if (dx * dx + dy * dy <= (ab.r + 4) * (ab.r + 4)) {
-        return b;
+        return { b, which: "primary" };
       }
     }
     return null;
@@ -1743,13 +1787,17 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
     if (dragStateRef.current.moved > 5) return;
     // Action button wins over the popup — fire the matching callback
     // and bail before the building click handler runs.
-    const ab = pointToActionButton(e.clientX, e.clientY);
-    if (ab && ab.actionButton) {
+    const hit = pointToActionButton(e.clientX, e.clientY);
+    if (hit) {
       e.stopPropagation();
-      const kind = ab.actionButton.kind;
-      if (kind === "resume") onResumeClick?.(ab);
-      else if (kind === "reactivate") onReactivateClick?.(ab);
-      else onPauseClick?.(ab);
+      const { b } = hit;
+      const ab =
+        hit.which === "secondary" ? b.secondaryActionButton : b.actionButton;
+      if (!ab) return;
+      const kind = ab.kind;
+      if (kind === "resume") onResumeClick?.(b);
+      else if (kind === "reactivate") onReactivateClick?.(b);
+      else onPauseClick?.(b);
       return;
     }
     const b = pointToBuilding(e.clientX, e.clientY);
@@ -1808,20 +1856,29 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
   }, [layout, fullscreen]);
 
   function handleMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    const ab = pointToActionButton(e.clientX, e.clientY);
-    setHoveredActionId(ab?.id || null);
-    const b = ab ?? pointToBuilding(e.clientX, e.clientY);
+    const hit = pointToActionButton(e.clientX, e.clientY);
+    // hoveredActionId carries the same key the draw helper uses
+    // ("buildingId" for primary, "buildingId::sec" for secondary) so
+    // hover-scaling targets the right button.
+    setHoveredActionId(
+      hit ? (hit.which === "secondary" ? `${hit.b.id}::sec` : hit.b.id) : null
+    );
+    const b = hit ? hit.b : pointToBuilding(e.clientX, e.clientY);
     setHoveredId(b?.id || null);
     if (canvasRef.current) {
       canvasRef.current.style.cursor = b ? "pointer" : "default";
-      if (ab) {
-        const kind = ab.actionButton?.kind;
+      if (hit) {
+        const ab =
+          hit.which === "secondary"
+            ? hit.b.secondaryActionButton
+            : hit.b.actionButton;
+        const kind = ab?.kind;
         canvasRef.current.title =
           kind === "resume"
             ? "استئناف المشروع"
             : kind === "reactivate"
               ? "إعادة تنشيط المشروع"
-              : "إيقاف المشروع";
+              : "إيقاف العمل (مراجعة المسؤولية)";
       } else {
         canvasRef.current.title = "";
       }
@@ -1987,6 +2044,7 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
                 selected.pauseReason === "PAYMENT_DELAY" || selected.pauseReason === "PAYMENT" ? "دفعة متأخرة من العميل" :
                 selected.pauseReason === "CLIENT_REQUEST" ? "طلب من العميل" :
                 selected.pauseReason === "ADMIN_DECISION" ? "قرار إداري" :
+                selected.pauseReason === "OVERDUE_REVIEW" ? "تأخر التسليم — مراجعة المسؤولية" :
                 selected.pauseReason === "OTHER" ? "سبب آخر" :
                 null;
               const body =

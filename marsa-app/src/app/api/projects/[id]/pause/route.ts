@@ -3,7 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { createNotifications } from "@/lib/notifications";
 import { requireRole } from "@/lib/api-auth";
 
-const ALLOWED_REASONS = ["PAYMENT_DELAY", "CLIENT_REQUEST", "OTHER"] as const;
+// OVERDUE_REVIEW was added so admins can pause a COLLAPSED project for
+// accountability review without changing the deadline (the reactivate
+// flow is the one that extends deadlines). The legacy three values
+// stay so the operations-room UI keeps working unmodified.
+const ALLOWED_REASONS = [
+  "PAYMENT_DELAY",
+  "CLIENT_REQUEST",
+  "OTHER",
+  "OVERDUE_REVIEW",
+] as const;
 type PauseReason = (typeof ALLOWED_REASONS)[number];
 
 // POST /api/projects/[id]/pause
@@ -21,7 +30,7 @@ export async function POST(
 
     if (!reason || !ALLOWED_REASONS.includes(reason as PauseReason)) {
       return NextResponse.json(
-        { error: "سبب الإيقاف مطلوب (PAYMENT_DELAY | CLIENT_REQUEST | OTHER)" },
+        { error: "سبب الإيقاف مطلوب (PAYMENT_DELAY | CLIENT_REQUEST | OTHER | OVERDUE_REVIEW)" },
         { status: 400 }
       );
     }

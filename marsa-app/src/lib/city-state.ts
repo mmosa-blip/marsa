@@ -98,6 +98,7 @@ export function getBuildingState(p: BuildingStateInput): BuildingState {
         return "CLIENT_HOLD";
       case "ADMIN_DECISION":
       case "OTHER":          // legacy ProjectPause.reason value
+      case "OVERDUE_REVIEW": // accountability review on a missed deadline
       default:
         return "ADMIN_PAUSED";
     }
