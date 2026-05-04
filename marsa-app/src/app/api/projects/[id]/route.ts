@@ -123,6 +123,24 @@ export async function PATCH(
       data: body,
     });
 
+    // Mirror an updated totalPrice onto contract.contractValue so the
+    // payments page and setup wizard stay consistent. Only fills empty
+    // contractValue — never overwrites a manually-set figure.
+    if (
+      Object.prototype.hasOwnProperty.call(body, "totalPrice") &&
+      project.contractId &&
+      project.totalPrice &&
+      project.totalPrice > 0
+    ) {
+      await prisma.contract.updateMany({
+        where: {
+          id: project.contractId,
+          OR: [{ contractValue: null }, { contractValue: 0 }],
+        },
+        data: { contractValue: project.totalPrice },
+      });
+    }
+
     // PROJECT_ASSIGNED notification — only when the manager has actually
     // changed to a different user. Best-effort, never blocks the response.
     if (

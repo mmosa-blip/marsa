@@ -400,6 +400,20 @@ export async function POST(request: Request) {
           },
         });
 
+        // Mirror project total to contract.contractValue when the latter
+        // is missing. Without this, the unified payments page and the
+        // setup wizard show "—" because they read from contract, not
+        // project.
+        if (project.contractId && project.totalPrice && project.totalPrice > 0) {
+          await tx.contract.updateMany({
+            where: {
+              id: project.contractId,
+              OR: [{ contractValue: null }, { contractValue: 0 }],
+            },
+            data: { contractValue: project.totalPrice },
+          });
+        }
+
         // Persist project partners
         if (Array.isArray(partners) && partners.length > 0) {
           for (let pi = 0; pi < partners.length; pi++) {
@@ -818,6 +832,18 @@ export async function POST(request: Request) {
           projectSeq,
         },
       });
+
+      // Mirror project total to contract.contractValue when missing —
+      // same rationale as the template branch above.
+      if (project.contractId && project.totalPrice && project.totalPrice > 0) {
+        await tx.contract.updateMany({
+          where: {
+            id: project.contractId,
+            OR: [{ contractValue: null }, { contractValue: 0 }],
+          },
+          data: { contractValue: project.totalPrice },
+        });
+      }
 
       return project;
     }, {
