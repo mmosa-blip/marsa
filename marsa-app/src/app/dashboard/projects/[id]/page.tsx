@@ -34,6 +34,7 @@ import {
 import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import ContractPromptDialog from "@/components/ContractPromptDialog";
+import SetupInstallmentsModal from "@/components/payments/SetupInstallmentsModal";
 
 interface TaskType {
   id: string;
@@ -84,6 +85,7 @@ interface ProjectType {
     uploadedFileUrl: string | null;
     templateId: string | null;
     status: string;
+    _count?: { installments: number };
   } | null;
   tasks: TaskType[];
   services: ServiceType[];
@@ -163,6 +165,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [showCodeModal, setShowCodeModal] = useState(false);
   // Celebration modal — only meaningful when project.status === "COMPLETED".
   const [showCelebrationModal, setShowCelebrationModal] = useState(false);
+  const [showSetupInstallments, setShowSetupInstallments] = useState(false);
   const [waCopied, setWaCopied] = useState(false);
   // Inline rename: admins can edit the project name from the header.
   // The auto-name from the create page was "{template} - {client}" — this
@@ -592,7 +595,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                {c._count && c._count.installments === 0 && (
+                  <MarsaButton
+                    variant="gold"
+                    size="sm"
+                    onClick={() => setShowSetupInstallments(true)}
+                  >
+                    💰 إعداد جدول الدفعات
+                  </MarsaButton>
+                )}
                 {c.uploadedFileUrl && (
                   <a href={c.uploadedFileUrl} target="_blank" rel="noopener noreferrer">
                     <MarsaButton variant="secondary" size="sm" icon={<ExternalLink size={14} />}>
@@ -1099,6 +1111,37 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             fetchProject();
           }}
           onCancel={() => setShowContractPrompt(false)}
+        />
+      )}
+
+      {/* Inline payments-setup modal — opened from the contract bar
+          when the project has a contract but no installment schedule
+          yet. Reuses the shared SetupInstallmentsModal so behaviour
+          stays in sync with /dashboard/payments and /dashboard/payments/setup. */}
+      {showSetupInstallments && project?.contract && (
+        <SetupInstallmentsModal
+          target={{
+            contractId: project.contract.id,
+            displayName: project.name,
+            effectiveValue:
+              (project.contract.contractValue && project.contract.contractValue > 0
+                ? project.contract.contractValue
+                : null) ??
+              (project.totalPrice && project.totalPrice > 0
+                ? project.totalPrice
+                : null),
+            valueSource:
+              project.contract.contractValue && project.contract.contractValue > 0
+                ? "contract"
+                : project.totalPrice && project.totalPrice > 0
+                  ? "project"
+                  : "missing",
+          }}
+          onClose={() => setShowSetupInstallments(false)}
+          onSuccess={() => {
+            setShowSetupInstallments(false);
+            fetchProject();
+          }}
         />
       )}
 

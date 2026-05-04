@@ -30,6 +30,9 @@ export async function GET(
             uploadedFileUrl: true,
             templateId: true,
             status: true,
+            // Used by the project detail page to decide whether to
+            // show the inline "إعداد جدول الدفعات" CTA.
+            _count: { select: { installments: true } },
           },
         },
         services: {
