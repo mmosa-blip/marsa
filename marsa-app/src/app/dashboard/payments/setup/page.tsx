@@ -306,7 +306,18 @@ function SetupModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const total = contract.effectiveValue ?? 0;
+  // Manual contract-value gate: when neither contract.contractValue
+  // nor project.totalPrice gave us a number, the user has to type the
+  // figure here before we can compute installment amounts. The figure
+  // is persisted to Contract.contractValue via /set-value before the
+  // template selector unlocks.
+  const initialEffective = contract.effectiveValue ?? 0;
+  const [savedValue, setSavedValue] = useState<number>(initialEffective);
+  const [manualValueInput, setManualValueInput] = useState<string>("");
+  const [savingValue, setSavingValue] = useState(false);
+
+  const total = savedValue;
+  const needsManualValue = total <= 0;
   const sumPct = splits.reduce((s, x) => s + (Number(x.percentage) || 0), 0);
   const sumAmount = splits.reduce(
     (s, x) => s + ((Number(x.percentage) || 0) / 100) * total,
@@ -341,8 +352,40 @@ function SetupModal({
     setTemplateKey("custom");
   }
 
+  async function saveContractValue() {
+    setError("");
+    const num = Number(manualValueInput);
+    if (!Number.isFinite(num) || num <= 0) {
+      setError("أدخل قيمة عقد موجبة");
+      return;
+    }
+    setSavingValue(true);
+    try {
+      const res = await fetch(`/api/contracts/${contract.id}/set-value`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractValue: num }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError((data as { error?: string }).error || "تعذّر حفظ القيمة");
+        return;
+      }
+      setSavedValue(num);
+      setManualValueInput("");
+    } catch {
+      setError("حدث خطأ في الاتصال");
+    } finally {
+      setSavingValue(false);
+    }
+  }
+
   async function submit() {
     setError("");
+    if (needsManualValue) {
+      setError("أدخل قيمة العقد أولاً");
+      return;
+    }
     if (Math.abs(sumPct - 100) > 0.01) {
       setError(`مجموع النسب يجب أن يساوي 100% (الحالي: ${sumPct.toFixed(1)}%)`);
       return;
@@ -386,23 +429,89 @@ function SetupModal({
               إعداد دفعات: {contract.project?.name ?? contract.client?.name}
             </h3>
             <p className="text-[11px] truncate" style={{ color: "#6B7280" }}>
-              قيمة العقد: {total.toLocaleString("en-US")} ريال
+              قيمة العقد:{" "}
+              {needsManualValue ? (
+                <span style={{ color: "#DC2626", fontWeight: 600 }}>غير محددة</span>
+              ) : (
+                <>{total.toLocaleString("en-US")} ريال</>
+              )}
             </p>
           </div>
           <MarsaButton variant="ghost" size="sm" iconOnly icon={<X size={16} />} onClick={onClose} disabled={submitting} />
         </div>
 
         <div className="p-5 space-y-4">
-          {total === 0 && (
-            <div className="p-3 rounded-xl flex items-start gap-2" style={{ backgroundColor: "rgba(234,88,12,0.05)", border: "1px solid rgba(234,88,12,0.25)" }}>
-              <AlertTriangle size={16} style={{ color: "#EA580C" }} className="shrink-0 mt-0.5" />
+          {needsManualValue && (
+            <div
+              className="p-4 rounded-xl space-y-3"
+              style={{
+                backgroundColor: "rgba(234,88,12,0.06)",
+                border: "1px solid rgba(234,88,12,0.30)",
+              }}
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={16} style={{ color: "#EA580C" }} className="shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs font-bold" style={{ color: "#1C1B2E" }}>
+                    قيمة العقد غير محددة
+                  </p>
+                  <p className="text-[11px] mt-0.5" style={{ color: "#6B7280" }}>
+                    أدخل قيمة العقد لتفعيل قوالب توزيع الدفعات. ستُحفظ على العقد فوراً.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label
+                    className="block text-[10px] font-semibold mb-1"
+                    style={{ color: "#6B7280" }}
+                  >
+                    قيمة العقد (ريال) <span style={{ color: "#DC2626" }}>*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={manualValueInput}
+                    onChange={(e) => setManualValueInput(e.target.value)}
+                    disabled={savingValue || submitting}
+                    placeholder="مثلاً 25000"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-orange-200"
+                    style={{ direction: "ltr", textAlign: "right" }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={saveContractValue}
+                  disabled={savingValue || submitting || !manualValueInput.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:brightness-105 disabled:opacity-50"
+                  style={{ backgroundColor: "#EA580C", color: "white" }}
+                >
+                  {savingValue ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+                  حفظ القيمة
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!needsManualValue && contract.valueSource === "project" && total === initialEffective && (
+            <div
+              className="p-3 rounded-xl flex items-start gap-2"
+              style={{
+                backgroundColor: "rgba(234,88,12,0.04)",
+                border: "1px solid rgba(234,88,12,0.20)",
+              }}
+            >
+              <AlertTriangle size={14} style={{ color: "#EA580C" }} className="shrink-0 mt-0.5" />
               <p className="text-[11px]" style={{ color: "#374151" }}>
-                قيمة العقد غير محددة (0). يجب تعديل العقد أولاً ثم إعداد الدفعات.
+                القيمة الحالية مأخوذة من <strong>إجمالي المشروع</strong>.
+                ستُحفظ على العقد عند إنشاء الأقساط.
               </p>
             </div>
           )}
 
-          <div>
+          <div style={needsManualValue ? { opacity: 0.4, pointerEvents: "none" } : undefined}>
             <label className="block text-xs font-semibold mb-2" style={{ color: "#374151" }}>نموذج التوزيع</label>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {TEMPLATES.map((t) => {
@@ -440,7 +549,7 @@ function SetupModal({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2" style={needsManualValue ? { opacity: 0.4, pointerEvents: "none" } : undefined}>
             {splits.map((s, idx) => {
               const amount = ((Number(s.percentage) || 0) / 100) * total;
               return (
@@ -542,7 +651,7 @@ function SetupModal({
           <button
             type="button"
             onClick={submit}
-            disabled={submitting || Math.abs(sumPct - 100) > 0.01 || splits.length === 0}
+            disabled={submitting || needsManualValue || Math.abs(sumPct - 100) > 0.01 || splits.length === 0}
             className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all hover:brightness-105 disabled:opacity-50"
             style={{ backgroundColor: "#5E5495", color: "white" }}
           >
