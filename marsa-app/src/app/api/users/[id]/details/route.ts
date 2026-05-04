@@ -120,14 +120,11 @@ export async function GET(
       const [
         projectsCount,
         servicesCount,
-        invoicesCount,
         documentsCount,
         recentProjects,
-        recentInvoices,
       ] = await Promise.all([
         prisma.project.count({ where: { clientId: id } }),
         prisma.service.count({ where: { clientId: id } }),
-        prisma.invoice.count({ where: { clientId: id } }),
         prisma.document.count({ where: { ownerId: id } }),
         prisma.project.findMany({
           where: { clientId: id, deletedAt: null },
@@ -141,31 +138,15 @@ export async function GET(
           orderBy: { createdAt: "desc" },
           take: 5,
         }),
-        prisma.invoice.findMany({
-          where: { clientId: id },
-          select: {
-            id: true,
-            invoiceNumber: true,
-            title: true,
-            totalAmount: true,
-            status: true,
-            dueDate: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        }),
       ]);
 
       roleData = {
         stats: {
           projects: projectsCount,
           services: servicesCount,
-          invoices: invoicesCount,
           documents: documentsCount,
         },
         recentProjects,
-        recentInvoices,
       };
     }
 

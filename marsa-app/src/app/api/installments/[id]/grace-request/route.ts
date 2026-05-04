@@ -74,7 +74,7 @@ export async function POST(
           }`,
           link: inst.linkedTask?.project?.id
             ? `/dashboard/projects/${inst.linkedTask.project.id}`
-            : "/dashboard/finance",
+            : "/dashboard/payments",
         }))
       );
     }

@@ -85,7 +85,7 @@ export async function POST(
           }`,
           link: installment.linkedTask?.project?.id
             ? `/dashboard/projects/${installment.linkedTask.project.id}`
-            : "/dashboard/finance",
+            : "/dashboard/payments",
         }))
       );
     }

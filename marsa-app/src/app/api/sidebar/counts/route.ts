@@ -12,8 +12,6 @@ export async function GET() {
         reminders: 0,
         serviceRequests: 0,
         taskTransfers: 0,
-        expenseRequests: 0,
-        invoices: 0,
         contracts: 0,
       });
     }
@@ -28,8 +26,6 @@ export async function GET() {
       remindersCount,
       serviceRequestsCount,
       taskTransfersCount,
-      expenseRequestsCount,
-      invoicesCount,
       contractsCount,
     ] = await Promise.all([
       // 1. Chat — unread messages count
@@ -103,40 +99,6 @@ export async function GET() {
         });
       })(),
 
-      // 5. Expense/payment requests — pending approval
-      (async () => {
-        if (isAdmin) {
-          return prisma.paymentRequest.count({
-            where: { status: { in: ["PENDING_SUPERVISOR", "PENDING_FINANCE", "PENDING_TREASURY"] } },
-          });
-        }
-        if (role === "FINANCE_MANAGER") {
-          return prisma.paymentRequest.count({
-            where: { status: "PENDING_FINANCE" },
-          });
-        }
-        if (role === "TREASURY_MANAGER") {
-          return prisma.paymentRequest.count({
-            where: { status: "PENDING_TREASURY" },
-          });
-        }
-        if (role === "EXECUTOR") {
-          return prisma.paymentRequest.count({
-            where: { status: "PENDING_SUPERVISOR", provider: { supervisorId: userId } },
-          });
-        }
-        return 0;
-      })(),
-
-      // 6. Invoices — unpaid (ADMIN/MANAGER only)
-      (async () => {
-        if (isAdmin) {
-          return prisma.invoice.count({
-            where: { status: { in: ["DRAFT", "SENT", "OVERDUE"] } },
-          });
-        }
-        return 0;
-      })(),
 
       // 7. Contracts — pending review/signature
       (async () => {
@@ -159,8 +121,6 @@ export async function GET() {
       reminders: remindersCount,
       serviceRequests: serviceRequestsCount,
       taskTransfers: taskTransfersCount,
-      expenseRequests: expenseRequestsCount,
-      invoices: invoicesCount,
       contracts: contractsCount,
     });
   } catch (error) {
@@ -170,8 +130,6 @@ export async function GET() {
       reminders: 0,
       serviceRequests: 0,
       taskTransfers: 0,
-      expenseRequests: 0,
-      invoices: 0,
       contracts: 0,
     });
   }

@@ -133,45 +133,14 @@ export async function GET(request: NextRequest) {
       link: `/dashboard/projects/${t.projectId}`,
     }));
 
-    // Search Invoices
-    const invoicesWhere: Record<string, unknown> = {
-      OR: [
-        { invoiceNumber: { contains: q } },
-        { title: { contains: q } },
-      ],
-    };
-    if (userRole === "CLIENT") {
-      invoicesWhere.clientId = userId;
-    }
-    const canSearchInvoices = isAdminOrManager || userRole === "CLIENT" || userRole === "FINANCE_MANAGER" || userRole === "TREASURY_MANAGER";
-    const foundInvoices = canSearchInvoices
-      ? await prisma.invoice.findMany({
-          where: invoicesWhere,
-          select: {
-            id: true,
-            invoiceNumber: true,
-            title: true,
-            totalAmount: true,
-            status: true,
-          },
-          take: 5,
-        })
-      : [];
-    const invoices = foundInvoices.map((i) => ({
-      id: i.id,
-      invoiceNumber: i.invoiceNumber,
-      title: i.title,
-      totalAmount: i.totalAmount,
-      status: i.status,
-      link: `/dashboard/finance/invoices/${i.id}`,
-    }));
+    // Invoice search removed — the legacy invoice UI was retired.
+    // Cashier receipts are still accessible via the cashier page.
 
     return NextResponse.json({
       users,
       clients,
       projects,
       tasks,
-      invoices,
     });
   } catch (error) {
     console.error("Search error:", error);

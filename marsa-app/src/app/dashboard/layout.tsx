@@ -123,10 +123,7 @@ const adminGroups: NavGroup[] = [
     tGroupKey: "finance",
     icon: Banknote,
     children: [
-      { href: "/dashboard/finance", label: "الإدارة المالية", tKey: "finance" },
-      { href: "/dashboard/finance/invoices", label: "الفواتير", tKey: "invoices" },
-      { href: "/dashboard/finance/payments", label: "المدفوعات", tKey: "payments" },
-      { href: "/dashboard/payment-requests", label: "طلبات الصرف", tKey: "paymentRequests", roles: ["ADMIN", "MANAGER", "FINANCE_MANAGER", "TREASURY_MANAGER"] },
+      { href: "/dashboard/payments", label: "إدارة الدفعات", tKey: "payments", roles: ["ADMIN", "MANAGER", "FINANCE_MANAGER", "TREASURY_MANAGER"] },
       { href: "/dashboard/cashier", label: "الكاشير", tKey: "cashier", roles: ["ADMIN", "MANAGER", "EXECUTOR"] },
     ],
   },
@@ -191,7 +188,6 @@ function buildAdminGroupsWithDepts(departments: DeptInfo[]): NavGroup[] {
         { href: `/dashboard/projects?departmentId=${dept.id}`, label: "المشاريع" },
         { href: `/dashboard/service-catalog?departmentId=${dept.id}`, label: "الخدمات" },
         { href: `/dashboard/contracts?departmentId=${dept.id}`, label: "العقود" },
-        { href: `/dashboard/department-payments/${dept.id}`, label: "المدفوعات" },
         { href: `/dashboard/department-health/${dept.id}`, label: "صحة المشاريع" },
       ],
     });
@@ -282,7 +278,6 @@ const clientGroups: NavGroup[] = [
     icon: FileText,
     children: [
       { href: "/dashboard/my-documents", label: "وثائقي", tKey: "myDocuments" },
-      { href: "/dashboard/my-invoices", label: "فواتيري", tKey: "myInvoices" },
       { href: "/dashboard/my-reminders", label: "تذكيراتي", tKey: "myReminders" },
       { href: "/dashboard/my-employees", label: "موظفيني", tKey: "myEmployees" },
       { href: "/dashboard/my-authorization", label: "التفويض", tKey: "myAuthorization" },
@@ -569,7 +564,7 @@ function DashboardLayoutInner({
 
             const hasActiveChild = visibleChildren.some(c => {
               const hrefPath = c.href.split("?")[0];
-              return pathname === hrefPath || (hrefPath !== "/dashboard" && hrefPath !== "/dashboard/finance" && pathname.startsWith(hrefPath));
+              return pathname === hrefPath || (hrefPath !== "/dashboard" && pathname.startsWith(hrefPath));
             });
 
             return (
@@ -610,9 +605,7 @@ function DashboardLayoutInner({
                       const isActive =
                         childPath === "/dashboard"
                           ? pathname === "/dashboard"
-                          : childPath === "/dashboard/finance"
-                            ? pathname === "/dashboard/finance"
-                            : pathname === childPath || pathname.startsWith(childPath + "/");
+                          : pathname === childPath || pathname.startsWith(childPath + "/");
 
                       return (
                         <Link
@@ -646,8 +639,6 @@ function DashboardLayoutInner({
                               "/dashboard/service-requests": "serviceRequests",
                               "/dashboard/my-service-requests": "serviceRequests",
                               "/dashboard/task-transfers": "taskTransfers",
-                              "/dashboard/payment-requests": "expenseRequests",
-                              "/dashboard/finance/invoices": "invoices",
                               "/dashboard/contracts": "contracts",
                             };
                             const countKey = badgeMap[child.href];

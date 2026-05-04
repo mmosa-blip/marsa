@@ -21,7 +21,6 @@ export async function GET() {
       projects,
       services,
       expiringDocs,
-      pendingInvoices,
       upcomingReminders,
       recentTasks,
     ] = await Promise.all([
@@ -49,20 +48,6 @@ export async function GET() {
           status: { not: "EXPIRED" },
         },
         select: { id: true, title: true, type: true, expiryDate: true },
-      }),
-      // Pending invoices (SENT + OVERDUE)
-      prisma.invoice.findMany({
-        where: {
-          clientId: userId,
-          status: { in: ["SENT", "OVERDUE"] },
-        },
-        select: {
-          id: true,
-          invoiceNumber: true,
-          totalAmount: true,
-          dueDate: true,
-          status: true,
-        },
       }),
       // Upcoming reminders
       prisma.reminder.findMany({
@@ -101,20 +86,6 @@ export async function GET() {
     const activeProjects = projects.filter((p) => p.status === "ACTIVE").length;
     const activeServices = services.filter((s) => s.status === "IN_PROGRESS").length;
     const expiringDocuments = expiringDocs.length;
-    const pendingInvoicesTotal = pendingInvoices.reduce(
-      (sum, inv) => sum + inv.totalAmount,
-      0
-    );
-
-    // Overdue invoices
-    const overdueInvoices = pendingInvoices
-      .filter((inv) => inv.status === "OVERDUE")
-      .map(({ id, invoiceNumber, totalAmount, dueDate }) => ({
-        id,
-        invoiceNumber,
-        totalAmount,
-        dueDate,
-      }));
 
     // Recent projects (last 3)
     const recentProjects = projects.slice(0, 3).map((p) => {
@@ -158,11 +129,9 @@ export async function GET() {
         activeProjects,
         activeServices,
         expiringDocuments,
-        pendingInvoicesTotal,
       },
       alerts: {
         expiringDocuments: expiringDocs,
-        overdueInvoices,
         upcomingReminders,
       },
       recentProjects,

@@ -282,55 +282,23 @@ export async function POST(request: Request) {
       }
     }
 
-    // Create payment milestones - contract installments take priority over template milestones
+    // Create payment milestones - contract installments take priority over template milestones.
+    // Invoice creation removed: billing now flows through
+    // ContractPaymentInstallment (set up by the contract flow) and the
+    // /dashboard/payments page. Milestones remain so the project view
+    // still renders the per-installment cards.
     if (contractInstallments.length > 0) {
       for (let ci = 0; ci < contractInstallments.length; ci++) {
         const inst = contractInstallments[ci];
-        const dueDate = inst.dueAfterDays
-          ? new Date(now.getTime() + inst.dueAfterDays * 24 * 60 * 60 * 1000)
-          : projectEndDate;
-
-        const company = await prisma.company.findFirst();
-        if (company) {
-          const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-CI${ci}`;
-          const invoice = await prisma.invoice.create({
-            data: {
-              invoiceNumber,
-              title: inst.title,
-              subtotal: inst.amount,
-              taxRate: 15,
-              taxAmount: inst.amount * 0.15,
-              totalAmount: inst.amount * 1.15,
-              status: "DRAFT",
-              dueDate,
-              companyId: company.id,
-              projectId: project.id,
-              clientId,
-              createdById: session.user.id,
-            },
-          });
-
-          await prisma.projectMilestone.create({
-            data: {
-              projectId: project.id,
-              title: inst.title,
-              type: "PAYMENT",
-              status: ci === 0 ? "UNLOCKED" : "LOCKED",
-              order: ci,
-              invoiceId: invoice.id,
-            },
-          });
-        } else {
-          await prisma.projectMilestone.create({
-            data: {
-              projectId: project.id,
-              title: inst.title,
-              type: "PAYMENT",
-              status: ci === 0 ? "UNLOCKED" : "LOCKED",
-              order: ci,
-            },
-          });
-        }
+        await prisma.projectMilestone.create({
+          data: {
+            projectId: project.id,
+            title: inst.title,
+            type: "PAYMENT",
+            status: ci === 0 ? "UNLOCKED" : "LOCKED",
+            order: ci,
+          },
+        });
       }
     } else if (template.milestones && template.milestones.length > 0) {
       for (const tm of template.milestones) {

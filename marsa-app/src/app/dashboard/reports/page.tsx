@@ -4,10 +4,6 @@ import { useState, useEffect } from "react";
 import {
   BarChart3,
   Loader2,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  AlertTriangle,
   Users2,
   CheckCircle,
   Clock,
@@ -17,38 +13,9 @@ import {
   Download,
 } from "lucide-react";
 import { exportToExcel } from "@/lib/export-utils";
-import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 
 // ===== Types =====
-
-interface FinancialData {
-  revenue: { month: string; total: number }[];
-  expenses: { name: string; total: number }[];
-  profitability: {
-    id: string;
-    name: string;
-    projectCode?: string | null;
-    revenue: number;
-    expenses: number;
-    profit: number;
-    margin: number;
-  }[];
-  receivables: {
-    id: string;
-    invoiceNumber: string;
-    clientName: string;
-    totalAmount: number;
-    daysOverdue: number;
-    agingBucket: string;
-  }[];
-  summary: {
-    totalRevenue: number;
-    totalExpenses: number;
-    netProfit: number;
-    overdueAmount: number;
-  };
-}
 
 interface PerformanceData {
   executors: {
@@ -127,7 +94,10 @@ const roleLabels: Record<string, string> = {
 // ===== Component =====
 
 export default function ReportsPage() {
-  const [activeTab, setActiveTab] = useState<"financial" | "performance" | "projects">("financial");
+  // Financial tab was removed when the legacy invoice/expense system
+  // was retired. Reports now cover performance + projects only; the
+  // payments page (/dashboard/payments) owns the receivables view.
+  const [activeTab, setActiveTab] = useState<"performance" | "projects">("performance");
   const [loading, setLoading] = useState(false);
   const [departments, setDepartments] = useState<{id:string;name:string}[]>([]);
   const [filterDept, setFilterDept] = useState("");
@@ -138,7 +108,6 @@ export default function ReportsPage() {
   const [fromDate, setFromDate] = useState(sixMonthsAgo.toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(now.toISOString().slice(0, 10));
 
-  const [financialData, setFinancialData] = useState<FinancialData | null>(null);
   const [performanceData, setPerformanceData] = useState<PerformanceData | null>(null);
   const [projectsData, setProjectsData] = useState<ProjectsData | null>(null);
 
@@ -152,13 +121,7 @@ export default function ReportsPage() {
     setLoading(true);
     const params = new URLSearchParams({ from: fromDate, to: toDate });
 
-    if (activeTab === "financial") {
-      fetch(`/api/reports/financial?${params}`)
-        .then((r) => r.json())
-        .then((d) => { if (d.summary) setFinancialData(d); })
-        .catch(() => {})
-        .finally(() => setLoading(false));
-    } else if (activeTab === "performance") {
+    if (activeTab === "performance") {
       fetch(`/api/reports/performance?${params}`)
         .then((r) => r.json())
         .then((d) => { if (d.executors) setPerformanceData(d); })
@@ -178,7 +141,6 @@ export default function ReportsPage() {
   }, [activeTab]);
 
   const tabs = [
-    { key: "financial" as const, label: "التقارير المالية" },
     { key: "performance" as const, label: "تقارير الأداء" },
     { key: "projects" as const, label: "تقارير المشاريع" },
   ];
@@ -198,7 +160,7 @@ export default function ReportsPage() {
             التقارير والإحصائيات
           </h1>
           <p className="text-sm mt-1" style={{ color: "#2D3748", opacity: 0.6 }}>
-            عرض وتحليل البيانات المالية والأداء والمشاريع
+            عرض وتحليل أداء الفريق وتقدم المشاريع
           </p>
         </div>
       </div>
@@ -271,9 +233,6 @@ export default function ReportsPage() {
         </div>
       ) : (
         <>
-          {activeTab === "financial" && financialData && (
-            <FinancialTab data={financialData} />
-          )}
           {activeTab === "performance" && performanceData && (
             <PerformanceTab data={performanceData} />
           )}
@@ -282,254 +241,6 @@ export default function ReportsPage() {
           )}
         </>
       )}
-    </div>
-  );
-}
-
-// ===== Financial Tab =====
-
-function FinancialTab({ data }: { data: FinancialData }) {
-  const { summary, revenue, expenses, profitability, receivables } = data;
-
-  const handleExportFinancial = () => {
-    const headers = [
-      { key: "name", label: "المشروع" },
-      { key: "revenue", label: "الإيرادات" },
-      { key: "expenses", label: "المصروفات" },
-      { key: "profit", label: "الربح" },
-      { key: "margin", label: "هامش الربح %" },
-    ];
-    const rows = profitability.map((p) => ({
-      name: p.name,
-      revenue: p.revenue,
-      expenses: p.expenses,
-      profit: p.profit,
-      margin: p.margin,
-    }));
-    exportToExcel(rows, headers, "financial-report");
-  };
-
-  const summaryCards = [
-    { label: "إجمالي الإيرادات", value: formatAmount(summary.totalRevenue), icon: TrendingUp, color: "#059669", bg: "rgba(5,150,105,0.08)" },
-    { label: "إجمالي المصروفات", value: formatAmount(summary.totalExpenses), icon: TrendingDown, color: "#DC2626", bg: "rgba(220,38,38,0.08)" },
-    { label: "صافي الربح", value: formatAmount(summary.netProfit), icon: DollarSign, color: "#C9A84C", bg: "rgba(201,168,76,0.08)" },
-    { label: "ذمم مدينة", value: formatAmount(summary.overdueAmount), icon: AlertTriangle, color: "#EA580C", bg: "rgba(234,88,12,0.08)" },
-  ];
-
-  const maxRevenue = Math.max(...revenue.map((r) => r.total), 1);
-  const totalExpenses = expenses.reduce((s, e) => s + e.total, 0) || 1;
-
-  return (
-    <div className="space-y-6">
-      {/* Export Button */}
-      <div className="flex justify-end">
-        <MarsaButton onClick={handleExportFinancial} variant="primary" icon={<Download size={16} />}>
-          تصدير Excel
-        </MarsaButton>
-      </div>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {summaryCards.map((s, i) => (
-          <div
-            key={i}
-            className="bg-white rounded-2xl p-5 transition-all hover:-translate-y-0.5"
-            style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium" style={{ color: "#2D3748", opacity: 0.6 }}>
-                {s.label}
-              </span>
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ backgroundColor: s.bg }}
-              >
-                <s.icon size={20} style={{ color: s.color }} />
-              </div>
-            </div>
-            <p className="text-xl font-bold" style={{ color: s.color }}>
-              {s.value} <SarSymbol size={18} />
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Revenue Bar Chart */}
-      <div
-        className="bg-white rounded-2xl p-6"
-        style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
-      >
-        <h3 className="text-lg font-bold mb-4" style={{ color: "#1C1B2E" }}>
-          الإيرادات الشهرية
-        </h3>
-        {revenue.length === 0 ? (
-          <p className="text-sm text-center py-8" style={{ color: "#94A3B8" }}>لا توجد بيانات</p>
-        ) : (
-          <div className="space-y-3">
-            {revenue.map((r) => (
-              <div key={r.month} className="flex items-center gap-3">
-                <span className="text-xs font-medium w-20 shrink-0" style={{ color: "#2D3748" }}>
-                  {r.month}
-                </span>
-                <div className="flex-1 h-8 rounded-lg overflow-hidden" style={{ backgroundColor: "#F3F4F6" }}>
-                  <div
-                    className="h-full rounded-lg flex items-center justify-end px-2 transition-all"
-                    style={{
-                      width: `${Math.max((r.total / maxRevenue) * 100, 2)}%`,
-                      backgroundColor: "#059669",
-                    }}
-                  >
-                    <span className="text-xs font-bold text-white whitespace-nowrap">
-                      {formatAmount(r.total)} <SarSymbol size={12} />
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Expenses Table */}
-      <div
-        className="bg-white rounded-2xl p-6"
-        style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
-      >
-        <h3 className="text-lg font-bold mb-4" style={{ color: "#1C1B2E" }}>
-          المصروفات حسب المزود
-        </h3>
-        {expenses.length === 0 ? (
-          <p className="text-sm text-center py-8" style={{ color: "#94A3B8" }}>لا توجد بيانات</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr style={{ backgroundColor: "#FAFAFE", borderBottom: "1px solid #E2E0D8" }}>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>المزود</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>المبلغ</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>النسبة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expenses.map((e, i) => {
-                  const pct = Math.round((e.total / totalExpenses) * 100);
-                  return (
-                    <tr key={i} className="hover:bg-[#FAFAF8]" style={{ borderBottom: "1px solid #F0EDE6" }}>
-                      <td className="px-5 py-3 text-sm font-medium" style={{ color: "#1C1B2E" }}>{e.name}</td>
-                      <td className="px-5 py-3 text-sm" style={{ color: "#2D3748" }}>{formatAmount(e.total)} <SarSymbol size={14} /></td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 rounded-full" style={{ backgroundColor: "#F3F4F6" }}>
-                            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: "#DC2626" }} />
-                          </div>
-                          <span className="text-xs font-medium w-10" style={{ color: "#2D3748" }}>{pct}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Profitability Table */}
-      <div
-        className="bg-white rounded-2xl p-6"
-        style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
-      >
-        <h3 className="text-lg font-bold mb-4" style={{ color: "#1C1B2E" }}>
-          ربحية المشاريع
-        </h3>
-        {profitability.length === 0 ? (
-          <p className="text-sm text-center py-8" style={{ color: "#94A3B8" }}>لا توجد بيانات</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr style={{ backgroundColor: "#FAFAFE", borderBottom: "1px solid #E2E0D8" }}>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>المشروع</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>الإيرادات</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>المصروفات</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>الربح</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>هامش الربح %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {profitability.map((p) => (
-                  <tr key={p.id} className="hover:bg-[#FAFAF8]" style={{ borderBottom: "1px solid #F0EDE6" }}>
-                    <td className="px-5 py-3 text-sm font-medium" style={{ color: "#1C1B2E" }}>
-                      <div className="flex flex-col gap-0.5">
-                        <span>{p.name}</span>
-                        {p.projectCode && (
-                          <span className="font-mono text-[9px] font-bold" style={{ color: "#5E5495" }}>{p.projectCode}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-sm" style={{ color: "#059669" }}>{formatAmount(p.revenue)} <SarSymbol size={14} /></td>
-                    <td className="px-5 py-3 text-sm" style={{ color: "#DC2626" }}>{formatAmount(p.expenses)} <SarSymbol size={14} /></td>
-                    <td className="px-5 py-3 text-sm font-bold" style={{ color: p.profit >= 0 ? "#059669" : "#DC2626" }}>
-                      {formatAmount(p.profit)} <SarSymbol size={14} />
-                    </td>
-                    <td className="px-5 py-3 text-sm font-medium" style={{ color: "#2D3748" }}>{p.margin}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Receivables Aging Table */}
-      <div
-        className="bg-white rounded-2xl p-6"
-        style={{ border: "1px solid #E2E0D8", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}
-      >
-        <h3 className="text-lg font-bold mb-4" style={{ color: "#1C1B2E" }}>
-          الذمم المدينة المتأخرة
-        </h3>
-        {receivables.length === 0 ? (
-          <p className="text-sm text-center py-8" style={{ color: "#94A3B8" }}>لا توجد ذمم مدينة متأخرة</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr style={{ backgroundColor: "#FAFAFE", borderBottom: "1px solid #E2E0D8" }}>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>الفاتورة</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>العميل</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>المبلغ</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>أيام التأخر</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold" style={{ color: "#2D3748", opacity: 0.7 }}>الفئة العمرية</th>
-                </tr>
-              </thead>
-              <tbody>
-                {receivables.map((r) => {
-                  const agingColor =
-                    r.agingBucket === "0-30" ? "#D97706" :
-                    r.agingBucket === "31-60" ? "#EA580C" :
-                    r.agingBucket === "61-90" ? "#DC2626" : "#991B1B";
-                  return (
-                    <tr key={r.id} className="hover:bg-[#FAFAF8]" style={{ borderBottom: "1px solid #F0EDE6" }}>
-                      <td className="px-5 py-3 text-sm font-medium" style={{ color: "#1C1B2E" }}>{r.invoiceNumber}</td>
-                      <td className="px-5 py-3 text-sm" style={{ color: "#2D3748" }}>{r.clientName}</td>
-                      <td className="px-5 py-3 text-sm" style={{ color: "#2D3748" }}>{formatAmount(r.totalAmount)} <SarSymbol size={14} /></td>
-                      <td className="px-5 py-3 text-sm font-medium" style={{ color: agingColor }}>{r.daysOverdue} يوم</td>
-                      <td className="px-5 py-3">
-                        <span
-                          className="px-3 py-1 rounded-lg text-xs font-semibold"
-                          style={{ backgroundColor: `${agingColor}15`, color: agingColor }}
-                        >
-                          {r.agingBucket} يوم
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

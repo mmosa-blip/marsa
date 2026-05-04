@@ -101,7 +101,7 @@ export default function ClientDashboard({ userName }: Props) {
   if (!data) return null;
 
   const { stats, alerts, recentProjects, recentServices, recentActivities } = data;
-  const hasAlerts = alerts.expiringDocuments.length > 0 || alerts.overdueInvoices.length > 0 || alerts.upcomingReminders.length > 0;
+  const hasAlerts = alerts.expiringDocuments.length > 0 || alerts.upcomingReminders.length > 0;
 
   const statCards = [
     { label: "المشاريع النشطة", value: stats.activeProjects, icon: FolderKanban, color: "#1C1B2E", bg: "rgba(27,42,74,0.06)" },
@@ -169,24 +169,10 @@ export default function ClientDashboard({ userName }: Props) {
                 </Link>
               </div>
             ))}
-            {alerts.overdueInvoices.map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: "rgba(220,38,38,0.05)", border: "1px solid rgba(220,38,38,0.15)" }}>
-                <div className="flex items-center gap-3">
-                  <Receipt size={18} style={{ color: "#DC2626" }} />
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: "#1C1B2E" }}>فاتورة {inv.invoiceNumber} متأخرة</p>
-                    <p className="text-xs" style={{ color: "#DC2626" }}>{inv.totalAmount.toLocaleString("en-US")} <SarSymbol size={12} /> — استحقاق {formatDate(inv.dueDate)}</p>
-                  </div>
-                </div>
-                <Link
-                  href="/dashboard/my-invoices"
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                  style={{ backgroundColor: "rgba(220,38,38,0.1)", color: "#DC2626" }}
-                >
-                  عرض
-                </Link>
-              </div>
-            ))}
+            {/* Overdue invoices removed — the new client billing flow runs
+                through ContractPaymentInstallment (handled by admin via
+                /dashboard/payments). The client dashboard no longer has
+                its own invoice surface. */}
             {alerts.upcomingReminders.map((rem) => (
               <div key={rem.id} className="flex items-center justify-between p-3 rounded-xl" style={{ backgroundColor: "rgba(201,168,76,0.05)", border: "1px solid rgba(201,168,76,0.15)" }}>
                 <div className="flex items-center gap-3">

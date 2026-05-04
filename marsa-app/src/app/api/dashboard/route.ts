@@ -131,33 +131,25 @@ async function getExecutorStats(userId: string) {
 }
 
 async function getProviderStats(userId: string) {
-  const [allTasks, paymentRequests] = await Promise.all([
-    prisma.task.findMany({
-      where: { assigneeId: userId },
-      include: {
-        project: { select: { id: true, name: true, projectCode: true } },
-        service: { select: { name: true } },
-        taskCosts: { where: { providerId: userId }, select: { amount: true, paymentRequest: { select: { id: true, status: true } } } },
-      },
-      orderBy: { updatedAt: "desc" },
-    }),
-    prisma.paymentRequest.findMany({
-      where: { providerId: userId },
-      include: { taskCost: { include: { task: { select: { title: true } } } } },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  // Provider payment-tracking removed alongside the deprecated
+  // PaymentRequest UI. Providers now see their task list only; earnings
+  // history lives in the audit trail and contract-payment installments.
+  const allTasks = await prisma.task.findMany({
+    where: { assigneeId: userId },
+    include: {
+      project: { select: { id: true, name: true, projectCode: true } },
+      service: { select: { name: true } },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
 
   const totalAssigned = allTasks.length;
   const completedTasks = allTasks.filter(t => t.status === "DONE").length;
-  const totalEarnings = paymentRequests.filter(p => p.status === "PAID").reduce((sum, p) => sum + p.amount, 0);
-  const pendingAmount = paymentRequests.filter(p => !["PAID", "REJECTED"].includes(p.status)).reduce((sum, p) => sum + p.amount, 0);
 
   return {
     type: "provider",
-    stats: { totalAssigned, completedTasks, totalEarnings, pendingAmount },
+    stats: { totalAssigned, completedTasks },
     tasks: allTasks,
-    paymentRequests: paymentRequests.slice(0, 10),
   };
 }
 

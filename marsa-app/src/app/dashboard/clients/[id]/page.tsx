@@ -77,7 +77,6 @@ const tabs = [
   { id: "tasks", label: "المهام", icon: CheckSquare },
   { id: "documents", label: "الوثائق الرسمية", icon: FileCheck },
   { id: "employees", label: "الموظفين", icon: Users },
-  { id: "invoices", label: "الفواتير", icon: FileText },
   { id: "reminders", label: "التذكيرات", icon: Bell },
 ];
 

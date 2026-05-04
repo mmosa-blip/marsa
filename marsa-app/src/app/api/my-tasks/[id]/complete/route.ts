@@ -56,69 +56,10 @@ export async function PATCH(
       );
     }
 
-    const isExternalProvider = task.assignee?.role === "EXTERNAL_PROVIDER";
-
-    if (isExternalProvider) {
-      const updatedTask = await prisma.$transaction(async (tx) => {
-        const updated = await tx.task.update({
-          where: { id },
-          data: { status: "DONE" },
-          include: {
-            service: { select: { id: true, name: true } },
-            project: { select: { id: true, name: true } },
-          },
-        });
-
-        let taskCost = await tx.taskCost.findUnique({
-          where: {
-            taskId_providerId: {
-              taskId: id,
-              providerId: session.user.id,
-            },
-          },
-        });
-
-        if (!taskCost) {
-          taskCost = await tx.taskCost.create({
-            data: {
-              taskId: id,
-              providerId: session.user.id,
-              amount: task.assignee?.costPerTask ?? 0,
-            },
-          });
-        }
-
-        const lastPaymentRequest = await tx.paymentRequest.findFirst({
-          orderBy: { requestNumber: "desc" },
-          select: { requestNumber: true },
-        });
-
-        let nextNumber = 1;
-        if (lastPaymentRequest) {
-          const match = lastPaymentRequest.requestNumber.match(/PAY-REQ-(\d+)/);
-          if (match) {
-            nextNumber = parseInt(match[1], 10) + 1;
-          }
-        }
-        const requestNumber = `PAY-REQ-${String(nextNumber).padStart(4, "0")}`;
-
-        await tx.paymentRequest.create({
-          data: {
-            requestNumber,
-            amount: taskCost.amount,
-            status: "PENDING_SUPERVISOR",
-            providerId: session.user.id,
-            requestedById: session.user.id,
-            taskCostId: taskCost.id,
-          },
-        });
-
-        return updated;
-      });
-
-      return NextResponse.json(updatedTask);
-    }
-
+    // External-provider auto-payout (TaskCost + PaymentRequest creation)
+    // removed alongside the deprecated payment-requests UI. Provider
+    // settlements are now handled offline; the task simply transitions
+    // to DONE like any other.
     const updatedTask = await prisma.task.update({
       where: { id },
       data: { status: "DONE" },

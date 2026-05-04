@@ -184,37 +184,13 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
     }
   }
 
-  // Create payment milestones
+  // Create payment milestones. The legacy Invoice creation here was
+  // dropped — billing is owned by ContractPaymentInstallment (created
+  // by the contract flow, not project instantiation). Milestones still
+  // render the per-installment cards in the project view.
   if (contractInstallments.length > 0) {
-    const company = await prisma.company.findFirst();
     for (let ci = 0; ci < contractInstallments.length; ci++) {
       const inst = contractInstallments[ci];
-      const dueDate = inst.dueAfterDays
-        ? new Date(now.getTime() + inst.dueAfterDays * 24 * 60 * 60 * 1000)
-        : projectEndDate;
-
-      let invoiceId: string | undefined;
-      if (company) {
-        const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-CI${ci}`;
-        const invoice = await prisma.invoice.create({
-          data: {
-            invoiceNumber,
-            title: inst.title,
-            subtotal: inst.amount,
-            taxRate: 15,
-            taxAmount: inst.amount * 0.15,
-            totalAmount: inst.amount * 1.15,
-            status: "DRAFT",
-            dueDate,
-            companyId: company.id,
-            projectId: project.id,
-            clientId,
-            createdById: managerId,
-          },
-        });
-        invoiceId = invoice.id;
-      }
-
       await prisma.projectMilestone.create({
         data: {
           projectId: project.id,
@@ -222,7 +198,6 @@ export async function instantiateProjectFromTemplate(opts: InstantiateOptions): 
           type: "PAYMENT",
           status: ci === 0 ? "UNLOCKED" : "LOCKED",
           order: ci,
-          ...(invoiceId ? { invoiceId } : {}),
         },
       });
     }

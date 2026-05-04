@@ -417,31 +417,13 @@ export async function POST(request: Request) {
         }
 
         // ─── "Before project start" payment milestones ───
+        // Invoice creation removed — billing flows through
+        // ContractPaymentInstallment (set up by the contract flow). The
+        // milestones still render so the project view shows the upfront
+        // payment cards.
         if (contractInstallments.length === 0 && paymentMilestones && paymentMilestones.length > 0) {
           const beforeStartMilestones = paymentMilestones.filter((p) => p.afterServiceIndex === -1);
           for (const pm of beforeStartMilestones) {
-            const company = await tx.company.findFirst();
-            let invoiceId: string | undefined;
-            if (company) {
-              const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-PM-PRE`;
-              const invoice = await tx.invoice.create({
-                data: {
-                  invoiceNumber,
-                  title: pm.title,
-                  subtotal: pm.amount,
-                  taxRate: 15,
-                  taxAmount: pm.amount * 0.15,
-                  totalAmount: pm.amount * 1.15,
-                  status: "DRAFT",
-                  dueDate: now,
-                  companyId: company.id,
-                  projectId: project.id,
-                  clientId,
-                  createdById: session.user.id,
-                },
-              });
-              invoiceId = invoice.id;
-            }
             await tx.projectMilestone.create({
               data: {
                 projectId: project.id,
@@ -449,7 +431,6 @@ export async function POST(request: Request) {
                 type: "PAYMENT",
                 status: "LOCKED",
                 order: -1,
-                ...(invoiceId ? { invoiceId } : {}),
               },
             });
           }
@@ -599,51 +580,19 @@ export async function POST(request: Request) {
           }
 
           // ─── Create PAYMENT milestones after this service ───
+          // Invoice creation removed (billing → ContractPaymentInstallment).
           if (contractInstallments.length === 0 && paymentMilestones && paymentMilestones.length > 0) {
             const milestonesAfter = paymentMilestones.filter((p) => p.afterServiceIndex === si);
             for (const pm of milestonesAfter) {
-              const company = await tx.company.findFirst();
-
-              if (company) {
-                const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-PM${milestoneOrder}`;
-                const invoice = await tx.invoice.create({
-                  data: {
-                    invoiceNumber,
-                    title: pm.title,
-                    subtotal: pm.amount,
-                    taxRate: 15,
-                    taxAmount: pm.amount * 0.15,
-                    totalAmount: pm.amount * 1.15,
-                    status: "DRAFT",
-                    dueDate: endDate,
-                    companyId: company.id,
-                    projectId: project.id,
-                    clientId,
-                    createdById: session.user.id,
-                  },
-                });
-
-                await tx.projectMilestone.create({
-                  data: {
-                    projectId: project.id,
-                    title: pm.title,
-                    type: "PAYMENT",
-                    status: "LOCKED",
-                    order: milestoneOrder++,
-                    invoiceId: invoice.id,
-                  },
-                });
-              } else {
-                await tx.projectMilestone.create({
-                  data: {
-                    projectId: project.id,
-                    title: pm.title,
-                    type: "PAYMENT",
-                    status: "LOCKED",
-                    order: milestoneOrder++,
-                  },
-                });
-              }
+              await tx.projectMilestone.create({
+                data: {
+                  projectId: project.id,
+                  title: pm.title,
+                  type: "PAYMENT",
+                  status: "LOCKED",
+                  order: milestoneOrder++,
+                },
+              });
             }
           }
 
@@ -692,54 +641,19 @@ export async function POST(request: Request) {
         }
 
         // ─── Create payment milestones from contract installments ───
+        // Invoice creation removed (billing → ContractPaymentInstallment).
         if (contractInstallments.length > 0) {
           for (let ci = 0; ci < contractInstallments.length; ci++) {
             const inst = contractInstallments[ci];
-            const dueDate = inst.dueAfterDays
-              ? new Date(now.getTime() + inst.dueAfterDays * 24 * 60 * 60 * 1000)
-              : endDate;
-
-            const company = await tx.company.findFirst();
-            if (company) {
-              const invoiceNumber = `INV-${project.id.slice(-6).toUpperCase()}-CI${ci}`;
-              const invoice = await tx.invoice.create({
-                data: {
-                  invoiceNumber,
-                  title: inst.title,
-                  subtotal: inst.amount,
-                  taxRate: 15,
-                  taxAmount: inst.amount * 0.15,
-                  totalAmount: inst.amount * 1.15,
-                  status: "DRAFT",
-                  dueDate,
-                  companyId: company.id,
-                  projectId: project.id,
-                  clientId,
-                  createdById: session.user.id,
-                },
-              });
-
-              await tx.projectMilestone.create({
-                data: {
-                  projectId: project.id,
-                  title: inst.title,
-                  type: "PAYMENT",
-                  status: ci === 0 ? "UNLOCKED" : "LOCKED",
-                  order: milestoneOrder++,
-                  invoiceId: invoice.id,
-                },
-              });
-            } else {
-              await tx.projectMilestone.create({
-                data: {
-                  projectId: project.id,
-                  title: inst.title,
-                  type: "PAYMENT",
-                  status: ci === 0 ? "UNLOCKED" : "LOCKED",
-                  order: milestoneOrder++,
-                },
-              });
-            }
+            await tx.projectMilestone.create({
+              data: {
+                projectId: project.id,
+                title: inst.title,
+                type: "PAYMENT",
+                status: ci === 0 ? "UNLOCKED" : "LOCKED",
+                order: milestoneOrder++,
+              },
+            });
           }
         }
 
