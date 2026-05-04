@@ -48,12 +48,17 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      // Search both project relations — Contract.project (reverse) is
+      // empty for legacy template-driven contracts, where the project
+      // only lives on Contract.linkedProjects (forward).
       where.OR = [
         { title: { contains: search, mode: "insensitive" } },
         { contract: { client: { name: { contains: search, mode: "insensitive" } } } },
         { contract: { client: { phone: { contains: search } } } },
         { contract: { project: { name: { contains: search, mode: "insensitive" } } } },
         { contract: { project: { projectCode: { contains: search } } } },
+        { contract: { linkedProjects: { some: { name: { contains: search, mode: "insensitive" } } } } },
+        { contract: { linkedProjects: { some: { projectCode: { contains: search } } } } },
       ];
     }
     if (clientId) where.contract = { ...(where.contract as object || {}), clientId };
@@ -76,6 +81,12 @@ export async function GET(request: NextRequest) {
               client: { select: { id: true, name: true, phone: true } },
               project: {
                 select: { id: true, name: true, projectCode: true, status: true },
+              },
+              // Forward relation fallback — used when Contract.projectId
+              // is null (template-driven contracts before Fix C).
+              linkedProjects: {
+                select: { id: true, name: true, projectCode: true, status: true },
+                take: 1,
               },
             },
           },
@@ -157,8 +168,20 @@ export async function GET(request: NextRequest) {
           ? Math.floor((today.getTime() - dueDate.getTime()) / 86400000)
           : 0;
 
+      // Pick whichever side of the project relation is populated.
+      const effectiveProject =
+        it.contract?.project ?? it.contract?.linkedProjects?.[0] ?? null;
+
       return {
         ...it,
+        contract: it.contract
+          ? {
+              ...it.contract,
+              project: effectiveProject,
+              // Hide the implementation detail from the client.
+              linkedProjects: undefined,
+            }
+          : it.contract,
         dueDate,
         daysOverdue,
         remainingAmount: remaining,
