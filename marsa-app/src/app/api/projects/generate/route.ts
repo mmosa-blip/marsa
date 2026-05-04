@@ -312,6 +312,84 @@ export async function POST(request: Request) {
           },
         });
       }
+
+      // ─── Materialize template milestones as ContractPaymentInstallment rows ───
+      // The payments page reads from ContractPaymentInstallment, not
+      // ProjectMilestone. Without this block, every Investment-template
+      // project ended up invisible to /dashboard/payments because its
+      // amounts never crossed over.
+      //
+      // For each template milestone:
+      //   - afterServiceIndex = -1 → upfront payment, no task link, unlocked
+      //   - afterServiceIndex = N  → links to the FIRST task of service[N+1]
+      //                              (i.e. the service that follows the one
+      //                              the milestone is paid "after")
+      //
+      // Skip rows with amount <= 0 to avoid noise.
+      const billable = template.milestones.filter((m) => m.amount > 0);
+      if (project.contractId && billable.length > 0) {
+        const projectServicesOrdered = await prisma.service.findMany({
+          where: { projectId: project.id, deletedAt: null },
+          select: {
+            id: true,
+            name: true,
+            serviceOrder: true,
+            tasks: {
+              select: { id: true },
+              orderBy: { order: "asc" },
+              take: 1,
+            },
+          },
+          orderBy: { serviceOrder: "asc" },
+        });
+
+        const totalMilestoneSum = billable.reduce((s, m) => s + m.amount, 0);
+
+        for (let mi = 0; mi < billable.length; mi++) {
+          const tm = billable[mi];
+          const isUpfront = tm.afterServiceIndex === -1;
+          let linkedTaskId: string | null = null;
+
+          if (!isUpfront) {
+            const nextService = projectServicesOrdered[tm.afterServiceIndex + 1];
+            const firstTaskOfNext = nextService?.tasks[0];
+            if (firstTaskOfNext) {
+              linkedTaskId = firstTaskOfNext.id;
+            } else {
+              console.warn(
+                `[generate] template milestone "${tm.title}" afterServiceIndex=${tm.afterServiceIndex} has no resolvable next service/task — leaving linkedTaskId null`
+              );
+            }
+          }
+
+          await prisma.contractPaymentInstallment.create({
+            data: {
+              contractId: project.contractId,
+              title: tm.title,
+              amount: tm.amount,
+              order: mi,
+              percentage:
+                totalMilestoneSum > 0
+                  ? (tm.amount / totalMilestoneSum) * 100
+                  : null,
+              dueAfterDays: null, // milestone-based, not time-based
+              isLocked: isUpfront ? false : mi > 0,
+              ...(linkedTaskId ? { linkedTaskId } : {}),
+            },
+          });
+        }
+
+        // Backfill contractValue if the contract row never got priced.
+        // The sum of milestones is the most accurate figure available
+        // here (it is what the user actually committed to).
+        await prisma.contract.updateMany({
+          where: {
+            id: project.contractId,
+            OR: [{ contractValue: null }, { contractValue: 0 }],
+          },
+          data: { contractValue: totalMilestoneSum },
+        });
+      }
     }
 
     // جلب المشروع الكامل مع الخدمات والمهام
