@@ -853,6 +853,8 @@ export default function NewProjectPage() {
         afterServiceIndex: p.afterServiceIndex,
       }));
 
+      let creationWarnings: string[] = [];
+
       if (useTemplateGenerate) {
         const res = await fetch("/api/projects/generate", {
           method: "POST",
@@ -873,6 +875,9 @@ export default function NewProjectPage() {
         if (res.ok) {
           const data = await res.json();
           projectId = data.id;
+          if (Array.isArray(data.warnings)) {
+            creationWarnings = data.warnings;
+          }
         } else {
           const err = await res.json();
           alert(err.error || "حدث خطأ أثناء إنشاء المشروع");
@@ -968,7 +973,11 @@ export default function NewProjectPage() {
       }
 
       if (projectId) {
-        router.push(`/dashboard/projects/${projectId}`);
+        const needsSetup = creationWarnings.includes("installments_setup_required");
+        const url = needsSetup
+          ? `/dashboard/projects/${projectId}?welcome=needs-setup`
+          : `/dashboard/projects/${projectId}`;
+        router.push(url);
       }
     } catch {
       alert("حدث خطأ غير متوقع");

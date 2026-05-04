@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use, useRef, Fragment } from "react";
 import { useSession } from "next-auth/react";
-import { redirect, useRouter } from "next/navigation";
+import { redirect, useRouter, useSearchParams } from "next/navigation";
 import { ROUTES } from "@/lib/routes";
 import {
   ArrowRight,
@@ -135,6 +135,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const { data: session, status: authStatus } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // ?welcome=needs-setup is appended by /dashboard/projects/new when the
+  // project was generated from a template that produced no installment
+  // schedule. We auto-open the setup modal once on mount and clear the
+  // param so it doesn't fire again on subsequent visits.
+  const welcomeNeedsSetup = searchParams.get("welcome") === "needs-setup";
+  const [showWelcomePrompt, setShowWelcomePrompt] = useState(welcomeNeedsSetup);
   const [project, setProject] = useState<ProjectType | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"kanban" | "services" | "delay">("services");
@@ -497,6 +504,58 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      {/* Welcome prompt — shown once when arriving from /new with the
+          ?welcome=needs-setup flag, so the user is reminded to define
+          a payment schedule that the template didn't supply. */}
+      {showWelcomePrompt && project.contract && (project.contract._count?.installments ?? 0) === 0 && (
+        <div
+          className="mb-4 rounded-2xl p-4 flex items-center gap-3 flex-wrap"
+          style={{
+            backgroundColor: "rgba(234,88,12,0.06)",
+            border: "1px solid rgba(234,88,12,0.30)",
+          }}
+        >
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ backgroundColor: "rgba(234,88,12,0.15)" }}
+          >
+            <DollarSign size={18} style={{ color: "#EA580C" }} />
+          </div>
+          <div className="flex-1 min-w-[220px]">
+            <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
+              ⚠️ المشروع تم إنشاؤه. تحتاج إعداد جدول الدفعات.
+            </p>
+            <p className="text-[11px] mt-0.5" style={{ color: "#6B7280" }}>
+              القالب لا يحتوي على جدول دفعات افتراضي. عرّف الجدول الآن لتظهر الدفعات في صفحة الدفعات.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setShowSetupInstallments(true);
+              setShowWelcomePrompt(false);
+              // Strip the query param so refresh doesn't re-prompt.
+              router.replace(`/dashboard/projects/${id}`);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:brightness-105"
+            style={{ backgroundColor: "#EA580C", color: "white" }}
+          >
+            إعداد الآن
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowWelcomePrompt(false);
+              router.replace(`/dashboard/projects/${id}`);
+            }}
+            className="text-[11px] px-3 py-2 rounded-xl"
+            style={{ color: "#6B7280" }}
+          >
+            لاحقاً
+          </button>
+        </div>
+      )}
 
       {/* Contract status card */}
       {(() => {

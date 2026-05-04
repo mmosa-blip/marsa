@@ -293,12 +293,18 @@ export async function POST(request: Request) {
       }
     }
 
+    // Track whether the project ended up with a real payment schedule.
+    // If not, the response carries a warning so the new-project page
+    // can prompt the user to set one up via the inline modal.
+    let installmentsCreated = false;
+
     // Create payment milestones - contract installments take priority over template milestones.
     // Invoice creation removed: billing now flows through
     // ContractPaymentInstallment (set up by the contract flow) and the
     // /dashboard/payments page. Milestones remain so the project view
     // still renders the per-installment cards.
     if (contractInstallments.length > 0) {
+      installmentsCreated = true;
       for (let ci = 0; ci < contractInstallments.length; ci++) {
         const inst = contractInstallments[ci];
         await prisma.projectMilestone.create({
@@ -339,6 +345,7 @@ export async function POST(request: Request) {
       // Skip rows with amount <= 0 to avoid noise.
       const billable = template.milestones.filter((m) => m.amount > 0);
       if (project.contractId && billable.length > 0) {
+        installmentsCreated = true;
         const projectServicesOrdered = await prisma.service.findMany({
           where: { projectId: project.id, deletedAt: null },
           select: {
@@ -443,7 +450,19 @@ export async function POST(request: Request) {
       excludeUserId: session.user.id,
     });
 
-    return NextResponse.json(fullProject, { status: 201 });
+    // Warnings — surfaced to the new-project page as a toast.
+    const warnings: string[] = [];
+    if (!installmentsCreated && project.contractId) {
+      warnings.push("installments_setup_required");
+      if ((template.milestones?.length ?? 0) === 0) {
+        warnings.push("template_has_no_milestones");
+      }
+    }
+
+    return NextResponse.json(
+      { ...fullProject, warnings },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Error generating project from template:", error);
     return NextResponse.json(
