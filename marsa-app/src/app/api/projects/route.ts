@@ -171,10 +171,85 @@ export async function GET(request: Request) {
   }
 }
 
+// New explicit shape from /dashboard/projects/new:
+//   { title, amount, isUpfront }            — paid before any work, no link
+//   { title, amount, linkedServiceIndex }   — paid after the chosen service
+// Legacy shape { title, amount, afterServiceIndex } is still tolerated for
+// inbound back-compat — afterServiceIndex=-1 maps to isUpfront, otherwise
+// to linkedServiceIndex+1 (the existing "after-N → service[N+1]" mapping).
 interface PaymentMilestoneInput {
   title: string;
   amount: number;
-  afterServiceIndex: number;
+  isUpfront?: boolean;
+  linkedServiceIndex?: number;
+  // legacy
+  afterServiceIndex?: number;
+}
+
+// Helper — normalises any inbound milestone into a single canonical
+// shape the validator/creator below can consume.
+//
+// Returns: { title, amount, isUpfront, linkedServiceIndex }
+//   - isUpfront true  → no service link, unlocked
+//   - linkedServiceIndex N → ContractPaymentInstallment.linkedTaskId = first
+//                            task of service at that index in the
+//                            ordered list of selected services.
+function normalizeMilestone(m: PaymentMilestoneInput) {
+  if (m.isUpfront === true) return { title: m.title, amount: m.amount, isUpfront: true as const, linkedServiceIndex: -1 };
+  if (typeof m.linkedServiceIndex === "number" && m.linkedServiceIndex >= 0) {
+    return {
+      title: m.title,
+      amount: m.amount,
+      isUpfront: false as const,
+      linkedServiceIndex: m.linkedServiceIndex,
+    };
+  }
+  // Legacy fallback
+  if (typeof m.afterServiceIndex === "number") {
+    if (m.afterServiceIndex === -1) {
+      return { title: m.title, amount: m.amount, isUpfront: true as const, linkedServiceIndex: -1 };
+    }
+    return {
+      title: m.title,
+      amount: m.amount,
+      isUpfront: false as const,
+      // legacy "after-N" used to lock the next service; we preserve
+      // that behaviour by linking to N+1.
+      linkedServiceIndex: m.afterServiceIndex + 1,
+    };
+  }
+  return { title: m.title, amount: m.amount, isUpfront: false as const, linkedServiceIndex: 0 };
+}
+
+// Validate a normalised list against a totalPrice and a service count.
+// Returns null if valid, otherwise an Arabic error string.
+function validateMilestones(
+  milestones: ReturnType<typeof normalizeMilestone>[],
+  totalPrice: number,
+  serviceCount: number
+): string | null {
+  if (milestones.length === 0) return "يجب تعريف جدول الدفعات";
+  if (totalPrice <= 0) return "قيمة المشروع يجب أن تكون أكبر من صفر";
+  const upfront = milestones.find((m) => m.isUpfront);
+  if (!upfront) return "يجب وجود دفعة مقدمة (upfront) واحدة على الأقل";
+  if (upfront.amount <= 0) return "الدفعة المقدمة يجب أن يكون لها مبلغ موجب";
+  const sum = milestones.reduce((s, m) => s + (m.amount || 0), 0);
+  if (Math.abs(sum - totalPrice) > 0.01) {
+    return `مجموع الدفعات (${sum}) لا يطابق قيمة المشروع (${totalPrice})`;
+  }
+  const seen = new Set<number>();
+  for (let i = 0; i < milestones.length; i++) {
+    const m = milestones[i];
+    if (m.isUpfront) continue;
+    if (m.linkedServiceIndex < 0 || m.linkedServiceIndex >= serviceCount) {
+      return `الدفعة #${i + 1}: الخدمة المرتبطة (#${m.linkedServiceIndex + 1}) خارج نطاق الخدمات`;
+    }
+    if (seen.has(m.linkedServiceIndex)) {
+      return `الدفعة #${i + 1}: الخدمة المرتبطة مكررة`;
+    }
+    seen.add(m.linkedServiceIndex);
+  }
+  return null;
 }
 
 interface ServiceInput {
@@ -250,6 +325,22 @@ export async function POST(request: Request) {
           { error: "المنفذ المختار غير صالح" },
           { status: 400 }
         );
+      }
+    }
+
+    // Mandatory payment-schedule validation (when services + contract
+    // are provided — i.e. the new-project wizard path). The schedule
+    // is required to be present, summed correctly, and fully bound to
+    // services; we reject malformed requests outright.
+    if (services && services.length > 0 && contractId) {
+      const normalised = (paymentMilestones ?? []).map(normalizeMilestone);
+      const err = validateMilestones(
+        normalised,
+        Number(totalPrice ?? 0),
+        services.length
+      );
+      if (err) {
+        return NextResponse.json({ error: err }, { status: 400 });
       }
     }
 
@@ -446,7 +537,12 @@ export async function POST(request: Request) {
         // milestones still render so the project view shows the upfront
         // payment cards.
         if (contractInstallments.length === 0 && paymentMilestones && paymentMilestones.length > 0) {
-          const beforeStartMilestones = paymentMilestones.filter((p) => p.afterServiceIndex === -1);
+          // Use the canonical shape so we don't depend on the legacy
+          // afterServiceIndex field; isUpfront covers both new and old
+          // upfront rows.
+          const beforeStartMilestones = paymentMilestones
+            .map(normalizeMilestone)
+            .filter((p) => p.isUpfront);
           for (const pm of beforeStartMilestones) {
             await tx.projectMilestone.create({
               data: {
@@ -604,9 +700,12 @@ export async function POST(request: Request) {
           }
 
           // ─── Create PAYMENT milestones after this service ───
-          // Invoice creation removed (billing → ContractPaymentInstallment).
+          // The new shape uses linkedServiceIndex; the marker for
+          // "after service si" is linkedServiceIndex === si.
           if (contractInstallments.length === 0 && paymentMilestones && paymentMilestones.length > 0) {
-            const milestonesAfter = paymentMilestones.filter((p) => p.afterServiceIndex === si);
+            const milestonesAfter = paymentMilestones
+              .map(normalizeMilestone)
+              .filter((p) => !p.isUpfront && p.linkedServiceIndex === si);
             for (const pm of milestonesAfter) {
               await tx.projectMilestone.create({
                 data: {
@@ -646,19 +745,28 @@ export async function POST(request: Request) {
             orderBy: { serviceOrder: "asc" },
           });
 
+          // Materialize milestones using the new explicit shape:
+          //   isUpfront → no link, unlocked
+          //   linkedServiceIndex N → link to first task of service[N], locked
           for (let pmi = 0; pmi < paymentMilestones.length; pmi++) {
-            const pm = paymentMilestones[pmi];
-            const nextService = projectServicesOrdered[pm.afterServiceIndex + 1];
-            const firstTaskOfNext = nextService?.tasks[0];
-
+            const norm = normalizeMilestone(paymentMilestones[pmi]);
+            let linkedTaskId: string | null = null;
+            if (!norm.isUpfront) {
+              const svc = projectServicesOrdered[norm.linkedServiceIndex];
+              linkedTaskId = svc?.tasks[0]?.id ?? null;
+            }
             await tx.contractPaymentInstallment.create({
               data: {
                 contractId: project.contractId,
-                title: pm.title,
-                amount: pm.amount,
+                title: norm.title,
+                amount: norm.amount,
                 order: pmi,
-                isLocked: true,
-                ...(firstTaskOfNext ? { linkedTaskId: firstTaskOfNext.id } : {}),
+                isLocked: !norm.isUpfront,
+                percentage:
+                  Number(totalPrice ?? 0) > 0
+                    ? (norm.amount / Number(totalPrice)) * 100
+                    : null,
+                ...(linkedTaskId ? { linkedTaskId } : {}),
               },
             });
           }

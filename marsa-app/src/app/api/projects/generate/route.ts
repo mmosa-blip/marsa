@@ -17,7 +17,52 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { templateId, clientId, name, contractId, departmentId, managerId, executorId } = body;
+    const {
+      templateId,
+      clientId,
+      name,
+      contractId,
+      departmentId,
+      managerId,
+      executorId,
+      // New: explicit payment schedule from the wizard. Overrides
+      // template milestones when present.
+      totalPrice: bodyTotalPrice,
+      paymentMilestones: inlineMilestones,
+    } = body as {
+      templateId: string;
+      clientId: string;
+      name?: string;
+      contractId?: string;
+      departmentId?: string;
+      managerId?: string;
+      executorId?: string;
+      totalPrice?: number;
+      paymentMilestones?: Array<{
+        title: string;
+        amount: number;
+        isUpfront?: boolean;
+        linkedServiceIndex?: number;
+        afterServiceIndex?: number;
+      }>;
+    };
+
+    // Local copy of the same normalisation/validation helpers used by
+    // /api/projects POST. Kept inline because importing from the other
+    // route would create a circular module path.
+    const normalizeInline = (m: NonNullable<typeof inlineMilestones>[number]) => {
+      if (m.isUpfront === true) return { title: m.title, amount: m.amount, isUpfront: true as const, linkedServiceIndex: -1 };
+      if (typeof m.linkedServiceIndex === "number" && m.linkedServiceIndex >= 0) {
+        return { title: m.title, amount: m.amount, isUpfront: false as const, linkedServiceIndex: m.linkedServiceIndex };
+      }
+      if (typeof m.afterServiceIndex === "number") {
+        if (m.afterServiceIndex === -1) {
+          return { title: m.title, amount: m.amount, isUpfront: true as const, linkedServiceIndex: -1 };
+        }
+        return { title: m.title, amount: m.amount, isUpfront: false as const, linkedServiceIndex: m.afterServiceIndex + 1 };
+      }
+      return { title: m.title, amount: m.amount, isUpfront: false as const, linkedServiceIndex: 0 };
+    };
 
     // ── Auto-distribution from DepartmentAssignmentPool ──
     let resolvedManagerId: string = managerId || session.user.id;
@@ -298,12 +343,98 @@ export async function POST(request: Request) {
     // can prompt the user to set one up via the inline modal.
     let installmentsCreated = false;
 
-    // Create payment milestones - contract installments take priority over template milestones.
-    // Invoice creation removed: billing now flows through
+    // Create payment milestones — priority order:
+    //   1. inline schedule from the wizard body (overrides everything)
+    //   2. contract.installments already attached to the contract
+    //   3. template milestones (legacy behaviour)
+    // Invoice creation removed: billing flows through
     // ContractPaymentInstallment (set up by the contract flow) and the
-    // /dashboard/payments page. Milestones remain so the project view
-    // still renders the per-installment cards.
-    if (contractInstallments.length > 0) {
+    // /dashboard/payments page. ProjectMilestone rows still render so
+    // the project view shows the per-installment cards.
+    if (inlineMilestones && inlineMilestones.length > 0) {
+      // Validate inline schedule against project totalPrice + service count
+      const normalised = inlineMilestones.map(normalizeInline);
+      const total = Number(bodyTotalPrice ?? 0);
+      const upfront = normalised.find((m) => m.isUpfront);
+      if (!upfront) {
+        return NextResponse.json(
+          { error: "يجب وجود دفعة مقدمة (upfront) واحدة على الأقل" },
+          { status: 400 }
+        );
+      }
+      if (total <= 0) {
+        return NextResponse.json(
+          { error: "قيمة المشروع يجب أن تكون أكبر من صفر" },
+          { status: 400 }
+        );
+      }
+      const sum = normalised.reduce((s, m) => s + m.amount, 0);
+      if (Math.abs(sum - total) > 0.01) {
+        return NextResponse.json(
+          { error: `مجموع الدفعات (${sum}) لا يطابق قيمة المشروع (${total})` },
+          { status: 400 }
+        );
+      }
+      const services = await prisma.service.findMany({
+        where: { projectId: project.id, deletedAt: null },
+        select: { id: true, tasks: { select: { id: true }, orderBy: { order: "asc" }, take: 1 } },
+        orderBy: { serviceOrder: "asc" },
+      });
+      for (let i = 0; i < normalised.length; i++) {
+        const m = normalised[i];
+        if (!m.isUpfront && (m.linkedServiceIndex < 0 || m.linkedServiceIndex >= services.length)) {
+          return NextResponse.json(
+            { error: `الدفعة #${i + 1}: الخدمة المرتبطة خارج النطاق` },
+            { status: 400 }
+          );
+        }
+      }
+      // Create ProjectMilestone rows + ContractPaymentInstallment rows
+      if (project.contractId) {
+        for (let i = 0; i < normalised.length; i++) {
+          const m = normalised[i];
+          await prisma.projectMilestone.create({
+            data: {
+              projectId: project.id,
+              title: m.title,
+              type: "PAYMENT",
+              status: i === 0 ? "UNLOCKED" : "LOCKED",
+              order: i,
+            },
+          });
+          let linkedTaskId: string | null = null;
+          if (!m.isUpfront) {
+            linkedTaskId = services[m.linkedServiceIndex]?.tasks[0]?.id ?? null;
+          }
+          await prisma.contractPaymentInstallment.create({
+            data: {
+              contractId: project.contractId,
+              title: m.title,
+              amount: m.amount,
+              order: i,
+              percentage: total > 0 ? (m.amount / total) * 100 : null,
+              isLocked: !m.isUpfront,
+              ...(linkedTaskId ? { linkedTaskId } : {}),
+            },
+          });
+        }
+        // Mirror sum onto contract.contractValue if missing.
+        await prisma.contract.updateMany({
+          where: {
+            id: project.contractId,
+            OR: [{ contractValue: null }, { contractValue: 0 }],
+          },
+          data: { contractValue: total },
+        });
+        // Update project.totalPrice if it diverges (it shouldn't, but
+        // we accept the body's number as the source of truth).
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { totalPrice: total },
+        });
+        installmentsCreated = true;
+      }
+    } else if (contractInstallments.length > 0) {
       installmentsCreated = true;
       for (let ci = 0; ci < contractInstallments.length; ci++) {
         const inst = contractInstallments[ci];
