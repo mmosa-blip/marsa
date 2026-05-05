@@ -241,15 +241,16 @@ export async function GET(request: NextRequest) {
           },
         },
       }),
+      // Total collected = every paidAmount across the table — PAID
+      // and PARTIAL alike. The earlier filter ignored partial payments
+      // and made the dashboard total understate reality.
       prisma.contractPaymentInstallment.aggregate({
         _sum: { paidAmount: true },
-        where: { paymentStatus: "PAID" },
       }),
     ]);
 
     let totalDue = 0;
     let totalOverdue = 0;
-    let overdueDaysSum = 0;
     let overdueCount = 0;
     const overdueClients = new Set<string>();
     const GRACE = 7;
@@ -287,7 +288,6 @@ export async function GET(request: NextRequest) {
 
       if (due && due.getTime() < today.getTime() && remain > 0) {
         totalOverdue += remain;
-        overdueDaysSum += (today.getTime() - due.getTime()) / 86400000;
         overdueCount++;
         if (r.contract?.clientId) overdueClients.add(r.contract.clientId);
       }
@@ -295,12 +295,9 @@ export async function GET(request: NextRequest) {
 
     const summary = {
       totalDue: Math.round(totalDue),
+      totalCollected: Math.round(paidAgg._sum.paidAmount ?? 0),
       totalOverdue: Math.round(totalOverdue),
       overdueClientsCount: overdueClients.size,
-      avgOverdueDays:
-        overdueCount > 0 ? Math.round(overdueDaysSum / overdueCount) : 0,
-      // Extras the UI uses
-      totalCollected: Math.round(paidAgg._sum.paidAmount ?? 0),
       overdueInstallmentsCount: overdueCount,
     };
 

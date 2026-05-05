@@ -10,7 +10,6 @@ import {
   Loader2,
   AlertTriangle,
   Users,
-  Clock,
   Phone,
   ExternalLink,
   Pause,
@@ -85,10 +84,9 @@ interface InstallmentRow {
 
 interface Summary {
   totalDue: number;
+  totalCollected: number;
   totalOverdue: number;
   overdueClientsCount: number;
-  avgOverdueDays: number;
-  totalCollected: number;
   overdueInstallmentsCount: number;
 }
 
@@ -295,9 +293,9 @@ export default function PaymentsPage() {
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <SummaryCard label="إجمالي المستحق" value={summary.totalDue} icon={DollarSign} color="#0EA5E9" suffix="ريال" />
+          <SummaryCard label="💰 إجمالي المحصّل" value={summary.totalCollected} icon={CheckCircle2} color="#16A34A" suffix="ريال" />
           <SummaryCard label="إجمالي المتأخر" value={summary.totalOverdue} icon={AlertTriangle} color="#DC2626" suffix="ريال" emphasize={summary.totalOverdue > 0} />
           <SummaryCard label="عملاء متأخرون" value={summary.overdueClientsCount} icon={Users} color="#EA580C" />
-          <SummaryCard label="متوسط أيام التأخير" value={summary.avgOverdueDays} icon={Clock} color="#A16207" suffix="يوم" />
         </div>
       )}
 
