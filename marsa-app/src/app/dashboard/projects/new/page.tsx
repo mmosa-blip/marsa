@@ -281,12 +281,27 @@ export default function NewProjectPage() {
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
-  // ─── Payment milestones — defined inline within the services step ───
-  // The wizard collapsed the old standalone "جدول الدفعات" step into this
-  // single source. Each milestone has { title, amount, afterServiceIndex }
-  // and the server materializes them as ContractPaymentInstallment rows
-  // that lock the next service's first task.
-  const [paymentMilestones, setPaymentMilestones] = useState<PaymentMilestone[]>([]);
+  // ─── Payment milestones — mandatory inline schedule ───
+  // Every project must declare:
+  //   1. A total project value (totalProjectPrice)
+  //   2. At least one upfront payment (afterServiceIndex = -1) — the first
+  //      row, fixed and not removable
+  //   3. Zero or more "after service N" payments — each linked to a unique
+  //      selectedServices[N]; sum of all rows must equal totalProjectPrice.
+  //
+  // Initialised with a single upfront row so it's never empty.
+  const [paymentMilestones, setPaymentMilestones] = useState<PaymentMilestone[]>([
+    {
+      id: `pm-${Date.now()}-upfront`,
+      title: "دفعة مقدمة",
+      amount: 0,
+      afterServiceIndex: -1,
+    },
+  ]);
+  // Top-level total declared by the user. We no longer infer this from
+  // the milestones' sum — instead the user enters it and the milestones
+  // must match it on save.
+  const [totalProjectPrice, setTotalProjectPrice] = useState<number>(0);
 
   // ─── Step 3 — optional company branches (Investment department only) ───
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
@@ -517,6 +532,9 @@ export default function NewProjectPage() {
         const vars = JSON.parse(contract.variables);
         const amount = parseFloat(vars.totalAmount || vars.المبلغ_الإجمالي || vars.amount || vars.قيمة_العقد || "0");
         setContractAmount(amount > 0 ? amount : null);
+        // Pre-fill the project total from the contract amount if the
+        // user hasn't typed one yet — keeps the schedule sum in sync.
+        if (amount > 0 && totalProjectPrice <= 0) setTotalProjectPrice(amount);
       } catch {
         setContractAmount(null);
       }
@@ -715,30 +733,141 @@ export default function NewProjectPage() {
   };
 
   // ─── Payment Milestone helpers ───
-  const addPaymentMilestone = (afterIndex: number) => {
-    setPaymentMilestones((prev) => [
-      ...prev,
-      {
-        id: `pm-${Date.now()}`,
-        title:
-          afterIndex === -1
-            ? "دفعة قبل بدء المشروع"
-            : `دفعة بعد ${selectedServices[afterIndex]?.name || "الخدمة"}`,
-        amount: 0,
-        afterServiceIndex: afterIndex,
-      },
-    ]);
+  // Adds an "after service N" row. Picks the first service that isn't
+  // already linked from another row, or the first service overall. The
+  // upfront row is added once at init and never re-added.
+  const addPaymentMilestone = () => {
+    setPaymentMilestones((prev) => {
+      const used = new Set(
+        prev
+          .filter((p) => p.afterServiceIndex >= 0)
+          .map((p) => p.afterServiceIndex)
+      );
+      const firstFree = selectedServices.findIndex((_, i) => !used.has(i));
+      const idx = firstFree >= 0 ? firstFree : (selectedServices.length - 1);
+      return [
+        ...prev,
+        {
+          id: `pm-${Date.now()}`,
+          title: `بعد ${selectedServices[idx]?.name || "الخدمة"}`,
+          amount: 0,
+          afterServiceIndex: idx >= 0 ? idx : 0,
+        },
+      ];
+    });
   };
 
   const removePaymentMilestone = (id: string) => {
-    setPaymentMilestones((prev) => prev.filter((p) => p.id !== id));
+    setPaymentMilestones((prev) => {
+      const target = prev.find((p) => p.id === id);
+      // The mandatory upfront row cannot be removed.
+      if (target && target.afterServiceIndex === -1) return prev;
+      return prev.filter((p) => p.id !== id);
+    });
   };
 
-  const updatePaymentMilestone = (id: string, field: "title" | "amount", value: string | number) => {
+  const updatePaymentMilestone = (
+    id: string,
+    field: "title" | "amount" | "afterServiceIndex",
+    value: string | number
+  ) => {
     setPaymentMilestones((prev) =>
       prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
     );
   };
+
+  // Quick-pick templates fill the schedule in one click.
+  // Each entry produces an upfront row plus zero or more
+  // after-service rows distributed across selectedServices.
+  const applyMilestoneTemplate = (key: string) => {
+    if (totalProjectPrice <= 0) return;
+    const total = totalProjectPrice;
+    const services = selectedServices;
+    const upfrontId = `pm-${Date.now()}-u`;
+    const ts = Date.now();
+    let rows: PaymentMilestone[] = [];
+
+    if (key === "single") {
+      rows = [
+        { id: upfrontId, title: "الدفعة الكاملة (مقدمة)", amount: total, afterServiceIndex: -1 },
+      ];
+    } else if (key === "fifty") {
+      const lastIdx = services.length - 1;
+      rows = [
+        { id: upfrontId, title: "دفعة مقدمة", amount: total * 0.5, afterServiceIndex: -1 },
+        ...(lastIdx >= 0
+          ? [
+              {
+                id: `pm-${ts}-a`,
+                title: "الدفعة النهائية",
+                amount: total * 0.5,
+                afterServiceIndex: lastIdx,
+              },
+            ]
+          : []),
+      ];
+    } else if (key === "thirty") {
+      const firstIdx = 0;
+      const lastIdx = services.length - 1;
+      rows = [
+        { id: upfrontId, title: "دفعة مقدمة", amount: total * 0.3, afterServiceIndex: -1 },
+        ...(services.length >= 1
+          ? [{ id: `pm-${ts}-a`, title: `بعد ${services[firstIdx]?.name ?? "الخدمة"}`, amount: total * 0.3, afterServiceIndex: firstIdx }]
+          : []),
+        ...(services.length >= 2 && lastIdx !== firstIdx
+          ? [{ id: `pm-${ts}-b`, title: "الدفعة النهائية", amount: total * 0.4, afterServiceIndex: lastIdx }]
+          : []),
+      ];
+    } else if (key === "quarters") {
+      // 25% × 4 — first upfront, remaining three spread across services.
+      rows = [
+        { id: upfrontId, title: "دفعة مقدمة", amount: total * 0.25, afterServiceIndex: -1 },
+      ];
+      const targets = services.slice(0, 3);
+      targets.forEach((s, i) => {
+        rows.push({
+          id: `pm-${ts}-${i}`,
+          title: `بعد ${s.name}`,
+          amount: total * 0.25,
+          afterServiceIndex: i,
+        });
+      });
+    }
+
+    if (rows.length > 0) {
+      setPaymentMilestones(rows);
+    }
+  };
+
+  // Validation — pure function, used both for live indicators and
+  // the pre-submit gate.
+  const milestoneSum = paymentMilestones.reduce((s, p) => s + (p.amount || 0), 0);
+  const milestoneErrors: string[] = (() => {
+    const errs: string[] = [];
+    if (totalProjectPrice <= 0) errs.push("أدخل قيمة المشروع الإجمالية");
+    const upfront = paymentMilestones.find((p) => p.afterServiceIndex === -1);
+    if (!upfront || upfront.amount <= 0) {
+      errs.push("الدفعة المقدمة (الأولى) يجب أن يكون لها مبلغ");
+    }
+    if (totalProjectPrice > 0 && Math.abs(milestoneSum - totalProjectPrice) > 0.01) {
+      errs.push(
+        `مجموع الدفعات (${milestoneSum.toLocaleString("en-US")}) لا يطابق قيمة المشروع (${totalProjectPrice.toLocaleString("en-US")})`
+      );
+    }
+    const afterServiceRows = paymentMilestones.filter(
+      (p) => p.afterServiceIndex >= 0
+    );
+    const seen = new Set<number>();
+    afterServiceRows.forEach((p, idx) => {
+      if (p.afterServiceIndex >= selectedServices.length) {
+        errs.push(`الدفعة ${idx + 2}: الخدمة المرتبطة غير موجودة`);
+      } else if (seen.has(p.afterServiceIndex)) {
+        errs.push(`الدفعة ${idx + 2}: الخدمة مكررة`);
+      }
+      seen.add(p.afterServiceIndex);
+    });
+    return errs;
+  })();
 
   // ─── Drag & drop reorder ───
   const handleDragStart = (index: number) => setDragIndex(index);
@@ -755,12 +884,12 @@ export default function NewProjectPage() {
   };
   const handleDragEnd = () => setDragIndex(null);
 
-  // Project price is now driven entirely by inter-service payment
-  // milestones — individual services no longer carry a price. The total
-  // is the sum of all milestones, unless a contract pins a different
-  // amount (priceFromContract) in which case that wins.
-  const paymentMilestonesTotal = paymentMilestones.reduce((sum, p) => sum + p.amount, 0);
-  const finalTotal = contractAmount || paymentMilestonesTotal;
+  // Project price is the user-declared totalProjectPrice. We still
+  // compute the milestone sum for live validation. priceFromContract
+  // is preserved for the existing contract-amount notice but no longer
+  // hides the milestone editor — the editor is mandatory.
+  const paymentMilestonesTotal = milestoneSum;
+  const finalTotal = totalProjectPrice;
   const priceFromContract = !!contractAmount;
 
   // ─── Fetch service details for the review step ───
@@ -799,6 +928,13 @@ export default function NewProjectPage() {
 
   // ─── Submit ───
   const handleSubmit = async () => {
+    // Mandatory client-side gate: payment schedule must be valid.
+    // The server enforces the same rules but we want to surface errors
+    // before any contract/project rows get created.
+    if (milestoneErrors.length > 0) {
+      alert("يرجى تصحيح جدول الدفعات قبل الحفظ:\n\n" + milestoneErrors.join("\n"));
+      return;
+    }
     setSubmitting(true);
     setContractError("");
     try {
@@ -837,21 +973,28 @@ export default function NewProjectPage() {
         const cData = await cRes.json();
         contractIdToUse = cData.id;
         setSelectedContractId(cData.id);
-        if (cData.contractValue) setContractAmount(cData.contractValue);
+        if (cData.contractValue) {
+          setContractAmount(cData.contractValue);
+          if (totalProjectPrice <= 0) setTotalProjectPrice(cData.contractValue);
+        }
       }
 
       const useTemplateGenerate = selectedTemplateId && templateApplied;
 
       let projectId: string | null = null;
 
-      // Payment milestones come from the inline blocks between services on
-      // the services step — they're the single source of truth now that the
-      // standalone "جدول الدفعات" step has been removed.
-      const allPaymentMilestones = paymentMilestones.map((p) => ({
-        title: p.title,
-        amount: p.amount,
-        afterServiceIndex: p.afterServiceIndex,
-      }));
+      // Payment milestones — sent in the new explicit shape:
+      //   { title, amount, isUpfront } | { title, amount, linkedServiceIndex }
+      // The server materializes them as ContractPaymentInstallment rows.
+      const allPaymentMilestones = paymentMilestones.map((p) =>
+        p.afterServiceIndex === -1
+          ? { title: p.title, amount: p.amount, isUpfront: true as const }
+          : {
+              title: p.title,
+              amount: p.amount,
+              linkedServiceIndex: p.afterServiceIndex,
+            }
+      );
 
       let creationWarnings: string[] = [];
 
@@ -870,6 +1013,10 @@ export default function NewProjectPage() {
             contractEndDate: contractForm.endDate || undefined,
             managerId: selectedManagerId || undefined,
             executorId: selectedExecutorId || undefined,
+            // The user's inline schedule overrides whatever the
+            // template defines — the wizard now requires it.
+            totalPrice: totalProjectPrice,
+            paymentMilestones: allPaymentMilestones,
           }),
         });
         if (res.ok) {
@@ -1962,77 +2109,6 @@ export default function NewProjectPage() {
                 </div>
               ) : (
                 <div className="space-y-0">
-                  {/* Payment milestone slot BEFORE the first service.
-                      Uses afterServiceIndex = -1 — the server interprets
-                      that as "lock the first task of the first service". */}
-                  {!priceFromContract && contractInstallments.length === 0 && (
-                    <div className="my-1.5">
-                      {paymentMilestones
-                        .filter((p) => p.afterServiceIndex === -1)
-                        .map((pm) => (
-                          <div
-                            key={pm.id}
-                            className="p-3 rounded-xl mb-1.5"
-                            style={{ backgroundColor: "rgba(5, 150, 105, 0.06)", border: "1px dashed rgba(5, 150, 105, 0.35)" }}
-                          >
-                            <div className="flex items-center gap-2 mb-2">
-                              <div
-                                className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                                style={{ backgroundColor: "rgba(5, 150, 105, 0.15)" }}
-                              >
-                                <DollarSign size={13} style={{ color: "#059669" }} />
-                              </div>
-                              <input
-                                type="text"
-                                value={pm.title}
-                                onChange={(e) => updatePaymentMilestone(pm.id, "title", e.target.value)}
-                                className="flex-1 text-sm bg-transparent outline-none font-bold"
-                                style={{ color: "#059669" }}
-                                placeholder="عنوان الدفعة..."
-                              />
-                              <button
-                                onClick={() => removePaymentMilestone(pm.id)}
-                                className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2 mr-8">
-                              <DollarSign size={12} style={{ color: "#059669" }} />
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={pm.amount || ""}
-                                onChange={(e) => updatePaymentMilestone(pm.id, "amount", parseFloat(e.target.value) || 0)}
-                                placeholder="أدخل المبلغ"
-                                className="w-28 px-2.5 py-1.5 text-xs rounded-lg border outline-none text-left font-medium"
-                                style={{ borderColor: "rgba(5, 150, 105, 0.3)", color: "#059669", backgroundColor: "rgba(255,255,255,0.7)" }}
-                              />
-                              <SarSymbol size={12} />
-                            </div>
-                          </div>
-                        ))}
-
-                      <button
-                        onClick={() => addPaymentMilestone(-1)}
-                        className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-medium transition-all border border-dashed"
-                        style={{ color: "#059669", borderColor: "rgba(5, 150, 105, 0.25)", backgroundColor: "transparent" }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = "rgba(5, 150, 105, 0.04)";
-                          e.currentTarget.style.borderColor = "rgba(5, 150, 105, 0.5)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "transparent";
-                          e.currentTarget.style.borderColor = "rgba(5, 150, 105, 0.25)";
-                        }}
-                      >
-                        <Plus size={14} />
-                        <span>إضافة دفعة قبل بدء المشروع</span>
-                      </button>
-                    </div>
-                  )}
-
                   {selectedServices.map((service, idx) => (
                     <div key={service.serviceTemplateId}>
                       {/* Service Card */}
@@ -2098,98 +2174,223 @@ export default function NewProjectPage() {
                         </div>
                       </div>
 
-                      {/* Payment milestone slots between services */}
-                      {!priceFromContract && contractInstallments.length === 0 && (
-                        <div className="my-1.5">
-                          {paymentMilestones
-                            .filter((p) => p.afterServiceIndex === idx)
-                            .map((pm) => (
-                              <div
-                                key={pm.id}
-                                className="p-3 rounded-xl mb-1.5"
-                                style={{ backgroundColor: "rgba(5, 150, 105, 0.06)", border: "1px dashed rgba(5, 150, 105, 0.35)" }}
-                              >
-                                <div className="flex items-center gap-2 mb-2">
-                                  <div
-                                    className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-                                    style={{ backgroundColor: "rgba(5, 150, 105, 0.15)" }}
-                                  >
-                                    <DollarSign size={13} style={{ color: "#059669" }} />
-                                  </div>
-                                  <input
-                                    type="text"
-                                    value={pm.title}
-                                    onChange={(e) => updatePaymentMilestone(pm.id, "title", e.target.value)}
-                                    className="flex-1 text-sm bg-transparent outline-none font-bold"
-                                    style={{ color: "#059669" }}
-                                    placeholder="عنوان الدفعة..."
-                                  />
-                                  <button
-                                    onClick={() => removePaymentMilestone(pm.id)}
-                                    className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </div>
-                                <div className="flex items-center gap-2 mr-8">
-                                  <DollarSign size={12} style={{ color: "#059669" }} />
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={pm.amount || ""}
-                                    onChange={(e) => updatePaymentMilestone(pm.id, "amount", parseFloat(e.target.value) || 0)}
-                                    placeholder="أدخل المبلغ"
-                                    className="w-28 px-2.5 py-1.5 text-xs rounded-lg border outline-none text-left font-medium"
-                                    style={{ borderColor: "rgba(5, 150, 105, 0.3)", color: "#059669", backgroundColor: "rgba(255,255,255,0.7)" }}
-                                  />
-                                  <SarSymbol size={12} />
-                                </div>
-                              </div>
-                            ))}
-
-                          <button
-                            onClick={() => addPaymentMilestone(idx)}
-                            className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-medium transition-all border border-dashed"
-                            style={{ color: "#059669", borderColor: "rgba(5, 150, 105, 0.25)", backgroundColor: "transparent" }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = "rgba(5, 150, 105, 0.04)";
-                              e.currentTarget.style.borderColor = "rgba(5, 150, 105, 0.5)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = "transparent";
-                              e.currentTarget.style.borderColor = "rgba(5, 150, 105, 0.25)";
-                            }}
-                          >
-                            <Plus size={14} />
-                            <span>إضافة دفعة بين الخدمتين</span>
-                          </button>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Total */}
-              {selectedServices.length > 0 && (
-                <div className="mt-5 pt-4" style={{ borderTop: "1px solid #E2E0D8" }}>
-                  <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: "2px solid #C9A84C" }}>
-                    <label className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
-                      السعر الإجمالي
-                    </label>
-                    <span className="text-lg font-bold" style={{ color: "#C9A84C" }}>
-                      {finalTotal.toLocaleString("en-US")} <SarSymbol size={16} />
-                    </span>
-                  </div>
-                  {!priceFromContract && (
-                    <p className="text-[11px] mt-1.5 text-left" style={{ color: "#9CA3AF" }}>
-                      السعر الإجمالي هو مجموع الدفعات البينية
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
+
+            {/* ─── Mandatory Payment Schedule ─── */}
+            {selectedServices.length > 0 && (
+              <div className="bg-white rounded-2xl mt-4 p-5" style={{ border: "1px solid #E2E0D8" }} dir="rtl">
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign size={18} style={{ color: "#059669" }} />
+                  <h3 className="text-sm font-bold" style={{ color: "#1C1B2E" }}>💰 جدول الدفعات</h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: "rgba(220,38,38,0.10)", color: "#DC2626" }}>إجباري</span>
+                </div>
+                <p className="text-[11px] mb-4" style={{ color: "#6B7280" }}>
+                  كل مشروع يبدأ بدفعة مقدمة قبل العمل. الدفعات الإضافية تُربط بإكمال خدمة محددة.
+                </p>
+
+                {/* Total project price */}
+                <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: "#374151" }}>
+                      قيمة المشروع الإجمالية (ريال) <span style={{ color: "#DC2626" }}>*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={totalProjectPrice || ""}
+                      onChange={(e) => setTotalProjectPrice(parseFloat(e.target.value) || 0)}
+                      placeholder="مثلاً 45000"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-200"
+                      style={{ direction: "ltr", textAlign: "right" }}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <div
+                      className="w-full px-3 py-2 rounded-lg flex items-center justify-between"
+                      style={{
+                        backgroundColor:
+                          totalProjectPrice > 0 && Math.abs(milestoneSum - totalProjectPrice) < 0.01
+                            ? "rgba(22,163,74,0.06)"
+                            : "rgba(220,38,38,0.05)",
+                        border: `1px solid ${
+                          totalProjectPrice > 0 && Math.abs(milestoneSum - totalProjectPrice) < 0.01
+                            ? "rgba(22,163,74,0.30)"
+                            : "rgba(220,38,38,0.25)"
+                        }`,
+                      }}
+                    >
+                      <span className="text-[11px] font-semibold" style={{ color: "#6B7280" }}>المجموع</span>
+                      <span
+                        className="text-sm font-bold font-mono"
+                        style={{
+                          color:
+                            totalProjectPrice > 0 && Math.abs(milestoneSum - totalProjectPrice) < 0.01
+                              ? "#16A34A"
+                              : "#DC2626",
+                        }}
+                      >
+                        {milestoneSum.toLocaleString("en-US")} / {totalProjectPrice.toLocaleString("en-US")}
+                        {totalProjectPrice > 0 && Math.abs(milestoneSum - totalProjectPrice) < 0.01 && " ✓"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick-pick templates */}
+                <div className="mb-4">
+                  <p className="text-[11px] font-semibold mb-2" style={{ color: "#6B7280" }}>قوالب سريعة (اختيارية)</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {[
+                      { key: "single", label: "دفعة واحدة" },
+                      { key: "fifty", label: "50% + 50%" },
+                      { key: "thirty", label: "30 + 30 + 40" },
+                      { key: "quarters", label: "25% × 4" },
+                    ].map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => applyMilestoneTemplate(t.key)}
+                        disabled={totalProjectPrice <= 0}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:brightness-105 disabled:opacity-40"
+                        style={{ borderColor: "#E2E0D8", color: "#5E5495", backgroundColor: "white" }}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Milestone rows */}
+                <div className="space-y-2">
+                  {paymentMilestones.map((pm) => {
+                    const isUpfront = pm.afterServiceIndex === -1;
+                    const usedIndexes = new Set(
+                      paymentMilestones
+                        .filter((p) => p.id !== pm.id && p.afterServiceIndex >= 0)
+                        .map((p) => p.afterServiceIndex)
+                    );
+                    const pct =
+                      totalProjectPrice > 0
+                        ? ((pm.amount || 0) / totalProjectPrice) * 100
+                        : 0;
+                    return (
+                      <div
+                        key={pm.id}
+                        className="p-3 rounded-xl space-y-2"
+                        style={{
+                          backgroundColor: isUpfront ? "rgba(22,163,74,0.05)" : "#F8F8F4",
+                          border: `1px solid ${isUpfront ? "rgba(22,163,74,0.25)" : "#E5E7EB"}`,
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] font-bold flex items-center gap-1" style={{ color: isUpfront ? "#16A34A" : "#5E5495" }}>
+                            {isUpfront && <span>🔒</span>}
+                            {isUpfront ? "دفعة مقدمة (إجبارية)" : "دفعة بعد خدمة"}
+                          </p>
+                          {!isUpfront && (
+                            <button
+                              type="button"
+                              onClick={() => removePaymentMilestone(pm.id)}
+                              className="p-1 rounded-md hover:bg-red-50 transition-colors"
+                              style={{ color: "#DC2626" }}
+                              title="حذف"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-12 md:col-span-5">
+                            <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>الوصف</label>
+                            <input
+                              type="text"
+                              value={pm.title}
+                              onChange={(e) => updatePaymentMilestone(pm.id, "title", e.target.value)}
+                              className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none"
+                            />
+                          </div>
+                          <div className="col-span-6 md:col-span-3">
+                            <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>المبلغ (ريال)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              inputMode="decimal"
+                              value={pm.amount || ""}
+                              onChange={(e) => updatePaymentMilestone(pm.id, "amount", parseFloat(e.target.value) || 0)}
+                              className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs font-mono focus:outline-none"
+                              style={{ direction: "ltr", textAlign: "right" }}
+                            />
+                          </div>
+                          <div className="col-span-6 md:col-span-2">
+                            <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>النسبة %</label>
+                            <p className="px-2 py-1.5 rounded-lg text-xs font-mono font-bold" style={{ color: "#1C1B2E", direction: "ltr", textAlign: "right" }}>
+                              {pct.toFixed(1)}%
+                            </p>
+                          </div>
+                          {!isUpfront && (
+                            <div className="col-span-12 md:col-span-2">
+                              <label className="block text-[10px] font-semibold mb-1" style={{ color: "#6B7280" }}>تستحق بعد</label>
+                              <select
+                                value={pm.afterServiceIndex}
+                                onChange={(e) =>
+                                  updatePaymentMilestone(pm.id, "afterServiceIndex", parseInt(e.target.value))
+                                }
+                                className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs focus:outline-none"
+                              >
+                                {selectedServices.map((s, i) => (
+                                  <option key={i} value={i} disabled={usedIndexes.has(i)}>
+                                    {i + 1}. {s.name}
+                                    {usedIndexes.has(i) ? " (مستخدمة)" : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Add row */}
+                <button
+                  type="button"
+                  onClick={addPaymentMilestone}
+                  disabled={
+                    paymentMilestones.filter((p) => p.afterServiceIndex >= 0).length >=
+                    selectedServices.length
+                  }
+                  className="mt-3 flex items-center justify-center gap-2 w-full py-2 rounded-xl text-xs font-semibold border border-dashed transition-all hover:brightness-105 disabled:opacity-40"
+                  style={{ color: "#5E5495", borderColor: "rgba(94,84,149,0.3)", backgroundColor: "white" }}
+                >
+                  <Plus size={14} />
+                  إضافة دفعة بعد خدمة
+                </button>
+
+                {/* Validation summary */}
+                {milestoneErrors.length > 0 && (
+                  <div
+                    className="mt-3 p-3 rounded-xl text-xs"
+                    style={{ backgroundColor: "rgba(220,38,38,0.05)", border: "1px solid rgba(220,38,38,0.25)", color: "#374151" }}
+                  >
+                    <p className="font-bold mb-1" style={{ color: "#DC2626" }}>⚠️ يرجى تصحيح:</p>
+                    <ul className="list-disc pe-5 space-y-0.5">
+                      {milestoneErrors.map((e, i) => (
+                        <li key={i}>{e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ─── Optional Company Branches (Investment department only) ─── */}
             {isInvestmentDept && (
