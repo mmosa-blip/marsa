@@ -335,7 +335,14 @@ export default function PaymentsPage() {
       {/* Tabs + search */}
       <div className="bg-white rounded-2xl p-3 border border-gray-100 mb-4 flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1 flex-wrap">
-          {TABS.map((t) => {
+          {TABS.filter((t) => {
+            // Auto-hide the legacy needs-setup tab once everything is
+            // taken care of — new projects always come with a schedule.
+            if (t.key === "needs_setup") {
+              return setupStatus && setupStatus.contractsWithoutInstallments > 0;
+            }
+            return true;
+          }).map((t) => {
             const active = tab === t.key;
             const count =
               t.key === "overdue" && summary

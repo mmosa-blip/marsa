@@ -93,6 +93,22 @@ export default function PaymentsSetupPage() {
         </p>
       </div>
 
+      {/* Legacy notice — the new project flow enforces a payment
+          schedule at creation, so this page is only useful for
+          contracts that pre-date that change. */}
+      <div
+        className="mb-4 rounded-2xl p-3 flex items-start gap-2"
+        style={{
+          backgroundColor: "rgba(94,84,149,0.05)",
+          border: "1px solid rgba(94,84,149,0.20)",
+        }}
+      >
+        <span className="text-base">📌</span>
+        <p className="text-[12px]" style={{ color: "#374151" }}>
+          هذه الصفحة <strong>للمشاريع القديمة فقط</strong>. المشاريع الجديدة تُدخل دفعاتها مباشرة عند الإنشاء — لن تظهر هنا.
+        </p>
+      </div>
+
       {loading ? (
         <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
           <Loader2 size={28} className="animate-spin mx-auto" style={{ color: "#C9A84C" }} />
@@ -102,9 +118,14 @@ export default function PaymentsSetupPage() {
           <CheckCircle2 size={32} className="mx-auto mb-2" style={{ color: "#16A34A" }} />
           <p className="text-sm font-bold" style={{ color: "#1C1B2E" }}>
             {contracts.length === 0
-              ? "كل العقود مُعَدَّة جداول دفعاتها."
+              ? "✅ كل المشاريع لها جدول دفعات."
               : "تم تخطي كل العقود في هذه الجلسة."}
           </p>
+          {contracts.length === 0 && (
+            <p className="text-[11px] mt-1" style={{ color: "#9CA3AF" }}>
+              لا حاجة لاستخدام هذه الصفحة بعد الآن.
+            </p>
+          )}
           <Link href="/dashboard/payments" className="text-xs mt-2 inline-block" style={{ color: "#5E5495" }}>
             ← العودة للدفعات
           </Link>
