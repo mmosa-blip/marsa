@@ -32,6 +32,7 @@ import FollowUpModal from "@/components/payments/FollowUpModal";
 import WaiverModal from "@/components/payments/WaiverModal";
 import PauseProjectModal from "@/components/city/PauseProjectModal";
 import SetupInstallmentsModal from "@/components/payments/SetupInstallmentsModal";
+import InstallmentEditorModal from "@/components/payments/InstallmentEditorModal";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -158,6 +159,13 @@ export default function PaymentsPage() {
   const [setupContracts, setSetupContracts] = useState<NeedsSetupRow[]>([]);
   const [loadingSetup, setLoadingSetup] = useState(false);
   const [setupTarget, setSetupTarget] = useState<NeedsSetupRow | null>(null);
+  // Editor modal — used both for editing existing schedules (from
+  // the regular installment groups) and for setting up brand-new
+  // schedules from the needs-setup tab. Same component handles both.
+  const [editorTarget, setEditorTarget] = useState<{
+    contractId: string;
+    displayName: string;
+  } | null>(null);
 
   const isAdmin = session?.user?.role === "ADMIN";
 
@@ -484,27 +492,73 @@ export default function PaymentsPage() {
                   {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </button>
 
-                {expanded && (
-                  <div className="border-t border-gray-100 divide-y divide-gray-100">
-                    {g.rows.map((r) => (
-                      <InstallmentRowView
-                        key={r.id}
-                        row={r}
-                        isAdmin={isAdmin}
-                        onPay={() => setPaymentModal(r)}
-                        onFollowUp={() => setFollowUpModal(r)}
-                        onWaiver={() => setWaiverModal(r)}
-                        onPauseProject={() =>
-                          r.contract?.project &&
-                          setPauseModal({
-                            projectId: r.contract.project.id,
-                            projectName: r.contract.project.name,
-                          })
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
+                {expanded && (() => {
+                  // Distinct contracts in this group — there's usually
+                  // exactly one but a client may have multiple projects.
+                  const distinctContracts: {
+                    id: string;
+                    displayName: string;
+                  }[] = [];
+                  const seenContracts = new Set<string>();
+                  for (const r of g.rows) {
+                    const cid = r.contract?.id;
+                    if (!cid || seenContracts.has(cid)) continue;
+                    seenContracts.add(cid);
+                    distinctContracts.push({
+                      id: cid,
+                      displayName:
+                        r.contract?.project?.name ?? g.clientName,
+                    });
+                  }
+                  return (
+                    <div className="border-t border-gray-100">
+                      {/* Per-contract edit toolbar */}
+                      {isAdmin && distinctContracts.length > 0 && (
+                        <div className="px-4 py-2 bg-gray-50/60 border-b border-gray-100 flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] font-semibold" style={{ color: "#6B7280" }}>
+                            تعديل جدول الدفعات:
+                          </span>
+                          {distinctContracts.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() =>
+                                setEditorTarget({ contractId: c.id, displayName: c.displayName })
+                              }
+                              className="text-[11px] font-semibold px-3 py-1 rounded-lg transition-all hover:brightness-105"
+                              style={{
+                                backgroundColor: "rgba(94,84,149,0.08)",
+                                color: "#5E5495",
+                                border: "1px solid rgba(94,84,149,0.20)",
+                              }}
+                            >
+                              ✏️ {c.displayName}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="divide-y divide-gray-100">
+                        {g.rows.map((r) => (
+                          <InstallmentRowView
+                            key={r.id}
+                            row={r}
+                            isAdmin={isAdmin}
+                            onPay={() => setPaymentModal(r)}
+                            onFollowUp={() => setFollowUpModal(r)}
+                            onWaiver={() => setWaiverModal(r)}
+                            onPauseProject={() =>
+                              r.contract?.project &&
+                              setPauseModal({
+                                projectId: r.contract.project.id,
+                                projectName: r.contract.project.name,
+                              })
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -547,22 +601,27 @@ export default function PaymentsPage() {
           onSuccess={() => refetch()}
         />
       )}
-      {setupTarget && (
-        <SetupInstallmentsModal
-          target={{
-            contractId: setupTarget.id,
-            displayName:
-              setupTarget.project?.name ?? setupTarget.client?.name ?? "—",
-            effectiveValue: setupTarget.effectiveValue,
-            valueSource: setupTarget.valueSource,
-          }}
-          onClose={() => setSetupTarget(null)}
-          onSuccess={() => {
+      {/* Editor modal — used by BOTH the per-contract edit button on
+          regular groups AND the needs-setup tab's "إعداد دفعات الآن"
+          button. The editor handles both empty and populated schedules. */}
+      {(setupTarget || editorTarget) && (
+        <InstallmentEditorModal
+          target={
+            editorTarget ?? {
+              contractId: setupTarget!.id,
+              displayName:
+                setupTarget!.project?.name ?? setupTarget!.client?.name ?? "—",
+            }
+          }
+          onClose={() => {
             setSetupTarget(null);
-            // After saving, refresh both the list of contracts that
-            // still need setup AND the main installment list (the
-            // newly-created rows now belong to "all").
-            loadNeedsSetup();
+            setEditorTarget(null);
+          }}
+          onSuccess={() => {
+            const wasSetup = !!setupTarget;
+            setSetupTarget(null);
+            setEditorTarget(null);
+            if (wasSetup) loadNeedsSetup();
             refetch();
             // Refresh the banner counter too.
             fetch("/api/payments/setup-status")
@@ -577,6 +636,10 @@ export default function PaymentsPage() {
     </div>
   );
 }
+
+// Reference unused import so eslint doesn't complain — kept around in
+// case a future caller wants the legacy variant.
+void SetupInstallmentsModal;
 
 // ─── Sub-components ────────────────────────────────────────────────────
 

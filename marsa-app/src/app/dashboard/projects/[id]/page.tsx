@@ -35,6 +35,7 @@ import SarSymbol from "@/components/SarSymbol";
 import { MarsaButton } from "@/components/ui/MarsaButton";
 import ContractPromptDialog from "@/components/ContractPromptDialog";
 import SetupInstallmentsModal from "@/components/payments/SetupInstallmentsModal";
+import InstallmentEditorModal from "@/components/payments/InstallmentEditorModal";
 
 interface TaskType {
   id: string;
@@ -173,6 +174,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // Celebration modal — only meaningful when project.status === "COMPLETED".
   const [showCelebrationModal, setShowCelebrationModal] = useState(false);
   const [showSetupInstallments, setShowSetupInstallments] = useState(false);
+  const [showEditInstallments, setShowEditInstallments] = useState(false);
   const [waCopied, setWaCopied] = useState(false);
   // Inline rename: admins can edit the project name from the header.
   // The auto-name from the create page was "{template} - {client}" — this
@@ -533,7 +535,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <button
             type="button"
             onClick={() => {
-              setShowSetupInstallments(true);
+              setShowEditInstallments(true);
               setShowWelcomePrompt(false);
               // Strip the query param so refresh doesn't re-prompt.
               router.replace(`/dashboard/projects/${id}`);
@@ -655,14 +657,24 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                {c._count && c._count.installments === 0 && (
+                {c._count && c._count.installments === 0 ? (
                   <MarsaButton
                     variant="gold"
                     size="sm"
-                    onClick={() => setShowSetupInstallments(true)}
+                    onClick={() => setShowEditInstallments(true)}
                   >
                     💰 إعداد جدول الدفعات
                   </MarsaButton>
+                ) : (
+                  isAdmin && (
+                    <MarsaButton
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowEditInstallments(true)}
+                    >
+                      ✏️ تعديل جدول الدفعات
+                    </MarsaButton>
+                  )
                 )}
                 {c.uploadedFileUrl && (
                   <a href={c.uploadedFileUrl} target="_blank" rel="noopener noreferrer">
@@ -1199,6 +1211,23 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           onClose={() => setShowSetupInstallments(false)}
           onSuccess={() => {
             setShowSetupInstallments(false);
+            fetchProject();
+          }}
+        />
+      )}
+
+      {/* Comprehensive editor — used by the inline contract-bar buttons
+          ("✏️ تعديل" when installments exist, "💰 إعداد" when empty).
+          The editor handles both cases. */}
+      {showEditInstallments && project?.contract && (
+        <InstallmentEditorModal
+          target={{
+            contractId: project.contract.id,
+            displayName: project.name,
+          }}
+          onClose={() => setShowEditInstallments(false)}
+          onSuccess={() => {
+            setShowEditInstallments(false);
             fetchProject();
           }}
         />
