@@ -13,7 +13,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Loader2, Building2, Trophy, Archive, X } from "lucide-react";
+import { Loader2, Building2, Trophy, Archive, X, Calendar, Clock } from "lucide-react";
+import { getEffectiveDeadline } from "@/lib/project-deadline";
 import MyTasksView from "@/components/MyTasksView";
 import CityCanvas, {
   CityApiProject,
@@ -394,6 +395,47 @@ function ProjectChip({
   const dot = STATE_DOT[state] ?? STATE_DOT.IN_PROGRESS;
   const clientName = project.client?.name ?? null;
 
+  // Contract date — earliest of signedAt → createdAt → null. Formatted
+  // DD/MM/YYYY using the user's locale-agnostic Arabic-Latin numerals
+  // so it lines up with the rest of the city UI.
+  const signedRaw = project.contract?.signedAt ?? project.contract?.createdAt ?? null;
+  const signedLabel = signedRaw
+    ? (() => {
+        const d = new Date(signedRaw);
+        const dd = String(d.getDate()).padStart(2, "0");
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        return `${dd}/${mm}/${d.getFullYear()}`;
+      })()
+    : null;
+
+  // Days remaining (negative = overdue). We call getEffectiveDeadline
+  // directly (instead of daysRemainingForProject) because the helper
+  // clamps to 0, hiding overdue rows.
+  const deadline = getEffectiveDeadline(project);
+  const daysDelta = deadline
+    ? Math.ceil((deadline.getTime() - Date.now()) / 86400000)
+    : null;
+
+  const daysLabel: string | null =
+    daysDelta == null
+      ? null
+      : daysDelta > 0
+        ? `متبقي ${daysDelta} يوم`
+        : daysDelta === 0
+          ? "تنتهي اليوم"
+          : `متأخر ${Math.abs(daysDelta)} يوم`;
+
+  const daysColor: string =
+    daysDelta == null
+      ? "#9CA3AF"
+      : daysDelta <= 0
+        ? "#DC2626"
+        : daysDelta <= 7
+          ? "#EA580C"
+          : daysDelta <= 30
+            ? "#A16207"
+            : "#16A34A";
+
   return (
     <button
       type="button"
@@ -450,6 +492,33 @@ function ProjectChip({
           {project.completedTasks}/{project.totalTasks}
         </span>
       </div>
+      {(signedLabel || daysLabel) && (
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          {signedLabel && (
+            <span
+              className="text-[9px] inline-flex items-center gap-0.5 font-mono"
+              style={{
+                color: isActive ? "rgba(255,255,255,0.7)" : "#9CA3AF",
+                direction: "ltr",
+              }}
+            >
+              <Calendar size={9} />
+              {signedLabel}
+            </span>
+          )}
+          {daysLabel && (
+            <span
+              className="text-[9px] inline-flex items-center gap-0.5 font-bold"
+              style={{
+                color: isActive ? "rgba(255,255,255,0.95)" : daysColor,
+              }}
+            >
+              <Clock size={9} />
+              {daysLabel}
+            </span>
+          )}
+        </div>
+      )}
     </button>
   );
 }
