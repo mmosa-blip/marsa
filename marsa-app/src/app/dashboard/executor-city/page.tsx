@@ -136,22 +136,23 @@ export default function ExecutorCityPage() {
     return projects.reduce((acc, p) => acc + (isProjectComplete(p) ? 1 : 0), 0);
   }, [projects]);
 
-  // Split into "active" (still needs work) vs "archived"
-  // (COMPLETED / COLLAPSED — finished one way or another). The grid
-  // shows active only; archived is opt-in via the drawer.
+  // Split into "active" (still needs work) vs "archived" (truly done).
+  // Only state=COMPLETED goes to the archive — COLLAPSED projects have
+  // a blown deadline but their tasks may still be in flight, and
+  // hiding them from the executor's grid was effectively hiding
+  // unfinished work.
   //
-  // Sort priority within active: TASK_LATE first (red — needs urgent
-  // attention), then AT_RISK, then PAYMENT_FROZEN / CLIENT_HOLD /
-  // ADMIN_PAUSED (still needs eyes but blocked), then plain IN_PROGRESS.
-  // Tiebreak by closest deadline.
+  // Sort priority within active: COLLAPSED first (deadline blown —
+  // most urgent), then TASK_LATE, AT_RISK, the paused-family states,
+  // then plain IN_PROGRESS. Tiebreak by closest deadline.
   const STATE_PRIORITY: Record<string, number> = {
-    TASK_LATE: 0,
-    AT_RISK: 1,
-    PAYMENT_FROZEN: 2,
-    CLIENT_HOLD: 3,
-    ADMIN_PAUSED: 4,
-    IN_PROGRESS: 5,
-    COLLAPSED: 90,
+    COLLAPSED: 0,
+    TASK_LATE: 1,
+    AT_RISK: 2,
+    PAYMENT_FROZEN: 3,
+    CLIENT_HOLD: 4,
+    ADMIN_PAUSED: 5,
+    IN_PROGRESS: 6,
     COMPLETED: 99,
   };
 
@@ -162,7 +163,7 @@ export default function ExecutorCityPage() {
     for (const p of projects) {
       const isComplete = isProjectComplete(p);
       const state = getBuildingState({ ...p, isComplete });
-      if (state === "COMPLETED" || state === "COLLAPSED") {
+      if (state === "COMPLETED") {
         archived.push(p);
       } else {
         active.push(p);
@@ -268,7 +269,7 @@ export default function ExecutorCityPage() {
               <button
                 type="button"
                 onClick={() => setArchiveOpen(true)}
-                title="عرض المشاريع المنتهية والمنهارة"
+                title="عرض المشاريع المكتملة"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all hover:brightness-105"
                 style={{
                   backgroundColor: "rgba(148,163,184,0.10)",
