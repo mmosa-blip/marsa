@@ -74,7 +74,16 @@ export async function GET(request: Request) {
           // Pull the live contract.endDate so getEffectiveDeadline can
           // pick the earliest of (project.endDate, project.contractEndDate,
           // contract.endDate) when classifying overdue projects.
-          contract: { select: { endDate: true } },
+          contract: {
+            select: {
+              endDate: true,
+              // signedAt drives the city canvas left→right ordering
+              // (oldest contract first). createdAt is the fallback for
+              // contracts that were never signed.
+              signedAt: true,
+              createdAt: true,
+            },
+          },
           // Open pause row — drives the canvas's PAYMENT_FROZEN /
           // CLIENT_HOLD / ADMIN_PAUSED differentiation.
           pauses: {

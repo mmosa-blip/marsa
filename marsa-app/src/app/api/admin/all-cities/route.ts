@@ -27,8 +27,11 @@ export async function GET() {
         client: { select: { id: true, name: true, email: true } },
         manager: { select: { id: true, name: true, email: true } },
         department: { select: { id: true, name: true, nameEn: true, color: true } },
-        // Live contract.endDate for getEffectiveDeadline (earliest-wins).
-        contract: { select: { endDate: true } },
+        // Live contract.endDate for getEffectiveDeadline (earliest-wins),
+        // plus signedAt + createdAt for the canvas's left→right ordering.
+        contract: {
+          select: { endDate: true, signedAt: true, createdAt: true },
+        },
         // Open pause row (endDate IS NULL) — at most one per project. Drives
         // the canvas's choice between PAYMENT_FROZEN / CLIENT_HOLD / ADMIN_PAUSED.
         pauses: {

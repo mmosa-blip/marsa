@@ -58,7 +58,11 @@ export interface CityApiProject {
   // Live contract.endDate piped through by the same APIs. Read by
   // getEffectiveDeadline so the canvas honors the earliest of the three
   // deadline sources.
-  contract?: { endDate: string | null } | null;
+  contract?: {
+    endDate: string | null;
+    signedAt?: string | null;
+    createdAt?: string | null;
+  } | null;
   progress: number;
   totalTasks: number;
   completedTasks: number;
@@ -333,13 +337,26 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
     const padX = 50;
     const slot = viewport.w < 640 ? 110 : viewport.w < 1024 ? 130 : 150;
 
-    // Sort projects up-front by lifecycle priority so the most urgent
-    // (COLLAPSED) lands on the right edge of the canvas — Arabic readers
-    // hit it first — and COMPLETED celebrations sit on the left as the
-    // tail. The original index is then re-applied to compute building x.
+    // Sort projects up-front by lifecycle priority. Within the same
+    // lifecycle bucket, fall back to contract date (signedAt, then
+    // createdAt) so the oldest contract sits on the left and the
+    // newest on the right — readers hit a chronological progression
+    // instead of an apparently-random order. The original index is
+    // re-applied to compute building x.
+    const contractDateOf = (p: CityApiProject): number => {
+      const raw =
+        p.contract?.signedAt ??
+        p.contract?.createdAt ??
+        null;
+      return raw ? new Date(raw).getTime() : Number.POSITIVE_INFINITY;
+    };
     const ordered = projects
       .map((p) => ({ p, state: getBuildingState({ ...p, isComplete: isProjectComplete(p) }) }))
-      .sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state])
+      .sort((a, b) => {
+        const stateDiff = STATE_ORDER[a.state] - STATE_ORDER[b.state];
+        if (stateDiff !== 0) return stateDiff;
+        return contractDateOf(a.p) - contractDateOf(b.p);
+      })
       .map(({ p }) => p);
 
     const buildings: BuildingLayout[] = ordered.map((p, idx) => {
