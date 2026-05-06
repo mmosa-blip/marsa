@@ -338,24 +338,27 @@ export default function CityCanvas({ projects, viewMode, onBuildingClick, onPaus
     const slot = viewport.w < 640 ? 110 : viewport.w < 1024 ? 130 : 150;
 
     // Sort projects up-front by lifecycle priority. Within the same
-    // lifecycle bucket, fall back to contract date (signedAt, then
-    // createdAt) so the oldest contract sits on the left and the
-    // newest on the right — readers hit a chronological progression
-    // instead of an apparently-random order. The original index is
-    // re-applied to compute building x.
-    const contractDateOf = (p: CityApiProject): number => {
-      const raw =
-        p.contract?.signedAt ??
-        p.contract?.createdAt ??
-        null;
-      return raw ? new Date(raw).getTime() : Number.POSITIVE_INFINITY;
+    // lifecycle bucket, sort by URGENCY — the effective deadline,
+    // ascending — so the most overdue building sits on the left and
+    // the freshest on the right:
+    //
+    //   [ -42d ] [ -5d ] [ today ] [ +5d ] [ +30d ]   →
+    //
+    // A single ascending sort by getEffectiveDeadline() gives both
+    // halves at once: overdue rows have deadlines in the past
+    // (smaller numbers) and pending rows have deadlines in the future
+    // (larger numbers). Projects with no deadline fall to the right
+    // edge.
+    const urgencyOf = (p: CityApiProject): number => {
+      const d = getEffectiveDeadline(p);
+      return d ? d.getTime() : Number.POSITIVE_INFINITY;
     };
     const ordered = projects
       .map((p) => ({ p, state: getBuildingState({ ...p, isComplete: isProjectComplete(p) }) }))
       .sort((a, b) => {
         const stateDiff = STATE_ORDER[a.state] - STATE_ORDER[b.state];
         if (stateDiff !== 0) return stateDiff;
-        return contractDateOf(a.p) - contractDateOf(b.p);
+        return urgencyOf(a.p) - urgencyOf(b.p);
       })
       .map(({ p }) => p);
 

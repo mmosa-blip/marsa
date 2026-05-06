@@ -175,9 +175,14 @@ export default function ExecutorCityPage() {
       const ap = STATE_PRIORITY[aState] ?? 50;
       const bp = STATE_PRIORITY[bState] ?? 50;
       if (ap !== bp) return ap - bp;
-      const aEnd = a.contractEndDate ? new Date(a.contractEndDate).getTime() : Infinity;
-      const bEnd = b.contractEndDate ? new Date(b.contractEndDate).getTime() : Infinity;
-      return aEnd - bEnd;
+      // Tiebreak by effective deadline (earliest of project.endDate,
+      // contractEndDate, contract.endDate). Ascending = most urgent /
+      // most overdue first — matches CityCanvas's in-bucket order.
+      const aDl = getEffectiveDeadline(a);
+      const bDl = getEffectiveDeadline(b);
+      const aT = aDl ? aDl.getTime() : Infinity;
+      const bT = bDl ? bDl.getTime() : Infinity;
+      return aT - bT;
     });
     return { activeProjects: active, archivedProjects: archived };
     // eslint-disable-next-line react-hooks/exhaustive-deps
